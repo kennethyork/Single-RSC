@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RSC Single Player</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header>
+    <div class="container">
+      <img class="header" src="rsmap.png" alt="Runescape Classic Map Header">
+      <p>A fully self-contained RuneScape Classic sandbox &mdash; Desktop &amp; Mobile</p>
+    </div>
+  </header>
+
+  <main>
+    <section class="intro">
+      <div class="container">
+        <p>No servers. No setup. No internet required. Just pure solo RuneScape Classic gameplay &mdash; preserved and reimagined.</p>
+        <div class="download-buttons">
+          <a href="https://github.com/kennethyork/Single-RSC/releases/download/v2.5.0/Single-RSC-v2.5.0.zip" class="cta">Desktop Download (v2.5.0)</a>
+          <a href="https://github.com/kennethyork/Single-RSC/releases/download/v2.5.0/Single-RSC.apk" class="cta cta-mobile">Mobile Download (v2.5.0)</a>
+        </div>
+        <div class="badges">
+          <img src="https://img.shields.io/github/v/release/kennethyork/Single-RSC?label=Version" alt="Desktop Version" />
+          <img src="https://img.shields.io/github/downloads/kennethyork/Single-RSC/total?label=Downloads&color=blue" alt="Downloads" />
+        </div>
+      </div>
+    </section>
+
+<section id="features">
+  <div class="container">
+<div class="banner">
+  <img src="HomepageBanner.png" alt="Home Page Banner" />
+</div>
+
+    <h2>Features</h2>
+
+    <h3>Core</h3>
+    <ul>
+      <li>100% single-process design &mdash; no external DB, server, or internet required</li>
+      <li>All core content including all 50 quests</li>
+      <li>18-skill bot system with auto-banking and combat support</li>
+      <li>Batched skill actions (woodcutting, mining, cooking, etc.) using a tick-based batch system</li>
+      <li>Resizable UI &mdash; drag to any window size (desktop) / pinch zoom (mobile)</li>
+      <li>Full music &mdash; 55 MIDI tracks mapped to game regions</li>
+      <li>Dynamic login screen</li>
+      <li>Multi-account capable</li>
+      <li>8x XP multiplier (configurable 1x&ndash;50x)</li>
+      <li>Hardcore mode &mdash; death permanently deletes your save</li>
+    </ul>
+
+    <h3>Quality of Life</h3>
+    <ul>
+      <li>Bank accessible anywhere via <code>::bank</code></li>
+      <li>Teleport utility via <code>::tele &lt;area&gt;</code> or coordinates</li>
+      <li><code>::stuck</code> to unstick your character</li>
+      <li>Item swapping in bank via right-click</li>
+      <li>Bob's Axes stocks hatchets (Bronze &rarr; Rune) and pickaxes (Bronze &rarr; Rune)</li>
+      <li>Admin account: create user named <code>root</code> for all admin commands</li>
+    </ul>
+
+    <h3>Desktop (v2.5.0)</h3>
+    <ul>
+      <li>Java 17+ required</li>
+      <li>Launch via <code>run.sh</code> (Linux/macOS) or <code>run.bat</code> (Windows)</li>
+      <li>Resizable window with dynamic UI scaling</li>
+      <li>Build from source with included compile command</li>
+    </ul>
+
+    <h3>Mobile (v2.5.0)</h3>
+    <ul>
+      <li>Android 7.0+ (API 24) &mdash; ~6 MB</li>
+      <li>Tap = left click, Long press = right click</li>
+      <li>Double tap = toggle on-screen keyboard</li>
+      <li>Pinch zoom in/out, two-finger drag to rotate camera</li>
+      <li>All bot commands work identically to desktop</li>
+    </ul>
+
+    <h3>Bot System</h3>
+    <ul>
+      <li><strong>Gathering:</strong> <code>::woodcut</code>, <code>::fish</code>, <code>::mine</code> &mdash; auto-bank when inventory full</li>
+      <li><strong>Combat:</strong> <code>::combat</code>, <code>::ranged</code>, <code>::magic</code> &mdash; auto-eat food when HP drops</li>
+      <li><strong>Production:</strong> <code>::cook</code>, <code>::fm</code>, <code>::smith</code>, <code>::fletch</code>, <code>::craft</code>, <code>::herblaw</code></li>
+      <li><strong>Support:</strong> <code>::agility</code>, <code>::thieve</code>, <code>::prayer</code></li>
+      <li>Manage with <code>::bot start/stop/pause/status/list</code></li>
+    </ul>
+
+    <h3>Commands</h3>
+    <ul>
+      <li><code>::bank</code> &mdash; open bank anywhere</li>
+      <li><code>::tele &lt;location&gt;</code> &mdash; teleport to named areas or coordinates</li>
+      <li><code>::stuck</code> &mdash; unstick character</li>
+      <li><code>::pos</code> &mdash; show current coordinates</li>
+      <li><code>::toggleroofs</code> &mdash; toggle roof rendering</li>
+      <li><code>::mapedit</code> &mdash; open real-time map editor</li>
+      <li><strong>Admin (root):</strong> <code>::item</code>, <code>::npc</code>, <code>::object</code>, <code>::set</code>, <code>::addbank</code>, <code>::quest</code>, <code>::find</code>, minimap right-click teleport</li>
+    </ul>
+  </div>
+</section>
+
+    <section class="gallery">
+      <div class="container">
+        <h2>Screenshots</h2>
+        <div class="images">
+          <img src="login-screen.png" alt="Login screen" />
+          <img src="tutorial.png" alt="Gameplay UI" />
+          <img src="quest-tab.png" alt="Quest interface" />
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Built by <a href="https://github.com/kennethyork?tab=repositories">kennethyork</a> &bull; Inspired by <a href="https://github.com/sean-niemann">Sean Neimann's</a> original RSC codebase</p>
+    </div>
+  </footer>
+
+  <script src="main.js"></script>
+</body>
+</html>
