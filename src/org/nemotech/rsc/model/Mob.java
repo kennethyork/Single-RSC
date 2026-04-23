@@ -1,7 +1,9 @@
 package org.nemotech.rsc.model;
 
+import java.util.ArrayList;
 import java.util.Random;
 
+import org.nemotech.rsc.core.DelayedEventHandler;
 import org.nemotech.rsc.model.landscape.Path;
 import org.nemotech.rsc.model.landscape.PathHandler;
 import org.nemotech.rsc.model.player.Player;
@@ -290,12 +292,17 @@ public abstract class Mob extends Entity {
     public abstract void remove();
 
     public void resetCombat(CombatState state) {
-        for (DelayedEvent event : World.getWorld().getDelayedEventHandler().getEvents()) {
-            if (event instanceof FightEvent) {
-                FightEvent fighting = (FightEvent) event;
-                if (fighting.getOwner().equals(this) || fighting.getAffectedMob().equals(this)) {
-                    fighting.interrupt();
-                    break;
+        DelayedEventHandler handler = World.getWorld().getDelayedEventHandler();
+        // Search both active events and pending events (toAdd) to ensure interruption
+        ArrayList<DelayedEvent>[] lists = new ArrayList[] { handler.getEvents(), handler.getToAdd() };
+        for (ArrayList<DelayedEvent> list : lists) {
+            for (DelayedEvent event : list) {
+                if (event instanceof FightEvent) {
+                    FightEvent fighting = (FightEvent) event;
+                    if (fighting.getOwner().equals(this) || fighting.getAffectedMob().equals(this)) {
+                        fighting.interrupt();
+                        break;
+                    }
                 }
             }
         }

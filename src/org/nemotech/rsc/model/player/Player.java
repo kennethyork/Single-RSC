@@ -1039,6 +1039,13 @@ public final class Player extends Mob {
         }
         getSender().sendSound(SoundEffect.DEATH);
         if (isHardcore()) {
+            // Sanity check: do not delete hardcore save if HP is still above 0.
+            // This guards against erroneous killedBy calls from stale FightEvents or race conditions.
+            if (getCurStat(3) > 0) {
+                System.err.println("BUG PREVENTED: killedBy called on hardcore player " + getUsername()
+                    + " with HP=" + getCurStat(3) + ". Ignoring death.");
+                return;
+            }
             // Hardcore death: delete save and perform death sequence, then logout
             try {
                 setHardcoreDead(true);

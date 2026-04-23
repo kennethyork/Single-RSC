@@ -51,6 +51,9 @@ public final class FightEvent extends DelayedEvent {
 
     @Override
     public void run() {
+        if (!running) {
+            return;
+        }
         if (!owner.isLoggedIn() || (affectedMob instanceof Player && !((Player) affectedMob).isLoggedIn())) {
             owner.resetCombat(CombatState.ERROR);
             affectedMob.resetCombat(CombatState.ERROR);
@@ -76,13 +79,19 @@ public final class FightEvent extends DelayedEvent {
             NPC n = (NPC) attacker;
             if (attacker.getHits() <= 0) {
                 n.resetCombat(CombatState.ERROR);
+                return;
             }
         }
         if (opponent instanceof NPC) {
             NPC n = (NPC) opponent;
             if (opponent.getHits() <= 0) {
                 n.resetCombat(CombatState.ERROR);
+                return;
             }
+        }
+        // Defensive: if player opponent already has 0 HP, something is wrong; do not apply more damage.
+        if (opponent instanceof Player && opponent.getHits() <= 0) {
+            return;
         }
 
         attacker.incHitsMade();

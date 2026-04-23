@@ -25,6 +25,10 @@ public final class DelayedEventHandler {
         return events;
     }
     
+    public ArrayList<DelayedEvent> getToAdd() {
+        return toAdd;
+    }
+    
     public void add(DelayedEvent event) {
         if(!events.contains(event)) {
             toAdd.add(event);
