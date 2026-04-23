@@ -33,6 +33,142 @@ public class Crafting implements InvUseOnItemListener,
     @Override
     public void onInvUseOnObject(GameObject obj, final InvItem item, Player owner) {
         switch(obj.getID()) {
+            case 179: // Potter's wheel
+                if(item.getID() == 243) { // Soft clay
+                    World.getWorld().getDelayedEventHandler().add(new MiniEvent(owner) {
+                        @Override
+                        public void action() {
+                            String[] options = {"Pot", "Bowl", "Pie dish"};
+                            owner.setMenuHandler(new MenuHandler(options) {
+                                public void handleReply(int option, String reply) {
+                                    if(owner.isBusy() || option < 0 || option > 2) {
+                                        return;
+                                    }
+                                    int reqLvl;
+                                    int resultId;
+                                    double exp;
+                                    switch(option) {
+                                        case 0: // Pot
+                                            reqLvl = 1;
+                                            resultId = 279; // Unfired pot
+                                            exp = 6.25;
+                                            break;
+                                        case 1: // Bowl
+                                            reqLvl = 7;
+                                            resultId = 340; // Unfired bowl
+                                            exp = 15;
+                                            break;
+                                        case 2: // Pie dish
+                                            reqLvl = 4;
+                                            resultId = 278; // Unfired pie dish
+                                            exp = 15;
+                                            break;
+                                        default:
+                                            return;
+                                    }
+                                    if(owner.getCurStat(12) < reqLvl) {
+                                        owner.message("You need a crafting level of " + reqLvl + " to make a " + reply);
+                                        return;
+                                    }
+                                    int maxMake = owner.getInventory().countId(item.getID());
+                                    if(maxMake <= 0) {
+                                        return;
+                                    }
+                                    String[] countOptions = new String[] {"Make 1", "Make 5", "Make 10", "Make All"};
+                                    int choice = showMenu(owner, countOptions);
+                                    if(owner.isBusy() || choice < 0 || choice > 3) {
+                                        return;
+                                    }
+                                    final int makeCount = (choice == 3 ? maxMake : Integer.parseInt(countOptions[choice].replace("Make ", "")));
+                                    final int resId = resultId;
+                                    final double expEach = exp;
+                                    final int reqLevel = reqLvl;
+                                    owner.setBatchEvent(new BatchEvent(owner, 650, makeCount) {
+                                        @Override
+                                        public void action() {
+                                            if(owner.getCurStat(12) < reqLevel) {
+                                                owner.message("You need a crafting level of " + reqLevel + " to make this");
+                                                interrupt();
+                                                return;
+                                            }
+                                            if(owner.getInventory().remove(item) > -1) {
+                                                showBubble(owner, item);
+                                                InvItem result = new InvItem(resId, 1);
+                                                owner.message("You make a " + result.getDef().getName());
+                                                owner.getInventory().add(result);
+                                                owner.incExp(12, expEach, true);
+                                            } else {
+                                                interrupt();
+                                            }
+                                        }
+                                    });
+                                }
+                            });
+                            owner.getSender().sendMenu(options);
+                        }
+                    });
+                    return;
+                }
+                break;
+            case 178: // Pottery oven
+                if(item.getID() == 279 || item.getID() == 340 || item.getID() == 278) {
+                    int resultId;
+                    int reqLvl;
+                    double exp;
+                    switch(item.getID()) {
+                        case 279: // Unfired pot
+                            resultId = 135; // Pot
+                            reqLvl = 1;
+                            exp = 6.25;
+                            break;
+                        case 340: // Unfired bowl
+                            resultId = 341; // Bowl
+                            reqLvl = 7;
+                            exp = 15;
+                            break;
+                        case 278: // Unfired pie dish
+                            resultId = 251; // Pie dish
+                            reqLvl = 4;
+                            exp = 15;
+                            break;
+                        default:
+                            return;
+                    }
+                    int maxMake = owner.getInventory().countId(item.getID());
+                    if(maxMake <= 0) {
+                        return;
+                    }
+                    String[] countOptions = new String[] {"Make 1", "Make 5", "Make 10", "Make All"};
+                    int choice = showMenu(owner, countOptions);
+                    if(owner.isBusy() || choice < 0 || choice > 3) {
+                        return;
+                    }
+                    final int makeCount = (choice == 3 ? maxMake : Integer.parseInt(countOptions[choice].replace("Make ", "")));
+                    final int resId = resultId;
+                    final double expEach = exp;
+                    final int reqLevel = reqLvl;
+                    owner.setBatchEvent(new BatchEvent(owner, 1400, makeCount) {
+                        @Override
+                        public void action() {
+                            if(owner.getCurStat(12) < reqLevel) {
+                                owner.message("You need a crafting level of " + reqLevel + " to fire this");
+                                interrupt();
+                                return;
+                            }
+                            if(owner.getInventory().remove(item) > -1) {
+                                showBubble(owner, item);
+                                InvItem result = new InvItem(resId, 1);
+                                owner.message("You fire the " + item.getDef().getName().toLowerCase().replace("unfired ", "") + " in the oven");
+                                owner.getInventory().add(result);
+                                owner.incExp(12, expEach, true);
+                            } else {
+                                interrupt();
+                            }
+                        }
+                    });
+                    return;
+                }
+                break;
             case 118:
             case 813: // Furnace
                 if(item.getID() == 172 || item.getID() == 691) {
@@ -619,6 +755,12 @@ public class Crafting implements InvUseOnItemListener,
         if((obj.getID() == 118 || obj.getID() == 813)
                 && (item.getID() == 384 || item.getID() == 172 || item.getID() == 625)
                 || item.getID() == 691) {
+            return true;
+        }
+        if(obj.getID() == 179 && item.getID() == 243) {
+            return true;
+        }
+        if(obj.getID() == 178 && (item.getID() == 279 || item.getID() == 340 || item.getID() == 278)) {
             return true;
         }
         return false;
