@@ -1,0 +1,29 @@
+# Compiled class files
+bin/
+*.class
+
+# Build output
+build/
+.gradle/
+local.properties
+
+# IDE files
+.idea/
+*.iml
+.vscode/
+.settings/
+.project
+.classpath
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Log files
+*.log
+
+# Player save data (optional - remove if you want to track saves)
+cache/players/
+
+# Release signing keystore
+*.jks

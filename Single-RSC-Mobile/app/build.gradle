@@ -1,0 +1,59 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'org.nemotech.rsc'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "org.nemotech.rsc"
+        minSdk 24
+        targetSdk 34
+        versionCode 3
+        versionName "2.4.6"
+    }
+
+    signingConfigs {
+        release {
+            storeFile file('../release-key.jks')
+            storePassword 'rscmobile123'
+            keyAlias 'rsc-mobile'
+            keyPassword 'rscmobile123'
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    applicationVariants.all { variant ->
+        variant.outputs.all {
+            outputFileName = "Single-RSC.apk"
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
+
+    sourceSets {
+        main {
+            java.srcDirs = ['src/main/java', '../src']
+            assets.srcDirs = ['src/main/assets', '../cache']
+        }
+    }
+
+    lint {
+        abortOnError false
+    }
+}
+
+dependencies {
+    implementation 'com.google.code.gson:gson:2.10.1'
+}

@@ -1,0 +1,6 @@
+BUILD_DIR="build" &&
+rm -rf "$BUILD_DIR" &&
+mkdir -p "$BUILD_DIR" &&
+find src -name '*.java' -print0 | xargs -0 javac -source 17 -target 17 -cp lib/gson-2.6.2.jar -d "$BUILD_DIR" &&
+jar cfm "rsc.jar" META-INF/MANIFEST.MF -C "$BUILD_DIR" . &&
+rm -rf "$BUILD_DIR"
