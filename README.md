@@ -2,6 +2,8 @@
 
 # RSC Single Player
 
+**Original Author:** [Sean Niemann](https://github.com/sean-niemann) — [RSC-Single-Player](https://github.com/sean-niemann/RSC-Single-Player)
+
 A fully self-contained RuneScape Classic client that runs entirely offline — no server, no database, no internet required. Built for preservation, nostalgia, and experimentation.
 
 **Version 2.4.10** · Java 17+ · GPL v3
