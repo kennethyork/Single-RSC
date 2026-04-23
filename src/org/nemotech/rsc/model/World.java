@@ -293,10 +293,6 @@ public class World {
     }
     
     public void registerGameObject(GameObject o, boolean initial) {
-        /*if(!getTile(o.getLocation()).getGameObject().equals(o) && !initial) { TODO? IDFK
-            System.out.println("removed: " + getTile(o.getLocation()).getGameObject());
-            unregisterGameObject(getTile(o.getLocation()).getGameObject());
-        }*/
         switch(o.getType()) {
             case 0:
                 registerObject(o);

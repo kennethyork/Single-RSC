@@ -196,7 +196,7 @@ public class VampireSlayer implements QuestInterface,TalkToNpcListener,
         } else if (obj.getID() == 136 && obj.getY() == 3380) {
             for(NPC npc : player.getViewArea().getNpcsInView()) {
                 if(npc.getID() == 96) {
-                    player.message("There's nothing there."); // TODO - Does this work?
+                    player.message("There's nothing there."); // Does this work?
                     return;
                 }
             }

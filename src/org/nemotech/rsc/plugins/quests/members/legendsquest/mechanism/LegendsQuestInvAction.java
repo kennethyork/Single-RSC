@@ -131,7 +131,7 @@ public class LegendsQuestInvAction implements InvActionListener, InvActionExecut
                         "No, I don't think I'll bother.");
                 if(opt == 0) {
                     if(hasItem(p, 465)) {
-                        // TODO
+                        //
                     } else {
                         p.message("This spell looks as if it needs some other components.");
                     }

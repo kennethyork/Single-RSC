@@ -81,7 +81,7 @@ public class DataLoader {
         addToFileMap("herb_second_def");
         addToFileMap("herb_unid_def");
         addToFileMap("arrowhead_def");
-        //addToFileMap("bowstring_def"); // todo: refer to EntityManager.java 'todo'
+        //addToFileMap("bowstring_def"); // refer to EntityManager.java
         addToFileMap("darthead_def");
         addToFileMap("logcut_def");
         addToFileMap("gem_def");

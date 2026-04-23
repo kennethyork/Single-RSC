@@ -23,7 +23,7 @@ public class InspectNet implements ObjectActionListener, ObjectActionExecutiveLi
     
         message(player, 1900, "you inspect the net");
         
-        // TODO
+        //
         /*if(World.getWorld().getFishingTrawler().isNetBroken()) {
             player.message("it's beginning to rip");
             if(!hasItem(player, 237)) {

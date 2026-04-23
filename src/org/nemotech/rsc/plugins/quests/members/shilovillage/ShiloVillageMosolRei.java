@@ -9,10 +9,7 @@ import org.nemotech.rsc.plugins.listeners.executive.TalkToNpcExecutiveListener;
 /**
  * 
  * @author Imposter/Fate
- * Shilo village Quest: Start template.
- * 
- * TODO:
- * the messages inside UndeadOnes a mist (possible to damage?)
+* Shilo village Quest: Start template.
  */
 public class ShiloVillageMosolRei implements TalkToNpcListener, TalkToNpcExecutiveListener {
 

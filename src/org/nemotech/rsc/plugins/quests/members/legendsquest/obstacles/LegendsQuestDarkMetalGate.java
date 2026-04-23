@@ -12,7 +12,7 @@ import org.nemotech.rsc.plugins.listeners.action.ObjectActionListener;
 import org.nemotech.rsc.plugins.listeners.executive.ObjectActionExecutiveListener;
 //import org.nemotech.rsc.plugins.listeners.executive.PlayerMageObjectExecutiveListener;
 
-public class LegendsQuestDarkMetalGate implements ObjectActionListener, ObjectActionExecutiveListener {// TODO : , PlayerMageObjectListener, PlayerMageObjectExecutiveListener {
+public class LegendsQuestDarkMetalGate implements ObjectActionListener, ObjectActionExecutiveListener {// , PlayerMageObjectListener, PlayerMageObjectExecutiveListener {
 
 
     public static final int DARK_METAL_GATE = 1165;

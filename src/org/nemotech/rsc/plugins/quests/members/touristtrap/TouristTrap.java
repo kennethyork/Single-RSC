@@ -2323,8 +2323,8 @@ TalkToNpcExecutiveListener, ObjectActionListener, ObjectActionExecutiveListener,
                     p.message("The gates close behind you.");
                     NPC n = getNearestNpc(p, MERCENARY_INSIDE, 15);
                     if(n != null) {
-                        if(p.getQuestStage(this) == -1) { // TODO check the real dialogue after completion
-                        // todo change the coords going in and going out.
+                        if(p.getQuestStage(this) == -1) { // check the real dialogue after completion
+                        // change the coords going in and going out.
                             npcTalk(p,n, "Hey! Where do you think you're going?");
                             n.startCombat(p);
                             npcTalk(p,n, "Guards! Slave escaping!");

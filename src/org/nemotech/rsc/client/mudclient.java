@@ -1326,7 +1326,7 @@ public class mudclient extends Shell {
     }
 
     private void handleGameInput() {
-        updateClient(); // TODO
+        updateClient();
         if (logoutTimeout > 0) {
             logoutTimeout--;
         }
@@ -3514,7 +3514,7 @@ OUTER:		for (int animationIndex = 0; animationIndex < EntityManager.getAnimation
             if (getInventoryCount(selectedItemType) > 0) {
                 int itemPrice = shopItemSellPrice[shopSelectedItemIndex];
                 if (itemPrice == 0) {
-                    itemPrice = EntityManager.getItem(selectedItemType).getPrice() / 2; // TODO: needs to be fixed
+                    itemPrice = EntityManager.getItem(selectedItemType).getPrice() / 2;
                 }
                 surface.drawStringRight("Sell your " + EntityManager.getItem(selectedItemType).getName() + " for " + itemPrice + "gp", dialogX + 405, dialogY + 239, 1, 0xffff00);
                 colour = 0xffffff;

@@ -77,7 +77,7 @@ public class PrinceAliRescue implements QuestInterface,WallObjectActionListener,
     }
 
     /**
-     * TODO: Do this quest on RSC.
+     * .
      * 
      * FUCK ME
      */

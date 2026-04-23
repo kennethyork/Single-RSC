@@ -120,8 +120,8 @@ public final class Player extends Mob {
     }
     
     public void setAccessingShop(Shop shop) {
-        // todo
-    }
+    // Not used in single-player mode
+}
     
     private long consumeTimer = 0;
 
@@ -292,40 +292,30 @@ public final class Player extends Mob {
 
     public int lastOption = -2;
 
-    private DelayedEvent sleepEvent;
+    private DelayedEvent sleepHealEvent = null;
 
     public void startSleepEvent(final boolean bed) {
-        sleepEvent = new DelayedEvent(this, 600) {
+        sleepHealEvent = new DelayedEvent(this, bed ? 2000 : 4000) {
             @Override
             public void run() {
-                if (tempFatigue == 0 || !sleeping) {
+                if (!sleeping) {
                     running = false;
                     return;
                 }
-
-                if (bed) {
-                    owner.tempFatigue -= 2100; // todo
-                } else {
-                    owner.tempFatigue -= 431; // todo
+                int maxHP = getMaxStat(3);
+                int curHP = getCurStat(3);
+                if (curHP < maxHP) {
+                    setCurStat(3, Math.min(maxHP, curHP + 1));
+                    getSender().sendStat(3);
                 }
-
-                if (owner.tempFatigue < 0) {
-                    owner.tempFatigue = 0;
+                if (curHP >= maxHP) {
+                    running = false;
                 }
-
-                owner.getSender().sendTempFatigue(owner.tempFatigue / 10); // todo
             }
         };
+        World.getWorld().getDelayedEventHandler().add(sleepHealEvent);
+    }
 
-        tempFatigue = fatigue;
-        getSender().sendFatigue(0);// todo: (tempFatigue / 10);
-        World.getWorld().getDelayedEventHandler().add(sleepEvent);
-    }
-    
-    public void handleWakeup() {
-        fatigue = tempFatigue;
-    }
-    
     private boolean sleeping;
 
     public boolean isSleeping() {

@@ -42,7 +42,7 @@ public class Surface implements ImageProducer, ImageObserver {
 			spriteArchive = new ZipFile(Constants.CACHE_DIRECTORY + "graphics-members.zip");
 		} catch(IOException e) {
 			e.printStackTrace();
-			System.exit(1);
+			throw new RuntimeException("Failed to load graphics archive", e);
 		}
 	}
 
@@ -142,7 +142,7 @@ public class Surface implements ImageProducer, ImageObserver {
         } catch (Exception e) {
             System.err.println("Error drawing sleepy");
             e.printStackTrace();
-            System.exit(1);
+            return;
         }
 	}
     
@@ -576,7 +576,7 @@ public class Surface implements ImageProducer, ImageObserver {
         } catch(Exception e) {
             System.err.println("Error drawing: " + picture);
             e.printStackTrace();
-            System.exit(1);
+            return;
         }
     }
 

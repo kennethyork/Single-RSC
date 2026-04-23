@@ -183,7 +183,6 @@ public class PathGenerator {
     /**
      * @author xEnt Calculations to check if a wall is in between your target
      *         your ranging/maging at
-     *  TODO: Fix being able to range in diagonal direction
      */
     private boolean isWallInBetween() {
         int enemyX = destX;

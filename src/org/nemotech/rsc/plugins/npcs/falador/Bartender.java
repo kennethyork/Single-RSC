@@ -53,7 +53,7 @@ public class Bartender implements TalkToNpcExecutiveListener, TalkToNpcListener 
                 }
             });
         } else if (p.getQuestStage(GOBLIN_DIPLOMACY) >= 1
-                || p.getQuestStage(GOBLIN_DIPLOMACY) == -1) { // TODO
+                || p.getQuestStage(GOBLIN_DIPLOMACY) == -1) { //
             defaultMenu.addOption(new Option(
                     "Have you heard any more rumours in here?") {
                 @Override

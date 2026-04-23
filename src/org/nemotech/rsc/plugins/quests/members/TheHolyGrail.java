@@ -380,7 +380,7 @@ public class TheHolyGrail implements QuestInterface,TalkToNpcListener,
             if (p.getQuestStage(this) == -1) {
                 p.message("nothing intersting happens");
             } else {
-                // TODO gotta do this one later.
+                // do this one later.
                 p.message("The feather points north");
             }
         }

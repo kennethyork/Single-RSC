@@ -89,7 +89,8 @@ public class Terrain {
                 s = Sector.unpack(data);
             }
         } catch(IOException e) {
-            System.exit(1);
+            e.printStackTrace();
+            throw new RuntimeException("Failed to load tile archive", e);
         }
         sectors[sector] = s;
     }

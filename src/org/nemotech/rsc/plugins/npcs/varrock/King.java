@@ -31,7 +31,7 @@ public class King implements TalkToNpcListener, TalkToNpcExecutiveListener {
                     "By the curator at the museum",
                     "And I will grant you your reward");
             return;// Can u test it from beginning to end? sure thing btw, need
-                    // todo the door.. :/ which one
+                    // the door which one
         } else if (hasItem(p, 61)
                 && p.getQuestStage(Plugin.SHIELD_OF_ARRAV) == 5) {
             playerTalk(p, n, "Your majesty", "I have come to claim the reward",

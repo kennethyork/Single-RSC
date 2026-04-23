@@ -23,7 +23,6 @@ public class RandomObjects extends Plugin implements ObjectActionExecutiveListen
             return;
         }
         switch (object.getID()) {
-        /* Brimhaven Jungle tree swings TODO: Possibly should give agility XP ? */
             /* Stones */
         case 701:
             message(owner, "You jump onto the rock");

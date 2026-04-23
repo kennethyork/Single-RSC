@@ -15,7 +15,7 @@ public class CrystalChest implements InvUseOnObjectListener,
 
     @Override
     public boolean blockInvUseOnObject(GameObject obj, InvItem item, Player player) {
-        // TODO Auto-generated method stub
+        // Auto-generated method stub
         return item.getID() == 525 && obj.getID() == 248;
     }
 

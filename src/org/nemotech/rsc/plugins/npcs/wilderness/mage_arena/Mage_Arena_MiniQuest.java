@@ -32,7 +32,7 @@
 //
 //  @Override
 //  public void onTalkToNpc(final Player p, final Npc n) {
-//      if (p.getMaxStat(MAGIC) < 60) { // TODO: Enter the arena game.
+//      if (p.getMaxStat(MAGIC) < 60) { // Enter the arena game.
 //          playerTalk(p, n, "hello there", "what is this place?");
 //          npcTalk(p, n, "do not waste my time with trivial questions!",
 //                  "i am the great kolodion, master of battle magic", "i have an arena to run");

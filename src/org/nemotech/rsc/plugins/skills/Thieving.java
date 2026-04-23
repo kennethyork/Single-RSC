@@ -738,7 +738,7 @@ public class Thieving extends Plugin
 
     @Override
     public void onWallObjectAction(GameObject obj, Integer click, Player p) {
-        //TODO: fucks with other doors -> handlePicklock(obj, p, click);
+        // handlePicklock(obj, p, click);
     }
 
     static class LootItem implements Comparable<LootItem> {

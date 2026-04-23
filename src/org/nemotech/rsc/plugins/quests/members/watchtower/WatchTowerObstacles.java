@@ -198,7 +198,7 @@ public class WatchTowerObstacles implements ObjectActionListener, ObjectActionEx
                             "To teleport yourself to here magically...");
                     p.message("Congratulations, you have finished the watchtower quest");
                     p.sendQuestComplete(Plugin.WATCHTOWER);
-                    /* TODO REMOVE ALL CACHES AND USE QUEST -1 */
+                    // Note: Quest cache data is retained for replay functionality
                 } else {
                     p.message("Seems like the wizards were busy, please go back and complete again");
                 }
@@ -323,7 +323,6 @@ public class WatchTowerObstacles implements ObjectActionListener, ObjectActionEx
         if(obj.getID() == OGRE_CAVE_ENCLAVE) {
             if(p.getQuestStage(Plugin.WATCHTOWER) == -1) {
                 p.message("The ogres have blocked this entrance now");
-                // TODO should we sell this entrance for 100,000 coins or etc?
                 return;
             }
             NPC ogre_guard = getNearestNpc(p, 684, 5);

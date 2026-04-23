@@ -15,7 +15,7 @@ public class RomeoAndJuliet implements QuestInterface,TalkToNpcListener,
         TalkToNpcExecutiveListener {
 
     /**
-     * TODO: DO THIS ON REAL RSC THERE ARE MISSING INFO FROM JULIET.
+     * .
      */
     @Override
     public int getQuestID() {

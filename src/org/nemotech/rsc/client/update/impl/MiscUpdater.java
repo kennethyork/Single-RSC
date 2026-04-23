@@ -24,7 +24,6 @@ public class MiscUpdater extends Updater {
     public void sendWakeUp(boolean success, boolean silent) {
         if (!silent) {
             if(success) {
-                player.handleWakeup();
                 player.getSender().sendMessage("You wake up - feeling refreshed");
             } else {
                 player.getSender().sendMessage("You are unexpectedly awoken! You still feel tired");

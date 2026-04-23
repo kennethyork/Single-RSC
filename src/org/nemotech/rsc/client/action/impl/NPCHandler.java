@@ -166,7 +166,7 @@ public class NPCHandler implements ActionHandler {
                 return;
             }
             
-            int radius = 7; // todo add members radius weapons
+            int radius = 7;
             
             if (player.getRangeEquip() == 59 || player.getRangeEquip() == 60)
                 radius = 5;

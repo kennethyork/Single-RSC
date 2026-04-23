@@ -52,7 +52,7 @@ public class UndergroundPassPuzzle implements ObjectActionListener, ObjectAction
             p.teleport(679, 3447);
         }
         if(obj.getID() == WALK_HERE_ROCK_WEST) {
-            p.teleport(689, 3452); // TODO: was p.talkToEntity! (rsclegacy)
+            p.teleport(689, 3452); // was p.talkToEntity! (rsclegacy)
         }
         if(obj.getID() == LEVER) {
             message(p, "you pull on the lever",

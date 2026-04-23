@@ -681,7 +681,7 @@ TalkToNpcExecutiveListener, ObjectActionListener, ObjectActionExecutiveListener,
                 p.message("You have already completed this quest");
             } else {
                 if(p.getInventory().wielding(GUARDIAN_PENDANT)) {
-                    //p.startCombat(n); // TODO
+                    //p.startCombat(n);
                 } else {
                     npcTalk(p,n, "I'm sure you don't want to attack me really",
                             "I am your friend");

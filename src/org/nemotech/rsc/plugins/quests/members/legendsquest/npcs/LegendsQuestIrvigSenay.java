@@ -20,7 +20,7 @@ import org.nemotech.rsc.plugins.listeners.executive.PlayerMageNpcExecutiveListen
 import org.nemotech.rsc.plugins.listeners.executive.PlayerRangeNpcExecutiveListener;
 import org.nemotech.rsc.plugins.quests.members.legendsquest.mechanism.LegendsQuestInvAction;
 
-// TODO NO RUN LISTENER!!!!
+// NO RUN LISTENER
 public class LegendsQuestIrvigSenay implements PlayerAttackNpcListener, PlayerAttackNpcExecutiveListener, PlayerKilledNpcListener, PlayerKilledNpcExecutiveListener, PlayerMageNpcListener, PlayerMageNpcExecutiveListener, PlayerRangeNpcListener, PlayerRangeNpcExecutiveListener
     {///,PlayerNpcRunListener, PlayerNpcRunExecutiveListener {
 

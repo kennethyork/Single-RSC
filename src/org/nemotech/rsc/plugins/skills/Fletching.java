@@ -18,7 +18,7 @@ import static org.nemotech.rsc.plugins.Plugin.showMenu;
 import org.nemotech.rsc.plugins.listeners.executive.InvUseOnItemExecutiveListener;
 import org.nemotech.rsc.util.Formulae;
 
-// TODO!!!! BOWSTRING JSON MISFORMATTED FOR WINDOWS.. SEE BELOW
+// BOWSTRING JSON MISFORMATTED FOR WINDOWS.. SEE BELOW
 public class Fletching implements InvUseOnItemExecutiveListener {
 
     @Override
@@ -172,7 +172,7 @@ public class Fletching implements InvUseOnItemExecutiveListener {
             player.message(Constants.MEMBERS_ONLY_MESSAGE);
             return true;
         }
-        final ItemBowStringDef stringDef = null;//TODO: EntityManager.getItemBowStringDef(bow.getID());
+        final ItemBowStringDef stringDef = null;// EntityManager.getItemBowStringDef(bow.getID());
         if (stringDef == null) {
             return false;
         }

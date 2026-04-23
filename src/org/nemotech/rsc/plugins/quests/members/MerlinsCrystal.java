@@ -86,7 +86,7 @@ InvUseOnObjectExecutiveListener, DropListener, DropExecutiveListener {
             //if (arhain != null) { REQUIRES 2 PEOPLE TO DISTRACT ARHEIN...
             //  npcTalk(p, arhain, "Oi get away from there!");
             //} else {
-                p.teleport(456, 3352, false);// TODO RIGHT COORDS.
+                p.teleport(456, 3352, false);// RIGHT COORDS.
                 message(p, "You hide away in the ship",
                         "The ship starts to move.", "You are out at sea",
                         "The ship comes to a stop");
@@ -119,9 +119,11 @@ InvUseOnObjectExecutiveListener, DropListener, DropExecutiveListener {
 
     @Override
     public void onPlayerKilledNpc(Player p, NPC n) {
-        /*if(n.getCombatEvent() != null) {
+        /*
+        if(n.getCombatEvent() != null) {
             n.getCombatEvent().resetCombat();
-        }*///TODO
+        }
+        */
         n.setCurHits(5);
         NPC leFaye = spawnNpc(281, 461, 2407, 60000);
         sleep(500);

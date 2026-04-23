@@ -202,7 +202,7 @@ public class LegendsQuestGameObjects implements ObjectActionListener, ObjectActi
             message(p, 1300, "You see a delicate inscription on the rock, it says,");
             message(p, 1900, "@gre@'Once there were crystals to make the pool shine,'");
             message(p, 0, "@gre@'Ordered in stature to retrieve what's mine.'");
-            // TODO - to check what gem is attached or not.
+            // to check what gem is attached or not.
         }
         if(obj.getID() == HALF_BURIED_REMAINS) {
             message(p, "It looks as if some poor unfortunate soul died here.");

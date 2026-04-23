@@ -400,7 +400,7 @@ public class ShiloVillageUtils implements DropListener, DropExecutiveListener, I
         if(item1.getID() == 167 && item2.getID() == 973 || item1.getID() == 973 && item2.getID() == 167) {
             return true;
         }
-        //bone beads and bronze wire TODO
+        //bone beads and bronze wire
         if(item1.getID() == 976 && item2.getID() == 979 || item1.getID() == 979 && item2.getID() == 976) {
             return true;
         }

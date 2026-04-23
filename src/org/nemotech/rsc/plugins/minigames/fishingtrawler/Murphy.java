@@ -61,7 +61,7 @@ public class Murphy implements TalkToNpcListener, TalkToNpcExecutiveListener {
             npcTalk(p,n, "did you change your mind?");
             int opt = showMenu(p,n, "Yes, I want out", "No");
             if(opt == 0) {
-                // TODO: World.getWorld().getFishingTrawler().getWaitingShip().removePlayer(p);
+                // World.getWorld().getFishingTrawler().getWaitingShip().removePlayer(p);
             }
         }
     }
@@ -136,7 +136,7 @@ public class Murphy implements TalkToNpcListener, TalkToNpcExecutiveListener {
         npcTalk(p, n, "i need you to clog up those holes quick time");
         playerTalk(p, n, "i'm ready and waiting");
         p.getCache().store("fishingtrawler", true);
-        // TODO : World.getWorld().getFishingTrawler().getWaitingShip().addPlayer(p);
+        // World.getWorld().getFishingTrawler().getWaitingShip().addPlayer(p);
         
 //      npcTalk(p, n, "would you like to sail east or west?");
 //      Menu goMenu = new Menu();
@@ -173,7 +173,7 @@ public class Murphy implements TalkToNpcListener, TalkToNpcExecutiveListener {
             if (option == 0) {
                 npcTalk(p, n, "ok, ok, i'll try, but don't say i didn't warn you");
                 message(p, 1900, "murphy sharply turns the large ship", "the boats gone under", "you're lost at sea!");
-                // TODO : World.getWorld().getFishingTrawler().quitPlayer(p);
+                // World.getWorld().getFishingTrawler().quitPlayer(p);
             }
         }
         if (option == 1) {

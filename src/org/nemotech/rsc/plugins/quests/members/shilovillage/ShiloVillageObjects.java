@@ -202,7 +202,7 @@ public class ShiloVillageObjects implements ObjectActionListener, ObjectActionEx
         if(obj.getID() == RASH_EXIT_DOOR) {
             if(!p.getInventory().wielding(852)) {
                 message(p, "@red@You feel invisible hands starting to choke you...");
-                p.damage(18); // todo?
+                p.damage(18); //
             }
             if(command.equalsIgnoreCase("Open")) {
                 message(p, "The door seems to be locked!");

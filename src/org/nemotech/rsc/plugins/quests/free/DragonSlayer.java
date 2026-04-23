@@ -174,7 +174,7 @@ public class DragonSlayer implements QuestInterface,InvUseOnObjectListener,
             if (sub_menu2 == 0) {
                 oziachDialogue(p, n, Oziach.PROVE_THAT);
             } else if (sub_menu2 == 1) {
-                // TODO: Possibly missing dialogue.
+                // Possibly missing dialogue.
             }
             break;
         case Oziach.PROVE_THAT:
@@ -189,7 +189,7 @@ public class DragonSlayer implements QuestInterface,InvUseOnObjectListener,
                 npcTalk(p, n, "It's funny you should say that");
                 oziachDialogue(p, n, Oziach.DRAGON_FUN);
             } else if (sub_menu3 == 2) {
-                // TODO: Possibly missing dialogue.
+                // Possibly missing dialogue.
             }
             break;
         case Oziach.FIND_DRAGON:

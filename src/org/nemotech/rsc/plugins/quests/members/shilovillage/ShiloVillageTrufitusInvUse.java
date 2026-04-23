@@ -238,7 +238,7 @@ public class ShiloVillageTrufitusInvUse implements InvUseOnNpcListener, InvUseOn
                 }
             }
         }
-        if(n.getID() == TRUFITUS && item.getID() == ShiloVillageObjects.CRUMPLED_SCROLL) { // TODO CACHE?
+        if(n.getID() == TRUFITUS && item.getID() == ShiloVillageObjects.CRUMPLED_SCROLL) { // CACHE?
             if(p.getQuestStage(Plugin.SHILO_VILLAGE) == -1) {
                 playerTalk(p, n, "Have a look at this.");
                 npcTalk(p, n, "Hmmm, I'm not sure you will get much use out of this.",

@@ -258,7 +258,7 @@ public class SheepHerder extends Plugin implements QuestInterface,TalkToNpcListe
                             plagueSheep.teleport(585, 553);
                         } else if (p.getY() <= 558 && p.getY() > 542) {
                             plagueSheep.teleport(594, 538);
-                            // TODO: walkMob(plagueSheep, new Point(588, 538), new Point(578, 546));
+                            // walkMob(plagueSheep, new Point(588, 538), new Point(578, 546));
                         } else if (p.getY() < 543) {
                             sheepYell(p);
                             p.message("the sheep jumps the gate into the enclosure");
@@ -283,17 +283,17 @@ public class SheepHerder extends Plugin implements QuestInterface,TalkToNpcListe
                     case PLAGUE_SHEEP_2ND:
                         if (p.getY() >= 563) {
                             plagueSheep.teleport(580, 558);
-                            // TODO: walkMob(plagueSheep, new Point(580, 561));
+                            // walkMob(plagueSheep, new Point(580, 561));
                         } else if(p.getY() >= 562) {
                             plagueSheep.teleport(585, 553);
                         } else if (p.getY() >= 559) {
                             plagueSheep.teleport(585, 553);
                             sleep(1200);
                             plagueSheep.teleport(597, 537);
-                            // TODO: walkMob(plagueSheep, new Point(588, 538));
+                            // walkMob(plagueSheep, new Point(588, 538));
                         } else if(p.getY() >= 547) {
                             plagueSheep.teleport(597, 537);
-                            // TODO: walkMob(plagueSheep, new Point(588, 538));
+                            // walkMob(plagueSheep, new Point(588, 538));
                         } else if (p.getY() <= 545) {
                             sheepYell(p);
                             p.message("the sheep jumps the gate into the enclosure");
@@ -364,32 +364,32 @@ public class SheepHerder extends Plugin implements QuestInterface,TalkToNpcListe
                                 && plagueSheep.getY() < 599) {
                             p.message("the sheep runs to the southeast");
                             plagueSheep.teleport(591, 603);
-                            // TODO: walkMob(plagueSheep, new Point(596, 603), new Point(598, 599));
+                            // walkMob(plagueSheep, new Point(596, 603), new Point(598, 599));
                         } else if (plagueSheep.getY() > 598
                                 && plagueSheep.getY() < 604) {
                             p.message("the sheep runs over the river to the northeast");
                             plagueSheep.teleport(587, 596);
-                            // TODO: walkMob(plagueSheep, new Point(589, 595), new Point(593, 595), new Point(595, 587));
+                            // walkMob(plagueSheep, new Point(589, 595), new Point(593, 595), new Point(595, 587));
                         } else if (plagueSheep.getY() > 583
                                 && plagueSheep.getY() < 588) {
                             p.message("the sheep runs to the north");
                             plagueSheep.teleport(588, 578);
-                            // TODO: walkMob(plagueSheep, new Point(594, 584), new Point(594, 586));
+                            // walkMob(plagueSheep, new Point(594, 584), new Point(594, 586));
                         } else if (plagueSheep.getY() > 575
                                 && plagueSheep.getY() < 585) {
                             p.message("the sheep runs to the north");
                             plagueSheep.teleport(588, 572);
-                            // TODO: walkMob(plagueSheep, new Point(594, 578), new Point(595, 578));
+                            // walkMob(plagueSheep, new Point(594, 578), new Point(595, 578));
                         } else if (plagueSheep.getY() > 567
                                 && plagueSheep.getY() < 576) {
                             p.message("the sheep runs to the northeast");
                             plagueSheep.teleport(589, 562);
-                            // TODO: walkMob(plagueSheep, new Point(594, 567), new Point(595, 567));
+                            // walkMob(plagueSheep, new Point(594, 567), new Point(595, 567));
                         } else if (plagueSheep.getY() > 565
                                 && plagueSheep.getY() < 568) {
                             p.message("the sheep runs to the northeast");
                             plagueSheep.teleport(587, 552);
-                            // TODO: walkMob(plagueSheep, new Point(596, 567));
+                            // walkMob(plagueSheep, new Point(596, 567));
                         } else if (plagueSheep.getY() > 551
                                 && plagueSheep.getY() < 562) {
                             p.message("the sheep runs to the northeast");
@@ -398,7 +398,7 @@ public class SheepHerder extends Plugin implements QuestInterface,TalkToNpcListe
                                 && plagueSheep.getY() < 552) {
                             p.message("the sheep runs to the northeast");
                             plagueSheep.teleport(586, 539);
-                            // TODO: walkMob(plagueSheep, new Point(588, 549));
+                            // walkMob(plagueSheep, new Point(588, 549));
                         } else if (plagueSheep.getY() < 547) {
                             sheepYell(p);
                             p.message("the sheep jumps the gate into the enclosure");

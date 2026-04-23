@@ -143,7 +143,6 @@ public class UndergroundPassObstaclesMap3 implements ObjectActionListener, Objec
                                     p.teleport(790, 3469);
                                     break;
                                 }
-                                /* If player has logged out or removed for whatever reason TODO */
                                 if(p.isRemoved()) {
                                     break;
                                 }

@@ -8,7 +8,7 @@ import org.nemotech.rsc.model.Point3D;
 
 public class Constants {
     
-    public static final String VERSION = "2.4.9";
+    public static final String VERSION = "2.5.0";
     
     public static int EXPERIENCE_MULTIPLIER = 8;
 

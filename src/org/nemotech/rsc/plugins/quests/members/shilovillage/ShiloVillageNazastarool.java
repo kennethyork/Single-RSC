@@ -14,7 +14,7 @@ import org.nemotech.rsc.plugins.listeners.executive.PlayerMageNpcExecutiveListen
 //import org.nemotech.rsc.plugins.listeners.executive.PlayerNpcRunExecutiveListener;
 
 public class ShiloVillageNazastarool implements ObjectActionListener, ObjectActionExecutiveListener, 
-PlayerKilledNpcListener, PlayerKilledNpcExecutiveListener, // TODO - PlayerNpcRunListener, PlayerNpcRunExecutiveListener,
+PlayerKilledNpcListener, PlayerKilledNpcExecutiveListener, // PlayerNpcRunListener, PlayerNpcRunExecutiveListener,
 PlayerMageNpcListener, PlayerMageNpcExecutiveListener {
 
     public static final int Nazastarool_Zombie = 613;
@@ -199,7 +199,7 @@ PlayerMageNpcListener, PlayerMageNpcExecutiveListener {
         }
     }
 
-    //TODO NOT IMPLEMENTED!!!
+    // NOT IMPLEMENTED
     /*@Override
     public boolean blockPlayerNpcRun(Player p, Npc n) {
         if(n.getID() == Nazastarool_Zombie || n.getID() == Nazastarool_Skeleton || n.getID() == Nazastarool_Ghost) {

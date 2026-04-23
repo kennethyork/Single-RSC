@@ -177,7 +177,7 @@ public class EntityManager {
         return itemArrowHeads.get(id);
     }
     
-    // TODO: BOWSTRINGS JSON NOT WORKING ON WINDOWS
+    // BOWSTRINGS JSON NOT WORKING ON WINDOWS
     //public static ItemBowStringDef getItemBowStringDef(int id) {
     //  return itemBowStrings.get(id);
     //}

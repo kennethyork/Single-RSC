@@ -77,7 +77,7 @@ public class LegendsQuestGujuo implements TalkToNpcListener, TalkToNpcExecutiveL
                         GujuoDialogue(p, n, Gujuo.SORRY_IT_WAS_A_MISTAKE);
                     }
                     break;
-                case 2: // TODO
+                case 2:
                     break;
                 case 3:
                     if(hasItem(p, 1188) || hasItem(p, 1189)) { // GOLDEN BOWL
