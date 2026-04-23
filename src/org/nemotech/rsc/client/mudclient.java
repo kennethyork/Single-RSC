@@ -1286,12 +1286,16 @@ public class mudclient extends Shell {
 
     private void drawHardcoreBadge() {
         if (player != null && player.isHardcore()) {
-            // Draw a small red "HC" text in the bottom-right as a badge, above the chat bar
-            int margin = 8;
-            int bottomUiOffset = 20; // height offset used by bottom UI bar
-            int xRight = gameWidth - margin;
-            int yBottom = gameHeight - margin - bottomUiOffset;
-            surface.drawStringRight("HC", xRight, yBottom, 4, 0xff0000);
+            // Hide HC when hovering over the bag icon or while inventory is open
+            boolean overBagIcon = super.mouseX >= surface.width2 - 35 && super.mouseY >= 3
+                    && super.mouseX < surface.width2 - 3 && super.mouseY < 35;
+            if (showUiTab == 1 || overBagIcon) {
+                return;
+            }
+            // Draw a small red "HC" text under the bag icon (top-right tab)
+            int bagCenterX = surface.width2 - 19; // center of rightmost tab icon
+            int bagBottomY = 52; // further below the tab icon row
+            surface.drawStringCenter("HC", bagCenterX, bagBottomY, 4, 0xff0000);
         }
     }
 
@@ -1841,9 +1845,9 @@ public class mudclient extends Shell {
             int slotX = uiX + (itemIndex % 5) * 49;
             int slotY = 36 + (itemIndex / 5) * 34;
             if (itemIndex < inventoryItemsCount && inventoryEquipped[itemIndex] == 1) {
-                surface.drawBoxAlpha(slotX, slotY, 49, 34, 0xff0000, 128);
+                surface.drawBox(slotX, slotY, 49, 34, 0xff0000);
             } else {
-                surface.drawBoxAlpha(slotX, slotY, 49, 34, Surface.rgb2long(181, 181, 181), 128);
+                surface.drawBox(slotX, slotY, 49, 34, Surface.rgb2long(181, 181, 181));
             }
             if (itemIndex < inventoryItemsCount) {
                 surface.spriteClipping(slotX, slotY, 48, 32, spriteItem + EntityManager.getItem(inventoryItemId[itemIndex]).getSprite(), EntityManager.getItem(inventoryItemId[itemIndex]).getMask(), 0, 0, false);
@@ -3851,7 +3855,7 @@ OUTER:		for (int animationIndex = 0; animationIndex < EntityManager.getAnimation
         Menu.textListEntryHeightMod = 2;
         panelMessageTabs.drawPanel();
         Menu.textListEntryHeightMod = 0;
-        surface.drawSpriteAlpha(surface.width2 - 3 - 197, 3, spriteMedia, 128);
+        surface.drawSprite(surface.width2 - 3 - 197, 3, spriteMedia);
         drawUi();
         surface.loggedIn = false;
         drawChatMessageTabs();

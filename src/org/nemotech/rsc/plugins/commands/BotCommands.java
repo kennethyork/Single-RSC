@@ -46,8 +46,9 @@ public class BotCommands extends Plugin implements CommandListener {
             "firemaking", "fm", "thieve", "thieving", "pickpocket",
             "prayer", "pray", "ranged", "range", "magic", "mage",
             "smith", "smithing", "fletch", "fletching", "craft", "crafting",
-            "herblaw", "herblore",
-            "debugobjects", "listobjects"
+            "herblaw",
+            "debugobjects", "listobjects",
+            "stopbot", "botoff"
         };
     }
     
@@ -144,7 +145,7 @@ public class BotCommands extends Plugin implements CommandListener {
             return;
         }
         
-        if (command.equals("herblaw") || command.equals("herb") || command.equals("herblore")) {
+        if (command.equals("herblaw")) {
             startHerblaw(args, player);
             return;
         }
