@@ -4,7 +4,7 @@
 
 A fully self-contained RuneScape Classic client that runs entirely offline — no server, no database, no internet required. Built for preservation, nostalgia, and experimentation.
 
-**Version 2.4.6** · Java 17+ · GPL v3
+**Version 2.4.7** · Java 17+ · GPL v3
 
 ---
 
