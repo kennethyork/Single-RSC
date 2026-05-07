@@ -51,7 +51,7 @@ sleep 5
 echo "[Server] Waiting for game to load..."
 sleep 10
 
-if [ "$MODE" != "bot" ]; then
+if [ "$MODE" = "stream" ] || [ "$MODE" = "record" ]; then
     start_ffmpeg
 fi
 
