@@ -195,15 +195,35 @@ public class ObjectInteractions extends Plugin implements ObjectActionListener, 
                 player.message("Ancient magic is at work here");
                 return;
                 
-            case 300:
+case 300:
                 player.message("The archway leads nowhere");
                 return;
-                
+
             case 301:
                 player.message("The obelisk hums with energy");
                 return;
-                
+
             default:
+                if (name.contains("pillar")) {
+                    player.message("The pillar has seen better days");
+                    return;
+                }
+                if (name.contains("crystal")) {
+                    player.message("The crystal pulses with magical energy");
+                    return;
+                }
+                if (name.contains("vine") || name.contains("plant") || name.contains("bush")) {
+                    player.message("You can't interact with that");
+                    return;
+                }
+                if (name.contains("rock") || name.contains("boulder")) {
+                    player.message("It's just a rock");
+                    return;
+                }
+                if (name.contains("wall") || name.contains("brick")) {
+                    player.message("It's a wall");
+                    return;
+                }
                 player.message("Nothing interesting happens");
         }
     }

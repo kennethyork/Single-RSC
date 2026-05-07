@@ -248,6 +248,7 @@ public class GeneralObjects extends Plugin implements ObjectActionListener, Obje
         int y = obj.getY();
         
         switch (id) {
+            case 6:
             case 7:
                 if (x == 216 && y == 3107) {
                     player.message("You climb up the ladder");

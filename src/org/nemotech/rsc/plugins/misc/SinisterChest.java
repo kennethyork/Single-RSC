@@ -62,10 +62,8 @@ public class SinisterChest implements ObjectActionListener, ObjectActionExecutiv
             }
             // one of the herbs is guaranteed to be a torstol.
             addItem(p, 933, 1);
-            // Poison player with damage 6.
-            /////p.startPoisonEvent(); poison not implemented!
-            /////PoisonEvent poisonEvent = p.getAttribute("poisonEvent", null);
-            /////poisonEvent.setPoisonPower(68);
+            // Poison player with damage 6 per tick (every 15 seconds).
+            p.startPoisonEvent(6);
         }
     }
 }

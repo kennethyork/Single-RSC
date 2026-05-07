@@ -117,12 +117,28 @@ public class WorldObjects extends Plugin implements ObjectActionListener, Object
             case 55:
                 player.message("The cart is full of coal");
                 return;
-                
+
             case 158: case 234: case 235: case 242: case 321: case 322:
                 player.message("The ship is berthed at the docks");
                 return;
-                
+
             default:
+                if (name.contains("dock") || name.contains("pier")) {
+                    player.message("Wooden planks creak under your feet");
+                    return;
+                }
+                if (name.contains("net") || name.contains("trap")) {
+                    player.message("It's a " + name);
+                    return;
+                }
+                if (name.contains("scaffolding") || name.contains("platform")) {
+                    player.message("Construction is ongoing");
+                    return;
+                }
+                if (name.contains("ladder") || name.contains("rope")) {
+                    player.message("You could climb that");
+                    return;
+                }
                 player.message("Nothing interesting happens");
         }
     }

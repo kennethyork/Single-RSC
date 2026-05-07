@@ -529,6 +529,18 @@ public final class Player extends Mob {
      */
     private DelayedEvent skullEvent = null;
     /**
+     * Special attack energy (0-100, regenerates over time)
+     */
+    private int specEnergy = 100;
+    /**
+     * Poison event - damages player over time
+     */
+    private DelayedEvent poisonEvent = null;
+    /**
+     * Amount of damage poison deals per tick
+     */
+    private int poisonDamage = 0;
+    /**
      * Amount of fatigue - 0 to 100
      */
     private int fatigue = 7500, tempFatigue = 7500;
@@ -1527,6 +1539,76 @@ public final class Player extends Mob {
         super.setAppearnceChanged(true);
         skullEvent.interrupt();
         skullEvent = null;
+    }
+
+    public void startPoisonEvent(int damage) {
+        if (poisonEvent != null) {
+            poisonEvent.interrupt();
+        }
+        final Player owner = this;
+        poisonDamage = damage;
+        poisonEvent = new DelayedEvent(this, 15000) {
+            private boolean stopped = false;
+            @Override
+            public void run() {
+                if (stopped) return;
+                if (owner.getCurStat(3) <= 0) {
+                    poisonEvent = null;
+                    stopped = true;
+                    return;
+                }
+                int currentHp = owner.getCurStat(3);
+                int newHp = Math.max(1, currentHp - poisonDamage);
+                owner.setCurStat(3, newHp);
+                owner.getSender().sendStat(3);
+                owner.informOfModifiedHits(owner);
+                if (newHp <= 0) {
+                    owner.killedBy(null);
+                    stopped = true;
+                }
+            }
+        };
+        world.getDelayedEventHandler().add(poisonEvent);
+        getSender().sendMessage("@gr2@You have been poisoned!");
+    }
+
+    public void curePoison() {
+        if (poisonEvent != null) {
+            poisonEvent.interrupt();
+            poisonEvent = null;
+            poisonDamage = 0;
+            getSender().sendMessage("You feel better.");
+        }
+    }
+
+    public boolean isPoisoned() {
+        return poisonEvent != null;
+    }
+
+    public int getSpecEnergy() {
+        return specEnergy;
+    }
+
+    public void setSpecEnergy(int energy) {
+        this.specEnergy = Math.max(0, Math.min(100, energy));
+    }
+
+    public void addSpecEnergy(int amount) {
+        setSpecEnergy(specEnergy + amount);
+    }
+
+    public boolean hasSpecEnergy() {
+        return specEnergy >= 100;
+    }
+
+    public void useSpecEnergy() {
+        this.specEnergy = 0;
+    }
+
+    public void regenerateSpecEnergy() {
+        if (specEnergy < 100) {
+            specEnergy = Math.min(100, specEnergy + 1);
+        }
     }
 
     public void setSuspiciousPlayer(boolean suspicious) {

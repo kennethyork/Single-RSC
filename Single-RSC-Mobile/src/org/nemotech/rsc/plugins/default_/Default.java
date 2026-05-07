@@ -53,7 +53,28 @@ public class Default implements DefaultHandler, TalkToNpcListener, ObjectActionL
 
     @Override
     public void onTalkToNpc(Player player, NPC npc) {
-        player.getSender().sendMessage("The " + npc.getDef().getName() + " does not appear interested in talking");
+        String name = npc.getDef().getName().toLowerCase();
+        if (name.contains("man") || name.contains("woman")) {
+            player.message("They are busy right now.");
+            return;
+        }
+        if (name.contains("guard")) {
+            player.message("The guard ignores you.");
+            return;
+        }
+        if (name.contains("citizen")) {
+            player.message("The citizen is not interested in talking.");
+            return;
+        }
+        if (name.contains("child")) {
+            player.message("The child runs away.");
+            return;
+        }
+        if (name.contains("shopkeeper")) {
+            player.message("You should browse the shop instead.");
+            return;
+        }
+        player.message("The " + npc.getDef().getName() + " does not appear interested in talking");
     }
 
     @Override

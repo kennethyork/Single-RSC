@@ -156,7 +156,28 @@ public class DecorativeObjects extends Plugin implements ObjectActionListener, O
             player.message("The vegetation is thick here");
             return;
         }
-        
+
+        if (name.contains("torch") || name.contains("candle") || name.contains("lamp")) {
+            player.message("The light flickers");
+            return;
+        }
+        if (name.contains("gravel") || name.contains("stone") || name.contains("pebble")) {
+            player.message("Small stones crunch under your feet");
+            return;
+        }
+        if (name.contains("sign") || name.contains("notice")) {
+            player.message("You should read any signs more carefully");
+            return;
+        }
+        if (name.contains("banner") || name.contains("flag")) {
+            player.message("The fabric waves gently in the wind");
+            return;
+        }
+        if (name.contains("statue") || name.contains("statue")) {
+            player.message("An old statue, weathered by time");
+            return;
+        }
+
         player.message("Nothing interesting happens");
     }
 }
