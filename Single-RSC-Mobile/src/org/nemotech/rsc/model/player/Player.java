@@ -529,10 +529,6 @@ public final class Player extends Mob {
      */
     private DelayedEvent skullEvent = null;
     /**
-     * Special attack energy (0-100, regenerates over time)
-     */
-    private int specEnergy = 100;
-    /**
      * Poison event - damages player over time
      */
     private DelayedEvent poisonEvent = null;
@@ -1583,32 +1579,6 @@ public final class Player extends Mob {
 
     public boolean isPoisoned() {
         return poisonEvent != null;
-    }
-
-    public int getSpecEnergy() {
-        return specEnergy;
-    }
-
-    public void setSpecEnergy(int energy) {
-        this.specEnergy = Math.max(0, Math.min(100, energy));
-    }
-
-    public void addSpecEnergy(int amount) {
-        setSpecEnergy(specEnergy + amount);
-    }
-
-    public boolean hasSpecEnergy() {
-        return specEnergy >= 100;
-    }
-
-    public void useSpecEnergy() {
-        this.specEnergy = 0;
-    }
-
-    public void regenerateSpecEnergy() {
-        if (specEnergy < 100) {
-            specEnergy = Math.min(100, specEnergy + 1);
-        }
     }
 
     public void setSuspiciousPlayer(boolean suspicious) {
