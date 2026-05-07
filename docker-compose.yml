@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  singlesc:
+    image: ubuntu:22.04
+    container_name: singlesc
+    environment:
+      - STREAM_KEY=${STREAM_KEY}
+      - BOT_NAME=${BOT_NAME:-woodcut}
+    volumes:
+      - ./rsc.jar:/app/rsc.jar
+      - ./run-server.sh:/app/run-server.sh
+    ports:
+      - "43594:43594"  # RSC default port if needed
+    restart: unless-stopped
+    command: /app/run-server.sh
+
+  # Optional: streaming with OBS in a container
+  obs-stream:
+    image: ghcr.io/obsproject/obs-studio:latest
+    environment:
+      - DISPLAY=:0
+    volumes:
+      - ./obs-config:/config
+    devices:
+      - /dev/video0:/dev/video0
+    restart: unless-stopped
+    # Note: OBS in container is tricky, requires GUI passthrough

@@ -1,0 +1,24 @@
+# Single-RSC systemd service for 24/7 hosting
+# Install: sudo cp singlesc.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable singlesc
+
+[Unit]
+Description=Single-RSC 24/7 Server
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/single-rsc
+Environment=DISPLAY=:99
+Environment=STREAM_KEY=your_stream_key_here
+ExecStart=/home/ubuntu/single-rsc/run-server.sh woodcut
+Restart=on-failure
+RestartSec=30
+StandardOutput=journal
+StandardError=journal
+
+# If streaming
+Environment=STREAM_KEY=your_youtube_stream_key
+
+[Install]
+WantedBy=multi-user.target
