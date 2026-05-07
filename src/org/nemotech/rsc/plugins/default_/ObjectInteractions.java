@@ -212,12 +212,8 @@ case 300:
                     player.message("The crystal pulses with magical energy");
                     return;
                 }
-                if (name.contains("vine") || name.contains("plant") || name.contains("bush")) {
+                if (name.contains("vine") || name.contains("plant")) {
                     player.message("You can't interact with that");
-                    return;
-                }
-                if (name.contains("rock") || name.contains("boulder")) {
-                    player.message("It's just a rock");
                     return;
                 }
                 if (name.contains("wall") || name.contains("brick")) {

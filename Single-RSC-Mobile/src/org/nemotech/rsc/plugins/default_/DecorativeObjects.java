@@ -16,9 +16,6 @@ public class DecorativeObjects extends Plugin implements ObjectActionListener, O
     public boolean blockObjectAction(GameObject obj, String command, Player player) {
         String name = obj.getGameObjectDef().getName().toLowerCase();
         
-        if (name.contains("rock") && !name.contains("rock of ages")) {
-            return true;
-        }
         if (name.contains("grass") || name.contains("flower") || name.contains("bush")) {
             return true;
         }
@@ -69,12 +66,6 @@ public class DecorativeObjects extends Plugin implements ObjectActionListener, O
     public void onObjectAction(GameObject obj, String command, Player player) {
         String name = obj.getGameObjectDef().getName().toLowerCase();
         int id = obj.getID();
-        
-        if (name.contains("rock")) {
-            player.message("You examine the rock");
-            player.message("It's just a rock");
-            return;
-        }
         
         if (name.contains("grass") || name.contains("flower") || name.contains("bush")) {
             player.message("You examine the plants");
