@@ -19,9 +19,6 @@ public class DecorativeObjects extends Plugin implements ObjectActionListener, O
         if (name.contains("rock") && !name.contains("rock of ages")) {
             return true;
         }
-        if (name.contains("tree") || name.contains("wood") || name.contains("pine")) {
-            return true;
-        }
         if (name.contains("grass") || name.contains("flower") || name.contains("bush")) {
             return true;
         }
@@ -52,9 +49,6 @@ public class DecorativeObjects extends Plugin implements ObjectActionListener, O
         if (name.contains("barrel") || name.contains("crate") || name.contains("bucket")) {
             return true;
         }
-        if (name.contains("barrel") || name.contains("crate") || name.contains("bucket")) {
-            return true;
-        }
         if (name.contains("moss") || name.contains("lichen") || name.contains("fungus")) {
             return true;
         }
@@ -76,21 +70,6 @@ public class DecorativeObjects extends Plugin implements ObjectActionListener, O
         if (name.contains("rock")) {
             player.message("You examine the rock");
             player.message("It's just a rock");
-            return;
-        }
-        
-        if (name.contains("tree") || name.contains("wood") || name.contains("pine")) {
-            if (name.contains("dead")) {
-                player.message("The tree is dead");
-                player.message("It looks like it could be chopped down");
-                return;
-            }
-            if (name.contains("palm")) {
-                player.message("The palm tree sways in the breeze");
-                return;
-            }
-            player.message("You examine the tree");
-            player.message("It's a nice tree");
             return;
         }
         
