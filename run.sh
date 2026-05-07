@@ -1,25 +1,32 @@
 #!/bin/sh
 
-# Single-RSC Launcher
+# Single-RSC Launcher with Recording
 # Usage: ./run.sh [mode]
-# Modes: record (default: just run game)
-# When recording, outputs to rsc_recording_YYYYMMDD_HHMMSS.mp4
+# Modes: record - record just the game window (no audio)
+# Outputs: rsc_recording_YYYYMMDD_HHMMSS.mp4 (video only)
 
 MODE="${1:-}"
 
-# Get current display (default :0 for local, or use DISPLAY env var)
-DISPLAY_NUM="${DISPLAY:-:0}"
-
 if [ "$MODE" = "record" ]; then
     RECORD_FILE="rsc_recording_$(date +%Y%m%d_%H%M%S).mp4"
-    echo "[Game] Starting with recording to $RECORD_FILE..."
-    ffmpeg -f x11grab -i "$DISPLAY_NUM" -c:v libx264 -preset ultrafast -crf 23 -b:v 2500k "$RECORD_FILE" &
-    FFMPEG_PID=$!
-fi
+    echo "[Game] Starting in record mode..."
+    echo "[Game] Output: $RECORD_FILE (no audio)"
+    echo "[Game] Launching game..."
 
-java -cp "rsc.jar:lib/*" org.nemotech.rsc.Main
+    # Launch game
+    java -cp "rsc.jar:lib/*" org.nemotech.rsc.Main &
 
-if [ "$MODE" = "record" ]; then
-    echo "[Game] Stopping recording..."
-    kill $FFMPEG_PID 2>/dev/null
+    # Wait for game to load
+    sleep 6
+
+    echo "[Game] Starting recording (video only)..."
+
+    # Record full screen at game resolution (RSC is typically 4:3 around 800x600)
+    ffmpeg -f x11grab -i :0 \
+        -vf "crop=800:600:0:0" \
+        -c:v libx264 -preset ultrafast -crf 23 -b:v 2500k \
+        -r 30 -an "$RECORD_FILE"
+
+else
+    java -cp "rsc.jar:lib/*" org.nemotech.rsc.Main
 fi
