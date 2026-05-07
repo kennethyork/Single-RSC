@@ -23,7 +23,9 @@ import org.nemotech.rsc.model.NPC;
  * - Hero: Level 80
  */
 public class ThievingBot extends Bot {
-    
+
+    private static final int THIEVING = 17;
+
     // Default target: Man NPCs
     private int[] targetNpcIds = { 11 }; // Man NPC ID
     
@@ -49,7 +51,32 @@ public class ThievingBot extends Bot {
         super("Thieving Bot");
         this.targetNpcIds = npcIds;
     }
-    
+
+    @Override
+    public int getSkillIndex() {
+        return THIEVING;
+    }
+
+    @Override
+    public String getNextBot() {
+        return "Woodcutting Bot";
+    }
+
+    @Override
+    public int getHomeX() {
+        return 283;
+    }
+
+    @Override
+    public int getHomeY() {
+        return 453;
+    }
+
+    @Override
+    public int getMaxDistanceFromHome() {
+        return 50;
+    }
+
     /**
      * Sets the NPC IDs to pickpocket.
      */

@@ -26,7 +26,9 @@ import org.nemotech.rsc.model.NPC;
  * Note: This bot uses the attack spell action. Make sure you have runes!
  */
 public class MagicBot extends Bot {
-    
+
+    private static final int MAGIC = 6;
+
     // Default targets: Chickens
     private int[] targetNpcIds = { 3 };
     
@@ -48,7 +50,32 @@ public class MagicBot extends Bot {
     public MagicBot() {
         super("Magic Bot");
     }
-    
+
+    @Override
+    public int getSkillIndex() {
+        return MAGIC;
+    }
+
+    @Override
+    public String getNextBot() {
+        return "Agility Bot";
+    }
+
+    @Override
+    public int getHomeX() {
+        return 120;
+    }
+
+    @Override
+    public int getHomeY() {
+        return 88;
+    }
+
+    @Override
+    public int getMaxDistanceFromHome() {
+        return 50;
+    }
+
     public MagicBot(int... npcIds) {
         super("Magic Bot");
         this.targetNpcIds = npcIds;

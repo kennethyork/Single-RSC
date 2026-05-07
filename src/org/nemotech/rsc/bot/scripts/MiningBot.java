@@ -32,26 +32,53 @@ import org.nemotech.rsc.model.GameObject;
  * - Runite ore: 409
  */
 public class MiningBot extends Bot {
-    
+
+    private static final int MINING = 14;
+
     // Default rock IDs (copper and tin)
     private int[] rockIds = { 100, 101, 104, 105 };
-    
+
     // Ore to bank
     private int[] oreIds = { 150, 202 };
-    
+
     private enum State {
         IDLE,
         WALKING_TO_ROCK,
         MINING,
         BANKING
     }
-    
+
     private State state = State.IDLE;
     private GameObject targetRock = null;
     private int oresMined = 0;
-    
+
     public MiningBot() {
         super("Mining Bot");
+    }
+
+    @Override
+    public int getSkillIndex() {
+        return MINING;
+    }
+
+    @Override
+    public String getNextBot() {
+        return "Fishing Bot";
+    }
+
+    @Override
+    public int getHomeX() {
+        return 305;
+    }
+
+    @Override
+    public int getHomeY() {
+        return 529;
+    }
+
+    @Override
+    public int getMaxDistanceFromHome() {
+        return 50;
     }
     
     /**

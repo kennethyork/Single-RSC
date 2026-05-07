@@ -29,7 +29,9 @@ import org.nemotech.rsc.bot.Bot;
  * Note: Members only skill.
  */
 public class HerblawBot extends Bot {
-    
+
+    private static final int HERBLAW = 15;
+
     private static final int VIAL_OF_WATER = 464;
     
     // Unidentified herb IDs
@@ -62,7 +64,32 @@ public class HerblawBot extends Bot {
         super("Herblaw Bot");
         this.mode = mode;
     }
-    
+
+    @Override
+    public int getSkillIndex() {
+        return HERBLAW;
+    }
+
+    @Override
+    public String getNextBot() {
+        return "Thieving Bot";
+    }
+
+    @Override
+    public int getHomeX() {
+        return 295;
+    }
+
+    @Override
+    public int getHomeY() {
+        return 481;
+    }
+
+    @Override
+    public int getMaxDistanceFromHome() {
+        return 50;
+    }
+
     public void setMode(Mode mode) {
         this.mode = mode;
     }

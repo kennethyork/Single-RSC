@@ -56,6 +56,89 @@ public abstract class Bot {
     }
     
     /**
+     * Returns the skill index this bot trains.
+     * Override to return the appropriate skill index (e.g., WOODCUTTING=8, MINING=14).
+     * Return -1 if this bot doesn't train a single skill (e.g., CombatBot).
+     */
+    public int getSkillIndex() {
+        return -1;
+    }
+    
+    /**
+     * Returns the name of the bot to switch to when skill is 99.
+     * Override to return the next bot name in the training progression.
+     * Return null if there is no next bot (skill is already maxed with no successor).
+     */
+    public String getNextBot() {
+        return null;
+    }
+
+    /**
+     * Returns the home X coordinate for this bot.
+     * Override to specify where the bot should teleport back to if it wanders too far.
+     * Return -1 if no home location is defined.
+     */
+    public int getHomeX() {
+        return -1;
+    }
+
+    /**
+     * Returns the home Y coordinate for this bot.
+     * Override to specify where the bot should teleport back to if it wanders too far.
+     * Return -1 if no home location is defined.
+     */
+    public int getHomeY() {
+        return -1;
+    }
+
+    /**
+     * Returns the maximum distance from home before teleporting back.
+     * Default is 50 tiles. Override to change.
+     */
+    public int getMaxDistanceFromHome() {
+        return 50;
+    }
+
+    /**
+     * Checks if the player is too far from home and should teleport back.
+     */
+    protected boolean isTooFarFromHome() {
+        int homeX = getHomeX();
+        int homeY = getHomeY();
+        if (homeX < 0 || homeY < 0) {
+            return false;
+        }
+        int maxDist = getMaxDistanceFromHome();
+        int dist = api.distanceTo(homeX, homeY);
+        return dist > maxDist;
+    }
+
+    /**
+     * Teleports the bot back home if it's too far away.
+     * Called automatically during the bot loop.
+     * @return true if a teleport occurred, false otherwise
+     */
+    protected boolean teleportHomeIfNeeded() {
+        if (!isTooFarFromHome()) {
+            return false;
+        }
+        int homeX = getHomeX();
+        int homeY = getHomeY();
+        log("Too far from home (" + api.distanceTo(homeX, homeY) + " tiles), teleporting back...");
+        api.teleport(homeX, homeY);
+        return true;
+    }
+
+    /**
+     * Checks if the active bot's skill has reached 99 and switches to the next bot if available.
+     * Called automatically during the bot loop.
+     * @return true if a switch occurred, false otherwise
+     */
+    protected boolean checkAndSwitchBot() {
+        return BotManager.getInstance().checkAndSwitchBot();
+    }
+
+    /**
      * Called when the bot starts. Override to add startup logic.
      */
     public void onStart() {
@@ -116,15 +199,19 @@ public abstract class Bot {
                 try {
                     iterations++;
                     int delay = loop();
-                    
+
                     if (delay < 0) {
                         Bot.this.stop();
                         return;
                     }
-                    
-                    // Update the delay for next iteration
-                    this.setDelay(delay);
-                    
+
+                    boolean switched = checkAndSwitchBot();
+                    boolean teleportedHome = teleportHomeIfNeeded();
+
+                    if (!switched && !teleportedHome) {
+                        this.setDelay(delay);
+                    }
+
                 } catch (Exception e) {
                     // Log error but keep running
                     log("Error in bot loop: " + e.getMessage());

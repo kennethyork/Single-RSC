@@ -76,6 +76,31 @@ public class CombatBot extends Bot {
         super("Combat Bot");
         this.npcIds = npcIds;
     }
+
+    @Override
+    public int getSkillIndex() {
+        return -1;
+    }
+
+    @Override
+    public int getHomeX() {
+        return -1;
+    }
+
+    @Override
+    public int getHomeY() {
+        return -1;
+    }
+
+    @Override
+    public int getMaxDistanceFromHome() {
+        return 50;
+    }
+
+    @Override
+    public String getNextBot() {
+        return null;
+    }
     
     /**
      * Sets the NPC IDs to attack.

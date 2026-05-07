@@ -25,24 +25,51 @@ import org.nemotech.rsc.model.GameObject;
  * and you need to have previously selected what to make.
  */
 public class SmithingBot extends Bot {
-    
+
+    private static final int SMITHING = 13;
+
     private static final int ANVIL = 50;
     private static final int HAMMER = 168;
-    
+
     // Bars to smith (priority order)
     private int[] barIds = { 169, 170, 171, 173, 174, 408 };
-    
+
     private enum State {
         IDLE,
         SMITHING,
         BANKING
     }
-    
+
     private State state = State.IDLE;
     private int itemsSmithed = 0;
-    
+
     public SmithingBot() {
         super("Smithing Bot");
+    }
+
+    @Override
+    public int getSkillIndex() {
+        return SMITHING;
+    }
+
+    @Override
+    public String getNextBot() {
+        return "Combat Bot";
+    }
+
+    @Override
+    public int getHomeX() {
+        return 157;
+    }
+
+    @Override
+    public int getHomeY() {
+        return 498;
+    }
+
+    @Override
+    public int getMaxDistanceFromHome() {
+        return 50;
     }
     
     /**

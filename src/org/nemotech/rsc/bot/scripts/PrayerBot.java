@@ -17,7 +17,9 @@ import org.nemotech.rsc.bot.Bot;
  * - Dragon bones (814): 60 XP
  */
 public class PrayerBot extends Bot {
-    
+
+    private static final int PRAYER = 5;
+
     // Bone item IDs
     private static final int BONES = 20;
     private static final int BAT_BONES = 604;
@@ -38,7 +40,32 @@ public class PrayerBot extends Bot {
     public PrayerBot() {
         super("Prayer Bot");
     }
-    
+
+    @Override
+    public int getSkillIndex() {
+        return PRAYER;
+    }
+
+    @Override
+    public String getNextBot() {
+        return "Firemaking Bot";
+    }
+
+    @Override
+    public int getHomeX() {
+        return 120;
+    }
+
+    @Override
+    public int getHomeY() {
+        return 88;
+    }
+
+    @Override
+    public int getMaxDistanceFromHome() {
+        return 50;
+    }
+
     /**
      * Sets specific bone IDs to bury.
      */

@@ -8,6 +8,8 @@ public class WoodcuttingBot extends Bot {
     private int[] treeIds = { 1, 2, 71, 246, 307, 308, 309, 310, 311 };
     private int[] logIds = { 14, 632, 633, 634, 635, 636 };
 
+    private static final int WOODCUTTING = 8;
+
     // Trees where "Chop" is the second (right-click) command instead of the first
     private static final int[] RIGHT_CLICK_CHOP_TREES = { 71 };
 
@@ -40,6 +42,31 @@ public class WoodcuttingBot extends Bot {
 
     public WoodcuttingBot() {
         super("Woodcutting Bot");
+    }
+
+    @Override
+    public int getSkillIndex() {
+        return WOODCUTTING;
+    }
+
+    @Override
+    public String getNextBot() {
+        return "Mining Bot";
+    }
+
+    @Override
+    public int getHomeX() {
+        return SEERS_VILLAGE_BANK_X;
+    }
+
+    @Override
+    public int getHomeY() {
+        return SEERS_VILLAGE_BANK_Y;
+    }
+
+    @Override
+    public int getMaxDistanceFromHome() {
+        return 50;
     }
     
     public WoodcuttingBot(int[] treeIds, int[] logIds) {

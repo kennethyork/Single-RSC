@@ -28,25 +28,52 @@ import org.nemotech.rsc.model.GameObject;
  * - Raw chicken: 503
  */
 public class CookingBot extends Bot {
-    
+
+    private static final int COOKING = 7;
+
     // Cooking objects
     private static final int RANGE = 11;
     private static final int FIRE = 97;
-    
+
     // Raw food to cook (ID -> Cooked ID)
     private int[] rawFoodIds = { 349, 351, 361, 354, 356, 358, 363, 366, 372, 369, 545, 504, 503 };
-    
+
     private enum State {
         IDLE,
         COOKING,
         BANKING
     }
-    
+
     private State state = State.IDLE;
     private int foodCooked = 0;
-    
+
     public CookingBot() {
         super("Cooking Bot");
+    }
+
+    @Override
+    public int getSkillIndex() {
+        return COOKING;
+    }
+
+    @Override
+    public String getNextBot() {
+        return "Combat Bot";
+    }
+
+    @Override
+    public int getHomeX() {
+        return 162;
+    }
+
+    @Override
+    public int getHomeY() {
+        return 509;
+    }
+
+    @Override
+    public int getMaxDistanceFromHome() {
+        return 50;
     }
     
     /**

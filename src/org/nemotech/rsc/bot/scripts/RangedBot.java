@@ -14,7 +14,9 @@ import org.nemotech.rsc.model.NPC;
  * Note: Make sure you have the ranged attack style selected.
  */
 public class RangedBot extends Bot {
-    
+
+    private static final int RANGED = 4;
+
     // Default targets: Chickens
     private int[] targetNpcIds = { 3 };
     
@@ -36,7 +38,32 @@ public class RangedBot extends Bot {
     public RangedBot() {
         super("Ranged Bot");
     }
-    
+
+    @Override
+    public int getSkillIndex() {
+        return RANGED;
+    }
+
+    @Override
+    public String getNextBot() {
+        return "Magic Bot";
+    }
+
+    @Override
+    public int getHomeX() {
+        return 157;
+    }
+
+    @Override
+    public int getHomeY() {
+        return 498;
+    }
+
+    @Override
+    public int getMaxDistanceFromHome() {
+        return 50;
+    }
+
     public RangedBot(int... npcIds) {
         super("Ranged Bot");
         this.targetNpcIds = npcIds;

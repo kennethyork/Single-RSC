@@ -206,25 +206,64 @@ public class BotManager {
     public String getStatusReport() {
         StringBuilder sb = new StringBuilder();
         sb.append("=== Bot Status Report ===\n");
-        
+
         if (bots.isEmpty()) {
             sb.append("No bots registered.\n");
         } else {
             for (Bot bot : bots.values()) {
-                sb.append(String.format("- %s: %s", bot.getName(), 
+                sb.append(String.format("- %s: %s", bot.getName(),
                     bot.isRunning() ? (bot.isPaused() ? "PAUSED" : "RUNNING") : "STOPPED"));
                 if (bot.isRunning()) {
-                    sb.append(String.format(" (Runtime: %s, Iterations: %d)", 
+                    sb.append(String.format(" (Runtime: %s, Iterations: %d)",
                         bot.getRuntimeFormatted(), bot.getIterations()));
                 }
                 sb.append("\n");
             }
         }
-        
+
         if (activeBot != null) {
             sb.append("\nActive Bot: ").append(activeBot.getName());
         }
-        
+
         return sb.toString();
+    }
+
+    /**
+     * Checks if the active bot's skill has reached 99 and switches to the next bot if available.
+     * Should be called periodically during bot execution.
+     * @return true if a switch occurred, false otherwise
+     */
+    public boolean checkAndSwitchBot() {
+        if (activeBot == null || !activeBot.isRunning()) {
+            return false;
+        }
+
+        int skillIndex = activeBot.getSkillIndex();
+        if (skillIndex < 0) {
+            return false;
+        }
+
+        int currentLevel;
+        try {
+            currentLevel = BotAPI.getInstance().getLevel(skillIndex);
+        } catch (Exception e) {
+            return false;
+        }
+
+        if (currentLevel >= 99) {
+            String nextBotName = activeBot.getNextBot();
+            if (nextBotName != null && hasBot(nextBotName)) {
+                gameMessage("[Bot] " + activeBot.getName() + " reached level 99! Switching to " + nextBotName + "...");
+                stopBot(activeBot.getName());
+                startBot(nextBotName);
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void gameMessage(String message) {
+        System.out.println(message);
     }
 }

@@ -17,7 +17,9 @@ import org.nemotech.rsc.model.GameObject;
  * 3. It will automatically navigate the obstacles
  */
 public class AgilityBot extends Bot {
-    
+
+    private static final int AGILITY = 16;
+
     // Gnome Agility Course obstacles (in order)
     private static final int GNOME_BALANCE_LOG = 655;
     private static final int GNOME_NET = 647;
@@ -76,6 +78,26 @@ public class AgilityBot extends Bot {
     private int lapsCompleted = 0;
     private int currentObstacleIndex = 0;
     
+    @Override
+    public String getNextBot() {
+        return "Mining Bot";
+    }
+
+    @Override
+    public int getHomeX() {
+        return 699;
+    }
+
+    @Override
+    public int getHomeY() {
+        return 696;
+    }
+
+    @Override
+    public int getMaxDistanceFromHome() {
+        return 50;
+    }
+
     public AgilityBot() {
         super("Agility Bot");
         this.currentCourse = Course.GNOME;

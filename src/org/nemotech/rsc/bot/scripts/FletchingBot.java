@@ -21,7 +21,9 @@ import org.nemotech.rsc.bot.Bot;
  * Note: Members only skill. Use knife on logs to start.
  */
 public class FletchingBot extends Bot {
-    
+
+    private static final int FLETCHING = 9;
+
     private static final int KNIFE = 13;
     
     // Logs to fletch (priority order)
@@ -39,7 +41,32 @@ public class FletchingBot extends Bot {
     public FletchingBot() {
         super("Fletching Bot");
     }
-    
+
+    @Override
+    public int getSkillIndex() {
+        return FLETCHING;
+    }
+
+    @Override
+    public String getNextBot() {
+        return "Woodcutting Bot";
+    }
+
+    @Override
+    public int getHomeX() {
+        return 490;
+    }
+
+    @Override
+    public int getHomeY() {
+        return 470;
+    }
+
+    @Override
+    public int getMaxDistanceFromHome() {
+        return 50;
+    }
+
     /**
      * Sets specific log IDs to fletch.
      */

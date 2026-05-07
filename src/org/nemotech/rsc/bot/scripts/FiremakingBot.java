@@ -20,23 +20,50 @@ import org.nemotech.rsc.bot.Bot;
  * - Magic logs (636): Level 75 (members)
  */
 public class FiremakingBot extends Bot {
-    
+
+    private static final int FIREMAKING = 11;
+
     private static final int TINDERBOX = 166;
-    
+
     // Log IDs (in order of preference)
     private int[] logIds = { 14, 632, 633, 634, 635, 636 };
-    
+
     private enum State {
         IDLE,
         LIGHTING,
         BANKING
     }
-    
+
     private State state = State.IDLE;
     private int logsBurned = 0;
-    
+
     public FiremakingBot() {
         super("Firemaking Bot");
+    }
+
+    @Override
+    public int getSkillIndex() {
+        return FIREMAKING;
+    }
+
+    @Override
+    public String getNextBot() {
+        return "Prayer Bot";
+    }
+
+    @Override
+    public int getHomeX() {
+        return 120;
+    }
+
+    @Override
+    public int getHomeY() {
+        return 88;
+    }
+
+    @Override
+    public int getMaxDistanceFromHome() {
+        return 50;
     }
     
     /**

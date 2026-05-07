@@ -39,26 +39,53 @@ import org.nemotech.rsc.model.GameObject;
  * - Raw Swordfish: 369
  */
 public class FishingBot extends Bot {
-    
+
+    private static final int FISHING = 10;
+
     // Default fishing spot IDs
     private int[] fishingSpotIds = { 192 }; // Net spots
-    
+
     // Fish to bank (raw fish IDs)
     private int[] fishIds = { 349, 351 }; // Shrimp and anchovies
-    
+
     private enum State {
         IDLE,
         WALKING_TO_SPOT,
         FISHING,
         BANKING
     }
-    
+
     private State state = State.IDLE;
     private GameObject targetSpot = null;
     private int fishCaught = 0;
-    
+
     public FishingBot() {
         super("Fishing Bot");
+    }
+
+    @Override
+    public int getSkillIndex() {
+        return FISHING;
+    }
+
+    @Override
+    public String getNextBot() {
+        return "Combat Bot";
+    }
+
+    @Override
+    public int getHomeX() {
+        return 259;
+    }
+
+    @Override
+    public int getHomeY() {
+        return 469;
+    }
+
+    @Override
+    public int getMaxDistanceFromHome() {
+        return 50;
     }
     
     /**

@@ -142,6 +142,25 @@ public class BotAPI {
         player.setFatigue(0);
         player.getSender().sendFatigue(0);
     }
+
+    /**
+     * Teleports the player to a specific location.
+     * @param x The target X coordinate
+     * @param y The target Y coordinate
+     */
+    public void teleport(int x, int y) {
+        getPlayer().teleport(x, y);
+    }
+
+    /**
+     * Teleports the player to a specific location with optional teleport bubble.
+     * @param x The target X coordinate
+     * @param y The target Y coordinate
+     * @param bubble Whether to show the teleport bubble effect
+     */
+    public void teleport(int x, int y, boolean bubble) {
+        getPlayer().teleport(x, y, bubble);
+    }
     
     /**
      * Checks if fatigue is high and resets it if so.
