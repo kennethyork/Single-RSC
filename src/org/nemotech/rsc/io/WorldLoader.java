@@ -11,11 +11,14 @@ import org.nemotech.rsc.external.location.ItemLoc;
 import org.nemotech.rsc.external.EntityManager;
 import org.nemotech.rsc.Constants;
 import org.nemotech.rsc.util.Util;
+import org.nemotech.rsc.bot.WorldBotManager;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.File;
 import java.nio.ByteBuffer;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipEntry;
 
@@ -111,8 +114,31 @@ public class WorldLoader {
         for(NPCLoc loc : EntityManager.getNPCLocs()) {
             world.registerNpc(new NPC(loc));
         }
+        loadGrandExchangeClerks(world);
+        WorldBotManager.getInstance().startDefaultBots();
         
         System.gc();
+    }
+
+    private void loadGrandExchangeClerks(World world) {
+        Set<String> bankAreas = new HashSet<>();
+        for (NPCLoc loc : EntityManager.getNPCLocs()) {
+            if (!isBanker(loc.getID())) {
+                continue;
+            }
+
+            String key = loc.getMinX() + ":" + loc.getMaxX() + ":" + loc.getMinY() + ":" + loc.getMaxY();
+            if (!bankAreas.add(key)) {
+                continue;
+            }
+
+            world.registerNpc(new NPC(794, loc.getMaxX(), loc.getMaxY(),
+                    loc.getMinX(), loc.getMaxX(), loc.getMinY(), loc.getMaxY()));
+        }
+    }
+
+    private boolean isBanker(int id) {
+        return id == 95 || id == 224 || id == 268 || id == 540 || id == 617;
     }
     
 }

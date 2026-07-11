@@ -23,6 +23,7 @@ import org.nemotech.rsc.bot.Bot;
  * - Soft clay: 243
  */
 public class CraftingBot extends Bot {
+    private static final int CRAFTING = 12;
     
     private static final int NEEDLE = 39;
     private static final int LEATHER = 148;
@@ -54,6 +55,16 @@ public class CraftingBot extends Bot {
     public CraftingBot(Mode mode) {
         super("Crafting Bot");
         this.mode = mode;
+    }
+
+    @Override
+    public int getSkillIndex() {
+        return CRAFTING;
+    }
+
+    @Override
+    public String getNextBot() {
+        return "Herblaw Bot";
     }
     
     public void setMode(Mode mode) {

@@ -6,12 +6,17 @@ import org.nemotech.rsc.model.NPC;
 import org.nemotech.rsc.model.Entity;
 import org.nemotech.rsc.model.player.Player;
 import org.nemotech.rsc.model.player.Appearance;
+import org.nemotech.rsc.bot.WorldBotManager;
 import org.nemotech.rsc.client.Mob;
 import org.nemotech.rsc.client.update.Updater;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class PlayerUpdater extends Updater {
+
+    private final Map<Integer, Integer> displayedWorldBotMessages = new HashMap<>();
     
     @Override
     public void handlePositionUpdate(Player player) {
@@ -37,6 +42,39 @@ public class PlayerUpdater extends Updater {
         }
         mc.playerCount = 0;
         mc.localPlayer = mc.createPlayer(1, x, y, anim);
+        addWorldBotsAsPlayers(player);
+    }
+
+    private void addWorldBotsAsPlayers(Player player) {
+        List<WorldBotManager.Snapshot> bots = WorldBotManager.getInstance().getSnapshotsNear(player.getLocation(), 15);
+        for (WorldBotManager.Snapshot bot : bots) {
+            int x = (bot.x - mc.regionX) * mc.magicLoc + 64;
+            int y = (bot.y - mc.regionY) * mc.magicLoc + 64;
+            if (x <= 0 || y <= 0) {
+                continue;
+            }
+            Mob character = mc.createPlayer(bot.serverIndex, x, y, bot.sprite);
+            character.serverId = bot.serverIndex;
+            character.name = bot.name;
+            character.level = bot.combatLevel;
+            character.skullVisible = bot.skulled ? 1 : 0;
+            character.colourHair = bot.hairColour;
+            character.colourTop = bot.topColour;
+            character.colourBottom = bot.bottomColour;
+            character.colourSkin = bot.skinColour;
+            if (bot.message != null) {
+                character.message = bot.message;
+                character.messageTimeout = 150;
+                Integer lastSequence = displayedWorldBotMessages.get(bot.serverIndex);
+                if (lastSequence == null || lastSequence.intValue() != bot.messageSequence) {
+                    mc.showMessage("@whi@" + bot.name + ": " + bot.message, 3);
+                    displayedWorldBotMessages.put(bot.serverIndex, bot.messageSequence);
+                }
+            }
+            for (int i = 0; i < character.equippedItem.length; i++) {
+                character.equippedItem[i] = i < bot.equipment.length ? bot.equipment[i] : 0;
+            }
+        }
     }
     
     @Override

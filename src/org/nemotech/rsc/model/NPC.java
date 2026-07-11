@@ -6,6 +6,7 @@ import org.nemotech.rsc.external.definition.NPCDropDef;
 import org.nemotech.rsc.external.location.NPCLoc;
 import org.nemotech.rsc.plugins.PluginManager;
 import org.nemotech.rsc.Constants;
+import org.nemotech.rsc.bot.WorldBotManager;
 import org.nemotech.rsc.event.DelayedEvent;
 import org.nemotech.rsc.event.impl.FightEvent;
 import org.nemotech.rsc.event.WalkMobToMobEvent;
@@ -467,6 +468,9 @@ public class NPC extends Mob {
     public void killedBy(Mob mob) {
         //this.cure();
         Player owner = mob instanceof Player ? (Player) mob : null;
+        if (owner != null) {
+            WorldBotManager.getInstance().onPlayerKilledBot(owner, this);
+        }
         if (owner != null) {
             owner.getSender().sendSound(SoundEffect.VICTORY);
             

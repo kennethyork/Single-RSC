@@ -3,6 +3,7 @@ package org.nemotech.rsc.client.update.impl;
 import org.nemotech.rsc.model.ChatMessage;
 import org.nemotech.rsc.model.NPC;
 import org.nemotech.rsc.model.player.Player;
+import org.nemotech.rsc.bot.WorldBotManager;
 import org.nemotech.rsc.client.Mob;
 import org.nemotech.rsc.client.update.Updater;
 import org.nemotech.rsc.util.StatefulEntityCollection;
@@ -35,8 +36,14 @@ public class NPCUpdater extends Updater {
         System.arraycopy(mc.npcs, 0, mc.npcsCache, 0, mc.npcCacheCount);
         
         for (NPC npc : knownNpcs) {
+            if (WorldBotManager.getInstance().isWorldBotNpc(npc)) {
+                continue;
+            }
             //if(!sectionLoaded) return;
             Mob character = getLastNpc(npc.getIndex());
+            if (character == null) {
+                continue;
+            }
             if (npc.hasMoved()) {
                 int sprite = npc.getSprite();
                 int wayCur = character.waypointCurrent;
@@ -65,6 +72,9 @@ public class NPCUpdater extends Updater {
         }
         
         for (NPC n : newNpcs) {
+            if (WorldBotManager.getInstance().isWorldBotNpc(n)) {
+                continue;
+            }
             int index = n.getIndex();
             int x = (n.getX() - mc.regionX) * mc.magicLoc + 64;
             int y = (n.getY() - mc.regionY) * mc.magicLoc + 64;

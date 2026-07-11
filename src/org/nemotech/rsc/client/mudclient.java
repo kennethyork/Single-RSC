@@ -10,6 +10,7 @@ import org.nemotech.rsc.util.Util;
 import org.nemotech.rsc.client.sound.SoundEffect;
 import org.nemotech.rsc.client.sound.MusicPlayer;
 import org.nemotech.rsc.model.player.Player;
+import org.nemotech.rsc.bot.WorldBotManager;
 
 import java.awt.*;
 import java.io.File;
@@ -4911,6 +4912,29 @@ OUTER:		for (int animationIndex = 0; animationIndex < EntityManager.getAnimation
         // EXAMINE NPC
         if (mitemid == 3700) {
             showMessage(EntityManager.getNPC(midx).getDescription(), 3);
+        }
+        // WORLD BOT PLAYER ATTACK
+        if (mitemid == 805 || mitemid == 2805) {
+            int npcIndex = WorldBotManager.getInstance().getNpcIndexForServerIndex(midx);
+            if (npcIndex >= 0) {
+                ActionManager.get(NPCHandler.class).handleAttack(npcIndex);
+            } else {
+                showMessage("That player is no longer nearby", 3);
+            }
+        }
+        // WORLD BOT PLAYER TRADE
+        if (mitemid == 2810) {
+            String name = WorldBotManager.getInstance().getNameForServerIndex(midx);
+            if (name != null) {
+                showMessage(name + " is busy and declines the trade", 3);
+            }
+        }
+        // WORLD BOT PLAYER FOLLOW
+        if (mitemid == 2820) {
+            String name = WorldBotManager.getInstance().getNameForServerIndex(midx);
+            if (name != null) {
+                showMessage("You start following " + name, 3);
+            }
         }
         // CAST ON GROUND
         if (mitemid == 900) {

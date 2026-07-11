@@ -58,7 +58,7 @@ public class CookingBot extends Bot {
 
     @Override
     public String getNextBot() {
-        return "Combat Bot";
+        return "Firemaking Bot";
     }
 
     @Override

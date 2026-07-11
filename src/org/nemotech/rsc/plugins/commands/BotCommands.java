@@ -1,12 +1,17 @@
 package org.nemotech.rsc.plugins.commands;
 
 import org.nemotech.rsc.model.player.Player;
+import org.nemotech.rsc.model.GrandExchange;
+import org.nemotech.rsc.model.player.InvItem;
 import org.nemotech.rsc.plugins.Plugin;
 import org.nemotech.rsc.plugins.listeners.action.CommandListener;
+import org.nemotech.rsc.external.EntityManager;
 import org.nemotech.rsc.bot.Bot;
 import org.nemotech.rsc.bot.BotAPI;
 import org.nemotech.rsc.bot.BotManager;
+import org.nemotech.rsc.bot.WorldBotManager;
 import org.nemotech.rsc.bot.scripts.*;
+import java.util.List;
 
 /**
  * Command plugin for controlling bots via chat commands.
@@ -35,6 +40,9 @@ import org.nemotech.rsc.bot.scripts.*;
  * - ::fletch - Fletching
  * - ::craft [mode] - Crafting (leather/spinning/pottery)
  * - ::herblaw [mode] - Herblaw (identify/potions)
+ * - ::everything - Registers all supported bots and starts the progression
+ * - ::worldbots start|stop|status|top|trade|config|save - Controls autonomous world bots
+ * - ::ge list|deposit|withdraw - Shared Grand Exchange stock
  * - ::debugobjects [radius] - List nearby objects (for finding IDs)
  */
 public class BotCommands extends Plugin implements CommandListener {
@@ -46,7 +54,9 @@ public class BotCommands extends Plugin implements CommandListener {
             "firemaking", "fm", "thieve", "thieving", "pickpocket",
             "prayer", "pray", "ranged", "range", "magic", "mage",
             "smith", "smithing", "fletch", "fletching", "craft", "crafting",
-            "herblaw",
+            "herblaw", "everything", "allbots",
+            "worldbots", "worldbot",
+            "ge", "exchange",
             "debugobjects", "listobjects",
             "stopbot", "botoff"
         };
@@ -149,6 +159,21 @@ public class BotCommands extends Plugin implements CommandListener {
             startHerblaw(args, player);
             return;
         }
+
+        if (command.equals("everything") || command.equals("allbots")) {
+            startEverything(player);
+            return;
+        }
+
+        if (command.equals("worldbots") || command.equals("worldbot")) {
+            handleWorldBotCommand(args, player);
+            return;
+        }
+
+        if (command.equals("ge") || command.equals("exchange")) {
+            handleGrandExchangeCommand(args, player);
+            return;
+        }
         
         // Quick stop command
         if (command.equals("stopbot") || command.equals("botoff")) {
@@ -241,7 +266,195 @@ public class BotCommands extends Plugin implements CommandListener {
         player.getSender().sendMessage("@whi@::agility, ::thieve, ::prayer");
         player.getSender().sendMessage("@whi@::cook, ::fm, ::smith, ::fletch");
         player.getSender().sendMessage("@whi@::craft, ::herblaw");
+        player.getSender().sendMessage("@whi@::everything - Start all-skill progression");
+        player.getSender().sendMessage("@whi@::worldbots status/start/stop - Autonomous world bots");
+        player.getSender().sendMessage("@whi@::ge list/deposit/withdraw - Shared exchange");
         player.getSender().sendMessage("@whi@::stopbot - Stop all bots");
+    }
+
+    private void handleWorldBotCommand(String[] args, Player player) {
+        WorldBotManager manager = WorldBotManager.getInstance();
+        String subCommand = args.length > 0 ? args[0].toLowerCase() : "status";
+
+        if (subCommand.equals("start")) {
+            int count = 12;
+            if (args.length > 1) {
+                try {
+                    count = Integer.parseInt(args[1]);
+                } catch (NumberFormatException e) {
+                    player.getSender().sendMessage("@cya@[WorldBots] @red@Count must be a number.");
+                    return;
+                }
+            }
+            manager.startBots(count);
+            player.getSender().sendMessage("@cya@[WorldBots] @gre@Started " + manager.getBotCount() + " autonomous world bots.");
+            return;
+        }
+
+        if (subCommand.equals("stop")) {
+            manager.stopBots();
+            player.getSender().sendMessage("@cya@[WorldBots] @whi@Stopped autonomous world bots.");
+            return;
+        }
+
+        if (subCommand.equals("status")) {
+            for (String line : manager.getStatusReport().split("\\n")) {
+                player.getSender().sendMessage("@cya@[WorldBots] @whi@" + line);
+            }
+            return;
+        }
+
+        if (subCommand.equals("top")) {
+            for (String line : manager.getLeaderboardReport().split("\\n")) {
+                player.getSender().sendMessage("@cya@[WorldBots] @whi@" + line);
+            }
+            return;
+        }
+
+        if (subCommand.equals("config")) {
+            for (String line : manager.getConfigReport().split("\\n")) {
+                player.getSender().sendMessage("@cya@[WorldBots] @whi@" + line);
+            }
+            return;
+        }
+
+        if (subCommand.equals("trade")) {
+            manager.tradeWithNearestBot(player);
+            return;
+        }
+
+        if (subCommand.equals("save")) {
+            manager.saveState();
+            player.getSender().sendMessage("@cya@[WorldBots] @whi@Saved world bot state.");
+            return;
+        }
+
+        player.getSender().sendMessage("@cya@[WorldBots] @whi@Usage: ::worldbots start [count], stop, status, top, trade, config, save");
+    }
+
+    private void startEverything(Player player) {
+        BotManager manager = BotManager.getInstance();
+        manager.stopAll();
+        registerEverythingBots(manager);
+        manager.startBot("Crafting Bot");
+        player.getSender().sendMessage("@cya@[Bot] @gre@Started all-skill bot progression.");
+        player.getSender().sendMessage("@cya@[Bot] @whi@Progression: crafting, herblaw, thieving, woodcutting, mining, fishing, cooking, firemaking, prayer, smithing, fletching, ranged, magic, agility, combat.");
+    }
+
+    private void registerEverythingBots(BotManager manager) {
+        manager.register(new CraftingBot());
+        manager.register(new HerblawBot());
+        manager.register(new ThievingBot());
+        manager.register(new WoodcuttingBot());
+        manager.register(new MiningBot());
+        manager.register(new FishingBot());
+        manager.register(new CookingBot());
+        manager.register(new FiremakingBot());
+        manager.register(new PrayerBot());
+        manager.register(new SmithingBot());
+        manager.register(new FletchingBot());
+        manager.register(new RangedBot());
+        manager.register(new MagicBot());
+        manager.register(new AgilityBot());
+        CombatBot combatBot = new CombatBot();
+        combatBot.setFoodIds(132, 138, 53, 359, 357, 373, 370, 546);
+        combatBot.setEatAtPercent(50);
+        manager.register(combatBot);
+    }
+
+    private void handleGrandExchangeCommand(String[] args, Player player) {
+        if (args.length == 0 || args[0].equalsIgnoreCase("help")) {
+            player.getSender().sendMessage("@cya@=== Grand Exchange Commands ===");
+            player.getSender().sendMessage("@whi@::ge list - Show shared stock");
+            player.getSender().sendMessage("@whi@::ge deposit <itemId> [amount|all]");
+            player.getSender().sendMessage("@whi@::ge withdraw <itemId> [amount|all]");
+            player.getSender().sendMessage("@whi@::ge depositall - Deposit all tradable inventory");
+            return;
+        }
+
+        String subCommand = args[0].toLowerCase();
+        if (subCommand.equals("list")) {
+            listGrandExchange(player);
+            return;
+        }
+
+        if (subCommand.equals("depositall")) {
+            int deposited = GrandExchange.depositInventory(player);
+            player.getSender().sendMessage("@cya@[GE] @whi@Deposited " + deposited + " tradable item" + (deposited == 1 ? "" : "s") + ".");
+            return;
+        }
+
+        if (args.length < 2) {
+            player.getSender().sendMessage("@cya@[GE] @red@Usage: ::ge " + subCommand + " <itemId> [amount|all]");
+            return;
+        }
+
+        int itemId;
+        try {
+            itemId = Integer.parseInt(args[1]);
+        } catch (NumberFormatException e) {
+            player.getSender().sendMessage("@cya@[GE] @red@Item id must be a number.");
+            return;
+        }
+
+        if (itemId < 0 || itemId >= EntityManager.getItems().length || EntityManager.getItem(itemId) == null) {
+            player.getSender().sendMessage("@cya@[GE] @red@Unknown item id: " + itemId);
+            return;
+        }
+
+        int amount = parseExchangeAmount(args, player, itemId,
+                subCommand.equals("withdraw") || subCommand.equals("pickup"));
+        if (amount < 1) {
+            player.getSender().sendMessage("@cya@[GE] @red@No items available for that action.");
+            return;
+        }
+
+        if (subCommand.equals("deposit")) {
+            if (GrandExchange.deposit(player, itemId, amount)) {
+                player.getSender().sendMessage("@cya@[GE] @whi@Deposited " + amount + " " + EntityManager.getItem(itemId).getName() + ".");
+            } else {
+                player.getSender().sendMessage("@cya@[GE] @red@Could not deposit that item.");
+            }
+            return;
+        }
+
+        if (subCommand.equals("withdraw") || subCommand.equals("pickup")) {
+            if (GrandExchange.withdraw(player, itemId, amount)) {
+                player.getSender().sendMessage("@cya@[GE] @whi@Picked up " + amount + " " + EntityManager.getItem(itemId).getName() + ".");
+            } else {
+                player.getSender().sendMessage("@cya@[GE] @red@Could not pick that up.");
+            }
+            return;
+        }
+
+        player.getSender().sendMessage("@cya@[GE] @red@Unknown command. Use ::ge help.");
+    }
+
+    private int parseExchangeAmount(String[] args, Player player, int itemId, boolean withdrawing) {
+        int available = withdrawing ? GrandExchange.countId(itemId) : player.getInventory().countId(itemId);
+        if (args.length < 3 || args[2].equalsIgnoreCase("all")) {
+            return available;
+        }
+
+        try {
+            return Math.min(Integer.parseInt(args[2]), available);
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
+    private void listGrandExchange(Player player) {
+        List<InvItem> stock = GrandExchange.getStockSnapshot();
+        if (stock.isEmpty()) {
+            player.getSender().sendMessage("@cya@[GE] @whi@The Grand Exchange is empty.");
+            return;
+        }
+
+        player.getSender().sendMessage("@cya@=== Grand Exchange Stock ===");
+        for (int i = 0; i < stock.size() && i < 20; i++) {
+            InvItem item = stock.get(i);
+            player.getSender().sendMessage("@whi@" + item.getID() + " - " + item.getDef().getName() + ": " + item.getAmount());
+        }
     }
     
     private void handleBotAreaCommand(String[] args, Player player) {

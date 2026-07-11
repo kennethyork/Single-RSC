@@ -1,0 +1,892 @@
+package org.nemotech.rsc.bot;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import java.util.Random;
+
+import org.nemotech.rsc.Constants;
+import org.nemotech.rsc.event.DelayedEvent;
+import org.nemotech.rsc.model.GrandExchange;
+import org.nemotech.rsc.model.Item;
+import org.nemotech.rsc.model.NPC;
+import org.nemotech.rsc.model.Point;
+import org.nemotech.rsc.model.World;
+import org.nemotech.rsc.model.landscape.Path;
+import org.nemotech.rsc.model.player.InvItem;
+import org.nemotech.rsc.model.player.Player;
+
+public final class WorldBotManager {
+
+    private static final int GATHERER_NPC = 795;
+    private static final int FIGHTER_NPC = 796;
+    private static final int WILDERNESS_NPC = 797;
+    private static final int DEFAULT_BOT_COUNT = 12;
+    private static final String CONFIG_FILE = Constants.CACHE_DIRECTORY + "worldbots.properties";
+    private static final String STATE_FILE = Constants.CACHE_DIRECTORY + "worldbots_state.properties";
+
+    private static WorldBotManager instance;
+
+    private final List<WorldBot> bots = new ArrayList<>();
+    private final Random random = new Random();
+    private final Config config = new Config();
+    private DelayedEvent tickEvent;
+    private boolean running;
+    private long lastStateSave;
+
+    private WorldBotManager() {}
+
+    public static WorldBotManager getInstance() {
+        if (instance == null) {
+            instance = new WorldBotManager();
+        }
+        return instance;
+    }
+
+    public synchronized void startDefaultBots() {
+        loadConfig();
+        if (config.autoStart) {
+            startBots(config.defaultCount);
+        }
+    }
+
+    public synchronized void startBots(int count) {
+        loadConfig();
+        stopBots();
+        running = true;
+        int safeCount = Math.max(1, Math.min(count, config.maxCount));
+        for (int i = 0; i < safeCount; i++) {
+            bots.add(createBot(i));
+        }
+        loadState();
+        tickEvent = new DelayedEvent(null, 2500) {
+            @Override
+            public Object getIdentifier() {
+                return "world-bot-manager";
+            }
+
+            @Override
+            public void run() {
+                tick();
+            }
+        };
+        World.getWorld().getDelayedEventHandler().add(tickEvent);
+    }
+
+    public synchronized void stopBots() {
+        saveState();
+        if (tickEvent != null) {
+            tickEvent.interrupt();
+            tickEvent = null;
+        }
+        for (WorldBot bot : bots) {
+            if (bot.npc != null && !bot.npc.isRemoved()) {
+                World.getWorld().unregisterNpc(bot.npc);
+            }
+        }
+        bots.clear();
+        running = false;
+    }
+
+    public synchronized boolean isRunning() {
+        return running;
+    }
+
+    public synchronized int getBotCount() {
+        return bots.size();
+    }
+
+    public synchronized String getStatusReport() {
+        StringBuilder report = new StringBuilder();
+        report.append("World bots: ").append(running ? "running" : "stopped")
+                .append(" (").append(bots.size()).append(")");
+        for (WorldBot bot : bots) {
+            report.append("\n").append(bot.name)
+                    .append(" - ").append(bot.personality.title)
+                    .append(" [").append(bot.personality.clan).append("]")
+                    .append(" lvl ").append(bot.level)
+                    .append(bot.active ? " at " + bot.npc.getX() + "," + bot.npc.getY() : " respawning")
+                    .append(" inv ").append(bot.inventorySize())
+                    .append(" kills ").append(bot.kills)
+                    .append(" deaths ").append(bot.deaths);
+        }
+        return report.toString();
+    }
+
+    public synchronized String getLeaderboardReport() {
+        List<WorldBot> ranked = new ArrayList<>(bots);
+        Collections.sort(ranked, new Comparator<WorldBot>() {
+            @Override
+            public int compare(WorldBot first, WorldBot second) {
+                int firstScore = first.kills * 100 + first.level * 10 + first.itemsBanked - first.deaths * 25;
+                int secondScore = second.kills * 100 + second.level * 10 + second.itemsBanked - second.deaths * 25;
+                return secondScore - firstScore;
+            }
+        });
+
+        StringBuilder report = new StringBuilder("World bot leaderboard");
+        for (int i = 0; i < ranked.size() && i < 10; i++) {
+            WorldBot bot = ranked.get(i);
+            report.append("\n").append(i + 1).append(". ").append(bot.name)
+                    .append(" lvl ").append(bot.level)
+                    .append(" kills ").append(bot.kills)
+                    .append(" deaths ").append(bot.deaths)
+                    .append(" banked ").append(bot.itemsBanked);
+        }
+        return report.toString();
+    }
+
+    public synchronized String getConfigReport() {
+        return "World bot config"
+                + "\nautostart=" + config.autoStart
+                + "\ndefault_count=" + config.defaultCount
+                + "\nmax_count=" + config.maxCount
+                + "\nrespawn_seconds=" + config.respawnSeconds
+                + "\nsave_every_seconds=" + config.saveEverySeconds
+                + "\nchat_frequency=" + config.chatFrequency
+                + "\nconfig_file=" + CONFIG_FILE;
+    }
+
+    public synchronized boolean tradeWithNearestBot(Player player) {
+        WorldBot nearest = null;
+        int nearestDistance = Integer.MAX_VALUE;
+        for (WorldBot bot : bots) {
+            if (!bot.active || bot.inventory.isEmpty()) {
+                continue;
+            }
+            int distance = Math.abs(bot.npc.getX() - player.getX()) + Math.abs(bot.npc.getY() - player.getY());
+            if (distance < nearestDistance) {
+                nearest = bot;
+                nearestDistance = distance;
+            }
+        }
+        if (nearest == null || nearestDistance > 8) {
+            player.getSender().sendMessage("@cya@[WorldBots] @red@No trading bot nearby.");
+            return false;
+        }
+        return nearest.tradeWith(player);
+    }
+
+    public synchronized List<Snapshot> getSnapshotsNear(Point point, int radius) {
+        List<Snapshot> snapshots = new ArrayList<>();
+        for (WorldBot bot : bots) {
+            if (bot.active && bot.npc != null && !bot.npc.isRemoved() && bot.npc.getLocation().withinRange(point, radius)) {
+                snapshots.add(bot.snapshot());
+            }
+        }
+        return snapshots;
+    }
+
+    public synchronized boolean isWorldBotNpc(NPC npc) {
+        for (WorldBot bot : bots) {
+            if (bot.npc == npc) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public synchronized int getNpcIndexForServerIndex(int serverIndex) {
+        for (WorldBot bot : bots) {
+            if (bot.snapshot().serverIndex == serverIndex) {
+                return bot.npc.getIndex();
+            }
+        }
+        return -1;
+    }
+
+    public synchronized String getNameForServerIndex(int serverIndex) {
+        for (WorldBot bot : bots) {
+            if (bot.snapshot().serverIndex == serverIndex) {
+                return bot.name;
+            }
+        }
+        return null;
+    }
+
+    public synchronized void onPlayerAttackedBot(Player player, NPC npc) {
+        WorldBot bot = findBot(npc);
+        if (bot == null || !bot.active) {
+            return;
+        }
+        bot.say(bot.personality.attackedLine(random));
+    }
+
+    public synchronized void onPlayerKilledBot(Player player, NPC npc) {
+        WorldBot bot = findBot(npc);
+        if (bot == null || !bot.active) {
+            return;
+        }
+        bot.deaths++;
+        bot.active = false;
+        bot.say(bot.personality.deathLine(random));
+        bot.dropInventory(player);
+        scheduleRespawn(bot);
+    }
+
+    private WorldBot findBot(NPC npc) {
+        for (WorldBot bot : bots) {
+            if (bot.npc == npc) {
+                return bot;
+            }
+        }
+        return null;
+    }
+
+    private void scheduleRespawn(final WorldBot bot) {
+        World.getWorld().getDelayedEventHandler().add(new DelayedEvent(null, config.respawnSeconds * 1000) {
+            @Override
+            public void run() {
+                synchronized (WorldBotManager.this) {
+                    bot.respawn();
+                }
+                running = false;
+            }
+        });
+    }
+
+    private void tick() {
+        if (!running) {
+            return;
+        }
+        for (WorldBot bot : bots) {
+            bot.tick();
+        }
+        if (System.currentTimeMillis() - lastStateSave > config.saveEverySeconds * 1000L) {
+            saveState();
+        }
+    }
+
+    private WorldBot createBot(int index) {
+        Role role;
+        if (index % 4 == 3) {
+            role = Role.WILDERNESS;
+        } else if (index % 4 == 2) {
+            role = Role.FIGHTER;
+        } else {
+            role = Role.GATHERER;
+        }
+
+        BotArea area = role.areaFor(index);
+        int npcId = role == Role.GATHERER ? GATHERER_NPC : role == Role.FIGHTER ? FIGHTER_NPC : WILDERNESS_NPC;
+        NPC npc = new NPC(npcId, area.randomX(random), area.randomY(random),
+                area.minX, area.maxX, area.minY, area.maxY);
+        npc.setShouldRespawn(false);
+        World.getWorld().registerNpc(npc);
+        return new WorldBot(index, role, npc, area, Personality.forBot(index, role));
+    }
+
+    private void loadConfig() {
+        File file = new File(CONFIG_FILE);
+        if (!file.exists()) {
+            saveDefaultConfig(file);
+        }
+        Properties properties = new Properties();
+        try (FileInputStream in = new FileInputStream(file)) {
+            properties.load(in);
+            config.autoStart = Boolean.parseBoolean(properties.getProperty("autostart", String.valueOf(config.autoStart)));
+            config.defaultCount = parseInt(properties.getProperty("default_count"), DEFAULT_BOT_COUNT);
+            config.maxCount = parseInt(properties.getProperty("max_count"), 50);
+            config.respawnSeconds = parseInt(properties.getProperty("respawn_seconds"), 20);
+            config.saveEverySeconds = parseInt(properties.getProperty("save_every_seconds"), 60);
+            config.chatFrequency = Math.max(1, parseInt(properties.getProperty("chat_frequency"), 1));
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void saveDefaultConfig(File file) {
+        try {
+            File parent = file.getParentFile();
+            if (parent != null) {
+                parent.mkdirs();
+            }
+            Properties properties = new Properties();
+            properties.setProperty("autostart", "true");
+            properties.setProperty("default_count", String.valueOf(DEFAULT_BOT_COUNT));
+            properties.setProperty("max_count", "50");
+            properties.setProperty("respawn_seconds", "20");
+            properties.setProperty("save_every_seconds", "60");
+            properties.setProperty("chat_frequency", "1");
+            try (FileOutputStream out = new FileOutputStream(file)) {
+                properties.store(out, "Single-RSC autonomous world bot settings");
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void loadState() {
+        File file = new File(STATE_FILE);
+        if (!file.exists()) {
+            return;
+        }
+        Properties properties = new Properties();
+        try (FileInputStream in = new FileInputStream(file)) {
+            properties.load(in);
+            for (int i = 0; i < bots.size(); i++) {
+                WorldBot bot = bots.get(i);
+                String prefix = "bot." + i + ".";
+                bot.level = parseInt(properties.getProperty(prefix + "level"), bot.level);
+                bot.xp = parseInt(properties.getProperty(prefix + "xp"), bot.xp);
+                bot.kills = parseInt(properties.getProperty(prefix + "kills"), bot.kills);
+                bot.deaths = parseInt(properties.getProperty(prefix + "deaths"), bot.deaths);
+                bot.itemsBanked = parseInt(properties.getProperty(prefix + "banked"), bot.itemsBanked);
+                bot.inventory.clear();
+                String inventory = properties.getProperty(prefix + "inventory", "");
+                if (!inventory.isEmpty()) {
+                    for (String pair : inventory.split(",")) {
+                        String[] parts = pair.split(":");
+                        if (parts.length == 2) {
+                            bot.inventory.put(parseInt(parts[0], 0), parseInt(parts[1], 0));
+                        }
+                    }
+                }
+                bot.npc.setCombatLevel(bot.level);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    public synchronized void saveState() {
+        if (bots.isEmpty()) {
+            return;
+        }
+        Properties properties = new Properties();
+        for (int i = 0; i < bots.size(); i++) {
+            WorldBot bot = bots.get(i);
+            String prefix = "bot." + i + ".";
+            properties.setProperty(prefix + "name", bot.name);
+            properties.setProperty(prefix + "role", bot.role.name());
+            properties.setProperty(prefix + "level", String.valueOf(bot.level));
+            properties.setProperty(prefix + "xp", String.valueOf(bot.xp));
+            properties.setProperty(prefix + "kills", String.valueOf(bot.kills));
+            properties.setProperty(prefix + "deaths", String.valueOf(bot.deaths));
+            properties.setProperty(prefix + "banked", String.valueOf(bot.itemsBanked));
+            properties.setProperty(prefix + "inventory", bot.inventoryString());
+        }
+        try {
+            File file = new File(STATE_FILE);
+            File parent = file.getParentFile();
+            if (parent != null) {
+                parent.mkdirs();
+            }
+            try (FileOutputStream out = new FileOutputStream(file)) {
+                properties.store(out, "Single-RSC autonomous world bot state");
+            }
+            lastStateSave = System.currentTimeMillis();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private int parseInt(String value, int fallback) {
+        try {
+            return Integer.parseInt(value);
+        } catch (Exception e) {
+            return fallback;
+        }
+    }
+
+    private final class WorldBot {
+        private final String name;
+        private final Role role;
+        private final Personality personality;
+        private NPC npc;
+        private BotArea area;
+        private int carriedItem;
+        private String carriedItemName = "nothing";
+        private final Map<Integer, Integer> inventory = new LinkedHashMap<>();
+        private long nextWorkAt;
+        private String lastMessage;
+        private int messageSequence;
+        private long messageUntil;
+        private boolean active = true;
+        private int level = 3;
+        private int xp;
+        private int kills;
+        private int deaths;
+        private int itemsBanked;
+
+        private WorldBot(int index, Role role, NPC npc, BotArea area, Personality personality) {
+            this.name = personality.name;
+            this.role = role;
+            this.personality = personality;
+            this.npc = npc;
+            this.area = area;
+            chooseCarriedItem(index);
+            level = personality.startLevel;
+            npc.setCombatLevel(level);
+        }
+
+        private void tick() {
+            if (!active || npc.isRemoved() || npc.inCombat()) {
+                return;
+            }
+
+            if (role == Role.WILDERNESS && tryAttackPlayer()) {
+                return;
+            }
+
+            if (System.currentTimeMillis() >= nextWorkAt) {
+                work();
+                nextWorkAt = System.currentTimeMillis() + 5000 + random.nextInt(8000);
+            }
+
+            if (random.nextInt(Math.max(1, personality.chatRate / config.chatFrequency)) == 0) {
+                say(randomLine());
+            }
+
+            tradeWithExchange();
+
+            if (inventorySize() >= role.depositAt) {
+                int banked = depositInventoryToExchange();
+                say("banking " + banked + " items");
+            }
+
+            if (npc.finishedPath() && random.nextInt(3) == 0) {
+                walkSomewhere();
+            }
+        }
+
+        private boolean tryAttackPlayer() {
+            Player player = World.getWorld().getPlayer();
+            if (player == null || !player.isLoggedIn() || !player.getLocation().inWilderness()) {
+                return false;
+            }
+            if (!npc.getLocation().withinRange(player.getLocation(), personality.attackRange)) {
+                return false;
+            }
+            if (personality.riskLevel < 3 && player.getCombatLevel() > level + 8) {
+                say("not risking that");
+                walkSomewhere();
+                return false;
+            }
+            if (random.nextInt(6) == 0) {
+                say(personality.clan + " owns this strip");
+            }
+            npc.startCombat(player);
+            say(randomPkLine());
+            return true;
+        }
+
+        private void work() {
+            if (role == Role.GATHERER) {
+                addInventory(carriedItem, 1 + random.nextInt(4));
+                gainXp(2);
+            } else if (role == Role.FIGHTER) {
+                addInventory(carriedItem, 1 + random.nextInt(3));
+                gainXp(4);
+                if (random.nextInt(4) == 0) {
+                    addInventory(10, 5 + random.nextInt(60));
+                }
+            } else {
+                addInventory(carriedItem, 1 + random.nextInt(2));
+                gainXp(6);
+                if (random.nextInt(3) == 0) {
+                    addInventory(10, 25 + random.nextInt(150));
+                }
+            }
+        }
+
+        private void tradeWithExchange() {
+            if (role == Role.GATHERER) {
+                return;
+            }
+            if (GrandExchange.countId(373) > 0 && random.nextInt(10) == 0 && GrandExchange.withdrawSystem(373, 1)) {
+                addInventory(373, 1);
+                say("buying food");
+            }
+            if (role == Role.WILDERNESS && GrandExchange.countId(81) > 0 && random.nextInt(20) == 0
+                    && GrandExchange.withdrawSystem(81, 1)) {
+                addInventory(81, 1);
+                say("upgrading gear");
+            }
+        }
+
+        private void walkSomewhere() {
+            if (role == Role.GATHERER && random.nextInt(12) == 0) {
+                area = Role.GATHERER.areaFor(random.nextInt(8));
+            }
+            npc.setPath(new Path(npc.getX(), npc.getY(), area.randomX(random), area.randomY(random)));
+        }
+
+        private void chooseCarriedItem(int index) {
+            if (role == Role.GATHERER) {
+                int[] items = { 14, 150, 151, 155, 349, 372, 632, 633 };
+                carriedItem = items[index % items.length];
+            } else if (role == Role.FIGHTER) {
+                int[] items = { 20, 413, 31, 38 };
+                carriedItem = items[index % items.length];
+            } else {
+                int[] items = { 10, 31, 33, 40, 412 };
+                carriedItem = items[index % items.length];
+            }
+            carriedItemName = itemName(carriedItem);
+        }
+
+        private void say(String message) {
+            lastMessage = message;
+            messageSequence++;
+            messageUntil = System.currentTimeMillis() + 5000;
+        }
+
+        private String randomLine() {
+            if (role == Role.GATHERER) {
+                String[] lines = {
+                    "need a few more " + carriedItemName,
+                    "selling " + carriedItemName + " at bank",
+                    "this spot is decent",
+                    "almost full",
+                    "anyone buying " + carriedItemName + "?",
+                    personality.clan + " skilling trip"
+                };
+                return lines[random.nextInt(lines.length)];
+            }
+            if (role == Role.FIGHTER) {
+                String[] lines = {
+                    "looking for drops",
+                    "need food soon",
+                    "training attack",
+                    "nice hit",
+                    "anyone seen giants?",
+                    "watch out " + personality.rivalClan
+                };
+                return lines[random.nextInt(lines.length)];
+            }
+            return randomPkLine();
+        }
+
+        private String randomPkLine() {
+            String[] lines = {
+                "skull up",
+                "run if you want",
+                "risk fight?",
+                "this is my world",
+                "bring food next time",
+                personality.clan + " clears " + personality.rivalClan
+            };
+            return lines[random.nextInt(lines.length)];
+        }
+
+        private boolean tradeWith(Player player) {
+            Map.Entry<Integer, Integer> offer = null;
+            for (Map.Entry<Integer, Integer> entry : inventory.entrySet()) {
+                if (entry.getKey() != 10 && entry.getValue() > 0) {
+                    offer = entry;
+                    break;
+                }
+            }
+            if (offer == null) {
+                say("nothing to sell");
+                player.getSender().sendMessage("@cya@[WorldBots] @whi@" + name + " has nothing useful to sell.");
+                return false;
+            }
+
+            int itemId = offer.getKey();
+            int amount = Math.min(offer.getValue(), Math.max(1, player.getInventory().getFreeSpaces()));
+            int price = Math.max(1, amount * Math.max(1, org.nemotech.rsc.external.EntityManager.getItem(itemId).getPrice() / 3));
+            if (player.getInventory().countId(10) < price) {
+                say("bring coins");
+                player.getSender().sendMessage("@cya@[WorldBots] @red@" + name + " wants " + price + " coins.");
+                return false;
+            }
+            InvItem item = new InvItem(itemId, amount);
+            if (!player.getInventory().canHold(item)) {
+                player.getSender().sendMessage("@cya@[WorldBots] @red@You don't have room for that trade.");
+                return false;
+            }
+
+            player.getInventory().remove(10, price);
+            player.getInventory().add(item);
+            addInventory(10, price);
+            int remaining = offer.getValue() - amount;
+            if (remaining > 0) {
+                inventory.put(itemId, remaining);
+            } else {
+                inventory.remove(itemId);
+            }
+            say("sold " + amount + " " + itemName(itemId));
+            player.getSender().sendMessage("@cya@[WorldBots] @whi@Bought " + amount + " " + itemName(itemId) + " from " + name + " for " + price + " coins.");
+            return true;
+        }
+
+        private Snapshot snapshot() {
+            int[] equipment = new int[12];
+            if (hasItem(81)) {
+                equipment[4] = 81;
+            } else if (role == Role.FIGHTER) {
+                equipment[4] = 81;
+            } else if (role == Role.WILDERNESS) {
+                equipment[4] = 93;
+            } else {
+                equipment[4] = 87;
+            }
+            return new Snapshot(3000 + npc.getIndex(), name, npc.getX(), npc.getY(), npc.getSprite(),
+                    level, role == Role.WILDERNESS, equipment,
+                    role.hairColour, role.topColour, role.bottomColour, 15523536,
+                    System.currentTimeMillis() < messageUntil ? lastMessage : null, messageSequence);
+        }
+
+        private void addInventory(int itemId, int amount) {
+            inventory.put(itemId, inventory.getOrDefault(itemId, 0) + amount);
+        }
+
+        private boolean hasItem(int itemId) {
+            return inventory.containsKey(itemId) && inventory.get(itemId) > 0;
+        }
+
+        private int inventorySize() {
+            int total = 0;
+            for (int amount : inventory.values()) {
+                total += amount;
+            }
+            return total;
+        }
+
+        private String inventoryString() {
+            StringBuilder builder = new StringBuilder();
+            for (Map.Entry<Integer, Integer> entry : inventory.entrySet()) {
+                if (builder.length() > 0) {
+                    builder.append(",");
+                }
+                builder.append(entry.getKey()).append(":").append(entry.getValue());
+            }
+            return builder.toString();
+        }
+
+        private int depositInventoryToExchange() {
+            int deposited = 0;
+            for (Map.Entry<Integer, Integer> entry : new ArrayList<>(inventory.entrySet())) {
+                if (GrandExchange.depositSystem(entry.getKey(), entry.getValue())) {
+                    deposited += entry.getValue();
+                    inventory.remove(entry.getKey());
+                }
+            }
+            itemsBanked += deposited;
+            return deposited;
+        }
+
+        private void dropInventory(Player owner) {
+            for (Map.Entry<Integer, Integer> entry : inventory.entrySet()) {
+                World.getWorld().registerItem(new Item(entry.getKey(), npc.getX(), npc.getY(), entry.getValue(), owner));
+            }
+            inventory.clear();
+            World.getWorld().registerItem(new Item(10, npc.getX(), npc.getY(), 25 + random.nextInt(100), owner));
+        }
+
+        private void gainXp(int amount) {
+            xp += amount;
+            int newLevel = Math.min(99, 3 + (xp / 100));
+            if (newLevel > level) {
+                level = newLevel;
+                npc.setCombatLevel(level);
+                say("level " + level);
+            }
+        }
+
+        private void respawn() {
+            BotArea spawnArea = role.areaFor(random.nextInt(8));
+            int npcId = role == Role.GATHERER ? GATHERER_NPC : role == Role.FIGHTER ? FIGHTER_NPC : WILDERNESS_NPC;
+            npc = new NPC(npcId, spawnArea.randomX(random), spawnArea.randomY(random),
+                    spawnArea.minX, spawnArea.maxX, spawnArea.minY, spawnArea.maxY);
+            npc.setShouldRespawn(false);
+            npc.setCombatLevel(level);
+            World.getWorld().registerNpc(npc);
+            area = spawnArea;
+            active = true;
+            say("back again");
+        }
+    }
+
+    private static final class Personality {
+        private static final String[] NAMES = {
+            "Zezima Jr", "OreLord", "WillowWisp", "Lobster Lad", "RuneRita", "EdgePker",
+            "CoalCart", "BankSale", "Risky Rob", "Maple Max", "Chaos Cat", "Iron Ivy",
+            "Trout Tom", "SkullSam", "YewOnly", "DeepWild"
+        };
+
+        private final String name;
+        private final String title;
+        private final int riskLevel;
+        private final int chatRate;
+        private final int attackRange;
+        private final int startLevel;
+        private final String clan;
+        private final String rivalClan;
+
+        private Personality(String name, String title, int riskLevel, int chatRate, int attackRange, int startLevel,
+                String clan, String rivalClan) {
+            this.name = name;
+            this.title = title;
+            this.riskLevel = riskLevel;
+            this.chatRate = chatRate;
+            this.attackRange = attackRange;
+            this.startLevel = startLevel;
+            this.clan = clan;
+            this.rivalClan = rivalClan;
+        }
+
+        private static Personality forBot(int index, Role role) {
+            String name = NAMES[index % NAMES.length];
+            String[] clans = { "Red capes", "Blue moon", "Bank crew", "Wild guard" };
+            String clan = clans[index % clans.length];
+            String rival = clans[(index + 1) % clans.length];
+            if (role == Role.WILDERNESS) {
+                return new Personality(name, "PKer", 4 + (index % 2), 7, 8 + (index % 4), 45 + (index % 25), clan, rival);
+            }
+            if (role == Role.FIGHTER) {
+                return new Personality(name, "Monster hunter", 2, 11, 5, 25 + (index % 20), clan, rival);
+            }
+            return new Personality(name, "Skiller", 1, 14, 3, 3 + (index % 15), clan, rival);
+        }
+
+        private String attackedLine(Random random) {
+            String[] lines = riskLevel > 2
+                    ? new String[] { "bad move", "sit down", "you sure?", "gl then" }
+                    : new String[] { "hey!", "why me?", "I was skilling", "not cool" };
+            return lines[random.nextInt(lines.length)];
+        }
+
+        private String deathLine(Random random) {
+            String[] lines = { "gf", "lag", "rematch later", "there goes my loot" };
+            return lines[random.nextInt(lines.length)];
+        }
+    }
+
+    private static final class Config {
+        private boolean autoStart = true;
+        private int defaultCount = DEFAULT_BOT_COUNT;
+        private int maxCount = 50;
+        private int respawnSeconds = 20;
+        private int saveEverySeconds = 60;
+        private int chatFrequency = 1;
+    }
+
+    public static final class Snapshot {
+        public final int serverIndex;
+        public final String name;
+        public final int x;
+        public final int y;
+        public final int sprite;
+        public final int combatLevel;
+        public final boolean skulled;
+        public final int[] equipment;
+        public final int hairColour;
+        public final int topColour;
+        public final int bottomColour;
+        public final int skinColour;
+        public final String message;
+        public final int messageSequence;
+
+        private Snapshot(int serverIndex, String name, int x, int y, int sprite, int combatLevel,
+                boolean skulled, int[] equipment, int hairColour, int topColour, int bottomColour, int skinColour) {
+            this(serverIndex, name, x, y, sprite, combatLevel, skulled, equipment,
+                    hairColour, topColour, bottomColour, skinColour, null, 0);
+        }
+
+        private Snapshot(int serverIndex, String name, int x, int y, int sprite, int combatLevel,
+                boolean skulled, int[] equipment, int hairColour, int topColour, int bottomColour, int skinColour,
+                String message, int messageSequence) {
+            this.serverIndex = serverIndex;
+            this.name = name;
+            this.x = x;
+            this.y = y;
+            this.sprite = sprite;
+            this.combatLevel = combatLevel;
+            this.skulled = skulled;
+            this.equipment = equipment;
+            this.hairColour = hairColour;
+            this.topColour = topColour;
+            this.bottomColour = bottomColour;
+            this.skinColour = skinColour;
+            this.message = message;
+            this.messageSequence = messageSequence;
+        }
+    }
+
+    private static String itemName(int itemId) {
+        try {
+            return org.nemotech.rsc.external.EntityManager.getItem(itemId).getName();
+        } catch (Exception e) {
+            return "item " + itemId;
+        }
+    }
+
+    private enum Role {
+        GATHERER("Gatherer", 18, 15658734, 25088, 8409120),
+        FIGHTER("Fighter", 10, 7360576, 8409120, 3),
+        WILDERNESS("Wilderness", 8, 7360576, 16711680, 3);
+
+        private final String label;
+        private final int depositAt;
+        private final int hairColour;
+        private final int topColour;
+        private final int bottomColour;
+
+        Role(String label, int depositAt, int hairColour, int topColour, int bottomColour) {
+            this.label = label;
+            this.depositAt = depositAt;
+            this.hairColour = hairColour;
+            this.topColour = topColour;
+            this.bottomColour = bottomColour;
+        }
+
+        private BotArea areaFor(int index) {
+            if (this == FIGHTER) {
+                BotArea[] areas = {
+                    new BotArea(350, 370, 604, 624),
+                    new BotArea(285, 305, 656, 676),
+                    new BotArea(245, 265, 392, 410)
+                };
+                return areas[index % areas.length];
+            }
+            if (this == WILDERNESS) {
+                BotArea[] areas = {
+                    new BotArea(198, 224, 390, 430),
+                    new BotArea(250, 275, 384, 420),
+                    new BotArea(300, 330, 360, 410)
+                };
+                return areas[index % areas.length];
+            }
+            BotArea[] areas = {
+                new BotArea(98, 154, 498, 515),
+                new BotArea(190, 235, 600, 650),
+                new BotArea(280, 335, 545, 575),
+                new BotArea(430, 470, 480, 505),
+                new BotArea(500, 550, 430, 470)
+            };
+            return areas[index % areas.length];
+        }
+    }
+
+    private static final class BotArea {
+        private final int minX;
+        private final int maxX;
+        private final int minY;
+        private final int maxY;
+
+        private BotArea(int minX, int maxX, int minY, int maxY) {
+            this.minX = minX;
+            this.maxX = maxX;
+            this.minY = minY;
+            this.maxY = maxY;
+        }
+
+        private int randomX(Random random) {
+            return minX + random.nextInt(maxX - minX + 1);
+        }
+
+        private int randomY(Random random) {
+            return minY + random.nextInt(maxY - minY + 1);
+        }
+    }
+}

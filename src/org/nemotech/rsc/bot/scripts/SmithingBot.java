@@ -54,7 +54,7 @@ public class SmithingBot extends Bot {
 
     @Override
     public String getNextBot() {
-        return "Combat Bot";
+        return "Fletching Bot";
     }
 
     @Override

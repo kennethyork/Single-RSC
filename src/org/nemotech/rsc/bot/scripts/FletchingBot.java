@@ -49,7 +49,7 @@ public class FletchingBot extends Bot {
 
     @Override
     public String getNextBot() {
-        return "Woodcutting Bot";
+        return "Ranged Bot";
     }
 
     @Override

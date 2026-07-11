@@ -551,6 +551,36 @@ public class BotAPI {
     public int getBankCount(int itemId) {
         return getBank().countId(itemId);
     }
+
+    // ==================== GRAND EXCHANGE METHODS ====================
+
+    /**
+     * Deposits an item from inventory into the shared Grand Exchange stock.
+     */
+    public boolean grandExchangeDeposit(int itemId, int amount) {
+        return GrandExchange.deposit(getPlayer(), itemId, amount);
+    }
+
+    /**
+     * Deposits all tradable inventory items into the shared Grand Exchange stock.
+     */
+    public int grandExchangeDepositInventory() {
+        return GrandExchange.depositInventory(getPlayer());
+    }
+
+    /**
+     * Withdraws an item from the shared Grand Exchange stock.
+     */
+    public boolean grandExchangeWithdraw(int itemId, int amount) {
+        return GrandExchange.withdraw(getPlayer(), itemId, amount);
+    }
+
+    /**
+     * Counts items currently available in the shared Grand Exchange stock.
+     */
+    public int grandExchangeCount(int itemId) {
+        return GrandExchange.countId(itemId);
+    }
     
     // ==================== NPC METHODS ====================
     

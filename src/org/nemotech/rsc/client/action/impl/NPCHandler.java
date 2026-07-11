@@ -7,6 +7,7 @@ import org.nemotech.rsc.model.landscape.PathGenerator;
 import org.nemotech.rsc.model.player.Player;
 import org.nemotech.rsc.model.World;
 import org.nemotech.rsc.plugins.PluginManager;
+import org.nemotech.rsc.bot.WorldBotManager;
 import org.nemotech.rsc.event.impl.FightEvent;
 import org.nemotech.rsc.event.impl.RangeEvent;
 import org.nemotech.rsc.event.WalkToMobEvent;
@@ -108,6 +109,9 @@ public class NPCHandler implements ActionHandler {
         if (affectedMob == null || affectedMob.equals(player)) {
             player.resetPath();
             return;
+        }
+        if (affectedMob instanceof NPC) {
+            WorldBotManager.getInstance().onPlayerAttackedBot(player, (NPC) affectedMob);
         }
         
         player.setFollowing(affectedMob);

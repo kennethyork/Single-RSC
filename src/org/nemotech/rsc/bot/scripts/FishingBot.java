@@ -70,7 +70,7 @@ public class FishingBot extends Bot {
 
     @Override
     public String getNextBot() {
-        return "Combat Bot";
+        return "Cooking Bot";
     }
 
     @Override
