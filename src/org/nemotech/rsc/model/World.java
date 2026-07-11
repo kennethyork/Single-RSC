@@ -150,7 +150,10 @@ public class World {
     /**
      * Gets the DelayedEventHandler instance
      */
-    public DelayedEventHandler getDelayedEventHandler() {
+    public synchronized DelayedEventHandler getDelayedEventHandler() {
+        if (delayedEventHandler == null) {
+            delayedEventHandler = new DelayedEventHandler();
+        }
         return delayedEventHandler;
     }
 

@@ -26,7 +26,7 @@ public class EngineThread extends Thread {
     /**
      * Handles delayed events rather than events to be ran every iteration
      */
-    private DelayedEventHandler eventHandler = new DelayedEventHandler();
+    private DelayedEventHandler eventHandler = World.getWorld().getDelayedEventHandler();
     /**
      * When the update loop was last ran, required for throttle
      */

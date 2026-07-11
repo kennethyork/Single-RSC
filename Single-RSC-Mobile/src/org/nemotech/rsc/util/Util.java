@@ -281,8 +281,8 @@ public class Util {
         }
         List<Class<?>> classes = new ArrayList<>();
         ArrayList<File> directories = new ArrayList<>();
+        ClassLoader cld = Thread.currentThread().getContextClassLoader();
         try {
-            ClassLoader cld = Thread.currentThread().getContextClassLoader();
             if (cld == null) {
                 throw new ClassNotFoundException("Can't get class loader.");
             }
@@ -295,7 +295,7 @@ public class Util {
                     for (JarEntry e : Collections.list(jar.entries())) {
                         if (e.getName().startsWith(pckgname.replace('.', '/')) && e.getName().endsWith(".class") && !e.getName().contains("$")) {
                             String className = e.getName().replace("/", ".").substring(0, e.getName().length() - 6);
-                            classes.add(Class.forName(className));
+                            classes.add(Class.forName(className, false, cld));
                         }
                     }
                 } else {
@@ -315,7 +315,7 @@ public class Util {
                 String[] files = directory.list();
                 for (String file : files) {
                     if (file.endsWith(".class")) {
-                        classes.add(Class.forName(pckgname + '.' + file.substring(0, file.length() - 6)));
+                        classes.add(Class.forName(pckgname + '.' + file.substring(0, file.length() - 6), false, cld));
                     }
                 }
             } else {
