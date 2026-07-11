@@ -16,6 +16,8 @@ import java.util.Map;
 
 public class PlayerUpdater extends Updater {
 
+    private static final int WORLD_BOT_RENDER_RADIUS = 48;
+
     private final Map<Integer, Integer> displayedWorldBotMessages = new HashMap<>();
     
     @Override
@@ -46,7 +48,7 @@ public class PlayerUpdater extends Updater {
     }
 
     private void addWorldBotsAsPlayers(Player player) {
-        List<WorldBotManager.Snapshot> bots = WorldBotManager.getInstance().getSnapshotsNear(player.getLocation(), 15);
+        List<WorldBotManager.Snapshot> bots = WorldBotManager.getInstance().getSnapshotsNear(player.getLocation(), WORLD_BOT_RENDER_RADIUS);
         for (WorldBotManager.Snapshot bot : bots) {
             int x = (bot.x - mc.regionX) * mc.magicLoc + 64;
             int y = (bot.y - mc.regionY) * mc.magicLoc + 64;
@@ -54,6 +56,9 @@ public class PlayerUpdater extends Updater {
                 continue;
             }
             Mob character = mc.createPlayer(bot.serverIndex, x, y, bot.sprite);
+            if (character == null) {
+                continue;
+            }
             character.serverId = bot.serverIndex;
             character.name = bot.name;
             character.level = bot.combatLevel;

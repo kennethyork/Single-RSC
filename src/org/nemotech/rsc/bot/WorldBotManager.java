@@ -28,7 +28,12 @@ public final class WorldBotManager {
     private static final int GATHERER_NPC = 795;
     private static final int FIGHTER_NPC = 796;
     private static final int WILDERNESS_NPC = 797;
+    private static final int PLAYER_SERVER_INDEX_BASE = 3000;
     private static final int DEFAULT_BOT_COUNT = 12;
+    private static final long MIN_SESSION_MS = 5 * 60 * 1000L;
+    private static final long SESSION_VARIANCE_MS = 10 * 60 * 1000L;
+    private static final long MIN_OFFLINE_MS = 30 * 1000L;
+    private static final long OFFLINE_VARIANCE_MS = 2 * 60 * 1000L;
     private static final String CONFIG_FILE = Constants.CACHE_DIRECTORY + "worldbots.properties";
     private static final String STATE_FILE = Constants.CACHE_DIRECTORY + "worldbots_state.properties";
 
@@ -112,7 +117,7 @@ public final class WorldBotManager {
                     .append(" - ").append(bot.personality.title)
                     .append(" [").append(bot.personality.clan).append("]")
                     .append(" lvl ").append(bot.level)
-                    .append(bot.active ? " at " + bot.npc.getX() + "," + bot.npc.getY() : " respawning")
+                    .append(bot.statusText())
                     .append(" inv ").append(bot.inventorySize())
                     .append(" kills ").append(bot.kills)
                     .append(" deaths ").append(bot.deaths);
@@ -204,7 +209,7 @@ public final class WorldBotManager {
         WorldBot nearest = null;
         int nearestDistance = Integer.MAX_VALUE;
         for (WorldBot bot : bots) {
-            if (!bot.active || bot.inventory.isEmpty()) {
+            if (!bot.active || !bot.online || bot.inventory.isEmpty()) {
                 continue;
             }
             int distance = Math.abs(bot.npc.getX() - player.getX()) + Math.abs(bot.npc.getY() - player.getY());
@@ -223,7 +228,7 @@ public final class WorldBotManager {
     public synchronized List<Snapshot> getSnapshotsNear(Point point, int radius) {
         List<Snapshot> snapshots = new ArrayList<>();
         for (WorldBot bot : bots) {
-            if (bot.active && bot.npc != null && !bot.npc.isRemoved() && bot.npc.getLocation().withinRange(point, radius)) {
+            if (bot.active && bot.online && bot.npc != null && !bot.npc.isRemoved() && bot.npc.getLocation().withinRange(point, radius)) {
                 snapshots.add(bot.snapshot());
             }
         }
@@ -470,6 +475,7 @@ public final class WorldBotManager {
         private final String name;
         private final Role role;
         private final Personality personality;
+        private final int playerServerIndex;
         private NPC npc;
         private BotArea area;
         private int carriedItem;
@@ -485,20 +491,33 @@ public final class WorldBotManager {
         private int kills;
         private int deaths;
         private int itemsBanked;
+        private boolean online = true;
+        private long nextSessionChangeAt;
 
         private WorldBot(int index, Role role, NPC npc, BotArea area, Personality personality) {
             this.name = personality.name;
             this.role = role;
             this.personality = personality;
+            this.playerServerIndex = PLAYER_SERVER_INDEX_BASE + index;
             this.npc = npc;
             this.area = area;
             chooseCarriedItem(index);
             level = personality.startLevel;
             npc.setCombatLevel(level);
+            scheduleLogout();
         }
 
         private void tick() {
-            if (!active || npc.isRemoved() || npc.inCombat()) {
+            if (!active) {
+                return;
+            }
+            if (!online) {
+                if (System.currentTimeMillis() >= nextSessionChangeAt) {
+                    login();
+                }
+                return;
+            }
+            if (npc.isRemoved() || npc.inCombat()) {
                 return;
             }
 
@@ -524,6 +543,9 @@ public final class WorldBotManager {
 
             if (npc.finishedPath() && random.nextInt(3) == 0) {
                 walkSomewhere();
+            }
+            if (System.currentTimeMillis() >= nextSessionChangeAt && !npc.inCombat()) {
+                logout();
             }
         }
 
@@ -688,7 +710,7 @@ public final class WorldBotManager {
             } else {
                 equipment[4] = 87;
             }
-            return new Snapshot(3000 + npc.getIndex(), name, npc.getX(), npc.getY(), npc.getSprite(),
+            return new Snapshot(playerServerIndex, name, npc.getX(), npc.getY(), npc.getSprite(),
                     level, role == Role.WILDERNESS, equipment,
                     role.hairColour, role.topColour, role.bottomColour, 15523536,
                     System.currentTimeMillis() < messageUntil ? lastMessage : null, messageSequence);
@@ -753,6 +775,31 @@ public final class WorldBotManager {
 
         private void respawn() {
             BotArea spawnArea = role.areaFor(random.nextInt(8));
+            spawn(spawnArea);
+            active = true;
+            online = true;
+            scheduleLogout();
+            say("back again");
+        }
+
+        private void logout() {
+            if (!online || npc.inCombat()) {
+                return;
+            }
+            World.getWorld().unregisterNpc(npc);
+            online = false;
+            nextSessionChangeAt = System.currentTimeMillis() + MIN_OFFLINE_MS + random.nextInt((int) OFFLINE_VARIANCE_MS);
+        }
+
+        private void login() {
+            BotArea spawnArea = role.areaFor(random.nextInt(8));
+            spawn(spawnArea);
+            online = true;
+            scheduleLogout();
+            say("just logged in");
+        }
+
+        private void spawn(BotArea spawnArea) {
             int npcId = role == Role.GATHERER ? GATHERER_NPC : role == Role.FIGHTER ? FIGHTER_NPC : WILDERNESS_NPC;
             npc = new NPC(npcId, spawnArea.randomX(random), spawnArea.randomY(random),
                     spawnArea.minX, spawnArea.maxX, spawnArea.minY, spawnArea.maxY);
@@ -760,8 +807,20 @@ public final class WorldBotManager {
             npc.setCombatLevel(level);
             World.getWorld().registerNpc(npc);
             area = spawnArea;
-            active = true;
-            say("back again");
+        }
+
+        private void scheduleLogout() {
+            nextSessionChangeAt = System.currentTimeMillis() + MIN_SESSION_MS + random.nextInt((int) SESSION_VARIANCE_MS);
+        }
+
+        private String statusText() {
+            if (!active) {
+                return " respawning";
+            }
+            if (!online) {
+                return " offline";
+            }
+            return " at " + npc.getX() + "," + npc.getY();
         }
     }
 
@@ -1012,6 +1071,7 @@ public final class WorldBotManager {
                 return areas[index % areas.length];
             }
             BotArea[] areas = {
+                new BotArea(112, 145, 625, 670),
                 new BotArea(98, 154, 498, 515),
                 new BotArea(190, 235, 600, 650),
                 new BotArea(280, 335, 545, 575),

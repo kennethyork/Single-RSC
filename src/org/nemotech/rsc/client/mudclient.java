@@ -422,6 +422,7 @@ public class mudclient extends Shell {
     };
     private int bankActivePage;
     public int welcomeLastLoggedInDays;
+    private static final int WORLD_BOT_PLAYER_SERVER_INDEX_BASE = 3000;
     private String equipmentStatNames[] = {
         "Armour", "WeaponAim", "WeaponPower", "Magic", "Prayer"
     };
@@ -1108,6 +1109,9 @@ public class mudclient extends Shell {
     }
 
     public Mob createPlayer(int serverIndex, int x, int y, int anim) {
+        if (serverIndex < 0 || serverIndex >= playerServer.length) {
+            return null;
+        }
         if (playerServer[serverIndex] == null) {
             playerServer[serverIndex] = new Mob();
             playerServer[serverIndex].serverIndex = serverIndex;
@@ -2058,7 +2062,7 @@ public class mudclient extends Shell {
             int k6 = i4 * k4 + k2 * i5 >> 18;
             i4 = i4 * i5 - k2 * k4 >> 18;
             k2 = k6;
-            int j8 = 0xffffff;
+            int j8 = character_1.serverIndex >= WORLD_BOT_PLAYER_SERVER_INDEX_BASE ? 0x00ff66 : 0xffffff;
             drawMinimapEntity(uiX + uiWidth / 2 + k2, (36 + uiHeight / 2) - i4, j8);
         }
 
