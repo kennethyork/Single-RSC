@@ -1,6 +1,7 @@
 package org.nemotech.rsc.plugins.commands;
 
 import org.nemotech.rsc.model.player.Player;
+import org.nemotech.rsc.model.MenuHandler;
 import org.nemotech.rsc.model.GrandExchange;
 import org.nemotech.rsc.model.player.InvItem;
 import org.nemotech.rsc.plugins.Plugin;
@@ -41,7 +42,7 @@ import java.util.List;
  * - ::craft [mode] - Crafting (leather/spinning/pottery)
  * - ::herblaw [mode] - Herblaw (identify/potions)
  * - ::everything - Registers all supported bots and starts the progression
- * - ::worldbots start|stop|status|top|trade|config|save - Controls autonomous world bots
+ * - ::worldbots start|stop|status|top|trade|config|settings|save - Controls autonomous world bots
  * - ::ge list|deposit|withdraw - Shared Grand Exchange stock
  * - ::debugobjects [radius] - List nearby objects (for finding IDs)
  */
@@ -318,6 +319,11 @@ public class BotCommands extends Plugin implements CommandListener {
             return;
         }
 
+        if (subCommand.equals("settings") || subCommand.equals("menu")) {
+            showWorldBotSettingsMenu(player);
+            return;
+        }
+
         if (subCommand.equals("trade")) {
             manager.tradeWithNearestBot(player);
             return;
@@ -329,7 +335,95 @@ public class BotCommands extends Plugin implements CommandListener {
             return;
         }
 
-        player.getSender().sendMessage("@cya@[WorldBots] @whi@Usage: ::worldbots start [count], stop, status, top, trade, config, save");
+        player.getSender().sendMessage("@cya@[WorldBots] @whi@Usage: ::worldbots start [count], stop, status, top, trade, config, settings, save");
+    }
+
+    private void showWorldBotSettingsMenu(final Player player) {
+        final WorldBotManager manager = WorldBotManager.getInstance();
+        final int currentCount = manager.isRunning() ? manager.getBotCount() : manager.getDefaultCount();
+        final int currentAggression = manager.getAggression();
+        final int currentChat = manager.getChatFrequency();
+        final boolean currentRun = manager.isRunning();
+
+        String[] options = {
+            "Bot count: " + currentCount,
+            "Aggression: " + manager.getAggressionLabel(),
+            "Chat: " + manager.getChatLabel(),
+            currentRun ? "Stop world bots" : "Start world bots",
+            "Save and close"
+        };
+        player.setMenuHandler(new MenuHandler(options) {
+            @Override
+            public void handleReply(int option, String reply) {
+                owner.resetMenuHandler();
+                if (option == 0) {
+                    showWorldBotCountMenu(owner, currentAggression, currentChat, currentRun);
+                } else if (option == 1) {
+                    showWorldBotAggressionMenu(owner, currentCount, currentChat, currentRun);
+                } else if (option == 2) {
+                    showWorldBotChatMenu(owner, currentCount, currentAggression, currentRun);
+                } else if (option == 3) {
+                    manager.applyRuntimeSettings(currentCount, currentAggression, currentChat, !currentRun);
+                    owner.getSender().sendMessage("@cya@[WorldBots] @whi@World bots are now " + (manager.isRunning() ? "running." : "stopped."));
+                    showWorldBotSettingsMenu(owner);
+                } else {
+                    manager.applyRuntimeSettings(currentCount, currentAggression, currentChat, currentRun);
+                    owner.getSender().sendMessage("@cya@[WorldBots] @whi@Saved world bot settings.");
+                }
+            }
+        });
+        player.getSender().sendMenu(options);
+    }
+
+    private void showWorldBotCountMenu(final Player player, final int aggression, final int chat, final boolean shouldRun) {
+        final int[] counts = { 6, 12, 20, 35, 50 };
+        String[] options = { "6 bots", "12 bots", "20 bots", "35 bots", "50 bots" };
+        player.setMenuHandler(new MenuHandler(options) {
+            @Override
+            public void handleReply(int option, String reply) {
+                owner.resetMenuHandler();
+                if (option >= 0 && option < counts.length) {
+                    WorldBotManager.getInstance().applyRuntimeSettings(counts[option], aggression, chat, shouldRun);
+                    owner.getSender().sendMessage("@cya@[WorldBots] @whi@Bot count set to " + counts[option] + ".");
+                }
+                showWorldBotSettingsMenu(owner);
+            }
+        });
+        player.getSender().sendMenu(options);
+    }
+
+    private void showWorldBotAggressionMenu(final Player player, final int count, final int chat, final boolean shouldRun) {
+        final int[] values = { 0, 1, 3, 4, 5 };
+        String[] options = { "Peaceful", "Low", "Normal", "High", "Dangerous" };
+        player.setMenuHandler(new MenuHandler(options) {
+            @Override
+            public void handleReply(int option, String reply) {
+                owner.resetMenuHandler();
+                if (option >= 0 && option < values.length) {
+                    WorldBotManager.getInstance().applyRuntimeSettings(count, values[option], chat, shouldRun);
+                    owner.getSender().sendMessage("@cya@[WorldBots] @whi@Aggression set to " + options[option].toLowerCase() + ".");
+                }
+                showWorldBotSettingsMenu(owner);
+            }
+        });
+        player.getSender().sendMenu(options);
+    }
+
+    private void showWorldBotChatMenu(final Player player, final int count, final int aggression, final boolean shouldRun) {
+        final int[] values = { 0, 1, 3 };
+        String[] options = { "Quiet", "Normal", "Chatty" };
+        player.setMenuHandler(new MenuHandler(options) {
+            @Override
+            public void handleReply(int option, String reply) {
+                owner.resetMenuHandler();
+                if (option >= 0 && option < values.length) {
+                    WorldBotManager.getInstance().applyRuntimeSettings(count, aggression, values[option], shouldRun);
+                    owner.getSender().sendMessage("@cya@[WorldBots] @whi@Chat set to " + options[option].toLowerCase() + ".");
+                }
+                showWorldBotSettingsMenu(owner);
+            }
+        });
+        player.getSender().sendMenu(options);
     }
 
     private void startEverything(Player player) {

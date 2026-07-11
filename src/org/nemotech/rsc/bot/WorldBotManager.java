@@ -151,7 +151,53 @@ public final class WorldBotManager {
                 + "\nrespawn_seconds=" + config.respawnSeconds
                 + "\nsave_every_seconds=" + config.saveEverySeconds
                 + "\nchat_frequency=" + config.chatFrequency
+                + "\naggression=" + config.aggression + " (" + config.aggressionLabel() + ")"
                 + "\nconfig_file=" + CONFIG_FILE;
+    }
+
+    public synchronized int getDefaultCount() {
+        loadConfig();
+        return config.defaultCount;
+    }
+
+    public synchronized int getAggression() {
+        loadConfig();
+        return config.aggression;
+    }
+
+    public synchronized String getAggressionLabel() {
+        loadConfig();
+        return config.aggressionLabel();
+    }
+
+    public synchronized int getChatFrequency() {
+        loadConfig();
+        return config.chatFrequency;
+    }
+
+    public synchronized String getChatLabel() {
+        loadConfig();
+        if (config.chatFrequency <= 0) {
+            return "quiet";
+        }
+        if (config.chatFrequency >= 3) {
+            return "chatty";
+        }
+        return "normal";
+    }
+
+    public synchronized void applyRuntimeSettings(int count, int aggression, int chatFrequency, boolean shouldRun) {
+        loadConfig();
+        config.defaultCount = Math.max(1, Math.min(count, config.maxCount));
+        config.aggression = Math.max(0, Math.min(5, aggression));
+        config.chatFrequency = Math.max(0, Math.min(4, chatFrequency));
+        saveConfig();
+
+        if (shouldRun) {
+            startBots(config.defaultCount);
+        } else if (running) {
+            stopBots();
+        }
     }
 
     public synchronized boolean tradeWithNearestBot(Player player) {
@@ -247,7 +293,6 @@ public final class WorldBotManager {
                 synchronized (WorldBotManager.this) {
                     bot.respawn();
                 }
-                running = false;
             }
         });
     }
@@ -296,7 +341,31 @@ public final class WorldBotManager {
             config.maxCount = parseInt(properties.getProperty("max_count"), 50);
             config.respawnSeconds = parseInt(properties.getProperty("respawn_seconds"), 20);
             config.saveEverySeconds = parseInt(properties.getProperty("save_every_seconds"), 60);
-            config.chatFrequency = Math.max(1, parseInt(properties.getProperty("chat_frequency"), 1));
+            config.chatFrequency = Math.max(0, parseInt(properties.getProperty("chat_frequency"), 1));
+            config.aggression = Math.max(0, Math.min(5, parseInt(properties.getProperty("aggression"), 3)));
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void saveConfig() {
+        try {
+            File file = new File(CONFIG_FILE);
+            File parent = file.getParentFile();
+            if (parent != null) {
+                parent.mkdirs();
+            }
+            Properties properties = new Properties();
+            properties.setProperty("autostart", String.valueOf(config.autoStart));
+            properties.setProperty("default_count", String.valueOf(config.defaultCount));
+            properties.setProperty("max_count", String.valueOf(config.maxCount));
+            properties.setProperty("respawn_seconds", String.valueOf(config.respawnSeconds));
+            properties.setProperty("save_every_seconds", String.valueOf(config.saveEverySeconds));
+            properties.setProperty("chat_frequency", String.valueOf(config.chatFrequency));
+            properties.setProperty("aggression", String.valueOf(config.aggression));
+            try (FileOutputStream out = new FileOutputStream(file)) {
+                properties.store(out, "Single-RSC autonomous world bot settings");
+            }
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -315,6 +384,7 @@ public final class WorldBotManager {
             properties.setProperty("respawn_seconds", "20");
             properties.setProperty("save_every_seconds", "60");
             properties.setProperty("chat_frequency", "1");
+            properties.setProperty("aggression", "3");
             try (FileOutputStream out = new FileOutputStream(file)) {
                 properties.store(out, "Single-RSC autonomous world bot settings");
             }
@@ -441,7 +511,7 @@ public final class WorldBotManager {
                 nextWorkAt = System.currentTimeMillis() + 5000 + random.nextInt(8000);
             }
 
-            if (random.nextInt(Math.max(1, personality.chatRate / config.chatFrequency)) == 0) {
+            if (config.chatFrequency > 0 && random.nextInt(Math.max(1, personality.chatRate / config.chatFrequency)) == 0) {
                 say(randomLine());
             }
 
@@ -465,13 +535,20 @@ public final class WorldBotManager {
             if (!npc.getLocation().withinRange(player.getLocation(), personality.attackRange)) {
                 return false;
             }
+            if (config.aggression <= 0) {
+                return false;
+            }
+            int patience = Math.max(1, 7 - config.aggression);
+            if (random.nextInt(patience) != 0) {
+                return false;
+            }
             if (personality.riskLevel < 3 && player.getCombatLevel() > level + 8) {
-                say("not risking that");
+                say(personality.safeLine(random));
                 walkSomewhere();
                 return false;
             }
             if (random.nextInt(6) == 0) {
-                say(personality.clan + " owns this strip");
+                say(personality.territoryLine(random));
             }
             npc.startCombat(player);
             say(randomPkLine());
@@ -534,6 +611,9 @@ public final class WorldBotManager {
         }
 
         private void say(String message) {
+            if (message == null || message.equals(lastMessage)) {
+                return;
+            }
             lastMessage = message;
             messageSequence++;
             messageUntil = System.currentTimeMillis() + 5000;
@@ -541,40 +621,16 @@ public final class WorldBotManager {
 
         private String randomLine() {
             if (role == Role.GATHERER) {
-                String[] lines = {
-                    "need a few more " + carriedItemName,
-                    "selling " + carriedItemName + " at bank",
-                    "this spot is decent",
-                    "almost full",
-                    "anyone buying " + carriedItemName + "?",
-                    personality.clan + " skilling trip"
-                };
-                return lines[random.nextInt(lines.length)];
+                return personality.gatherLine(random, carriedItemName, inventorySize(), role.depositAt);
             }
             if (role == Role.FIGHTER) {
-                String[] lines = {
-                    "looking for drops",
-                    "need food soon",
-                    "training attack",
-                    "nice hit",
-                    "anyone seen giants?",
-                    "watch out " + personality.rivalClan
-                };
-                return lines[random.nextInt(lines.length)];
+                return personality.fighterLine(random, carriedItemName, level, inventorySize());
             }
             return randomPkLine();
         }
 
         private String randomPkLine() {
-            String[] lines = {
-                "skull up",
-                "run if you want",
-                "risk fight?",
-                "this is my world",
-                "bring food next time",
-                personality.clan + " clears " + personality.rivalClan
-            };
-            return lines[random.nextInt(lines.length)];
+            return personality.wildernessLine(random, level, config.aggression);
         }
 
         private boolean tradeWith(Player player) {
@@ -606,7 +662,9 @@ public final class WorldBotManager {
             }
 
             player.getInventory().remove(10, price);
+            player.getSender().sendInventory();
             player.getInventory().add(item);
+            player.getSender().sendInventory();
             addInventory(10, price);
             int remaining = offer.getValue() - amount;
             if (remaining > 0) {
@@ -751,13 +809,92 @@ public final class WorldBotManager {
 
         private String attackedLine(Random random) {
             String[] lines = riskLevel > 2
-                    ? new String[] { "bad move", "sit down", "you sure?", "gl then" }
-                    : new String[] { "hey!", "why me?", "I was skilling", "not cool" };
+                    ? new String[] { "bad move", "sit down", "you sure?", "gl then", "wrong target", "you picked this" }
+                    : new String[] { "hey!", "why me?", "I was skilling", "not cool", "leave me alone", "I had a full inv" };
             return lines[random.nextInt(lines.length)];
         }
 
         private String deathLine(Random random) {
-            String[] lines = { "gf", "lag", "rematch later", "there goes my loot" };
+            String[] lines = { "gf", "lag", "rematch later", "there goes my loot", "banking faster next time", "close one" };
+            return lines[random.nextInt(lines.length)];
+        }
+
+        private String gatherLine(Random random, String itemName, int inventorySize, int depositAt) {
+            String[] lines = {
+                "need a few more " + itemName,
+                "selling " + itemName + " at bank",
+                "this spot is decent",
+                "almost full " + inventorySize + "/" + depositAt,
+                "anyone buying " + itemName + "?",
+                clan + " skilling trip",
+                "bank route is clear",
+                "saving for better gear",
+                "prices are moving today",
+                "taking this to exchange",
+                "quiet world for skilling",
+                rivalClan + " keeps crashing spots"
+            };
+            return lines[random.nextInt(lines.length)];
+        }
+
+        private String fighterLine(Random random, String itemName, int level, int inventorySize) {
+            String[] lines = {
+                "looking for drops",
+                "need food soon",
+                "training attack",
+                "nice hit",
+                "anyone seen giants?",
+                "watch out " + rivalClan,
+                "lvl " + level + " grind",
+                "keeping " + itemName + " for exchange",
+                "inventory is " + inventorySize + " items",
+                "bank after this kill",
+                "selling spare drops",
+                clan + " monster run"
+            };
+            return lines[random.nextInt(lines.length)];
+        }
+
+        private String wildernessLine(Random random, int level, int aggression) {
+            String[] calmLines = {
+                "just scouting",
+                "not risking much",
+                "passing through wild",
+                "keeping distance",
+                "watching the border"
+            };
+            String[] lines = {
+                "skull up",
+                "run if you want",
+                "risk fight?",
+                "this is my world",
+                "bring food next time",
+                clan + " clears " + rivalClan,
+                "lvl " + level + " north side",
+                "protect item on",
+                "bank your loot",
+                "wild is active",
+                "teleblock would be nice",
+                "scouting for " + clan
+            };
+            if (aggression <= 1) {
+                return calmLines[random.nextInt(calmLines.length)];
+            }
+            return lines[random.nextInt(lines.length)];
+        }
+
+        private String safeLine(Random random) {
+            String[] lines = { "not risking that", "too stacked for me", "I'll pass", "need better food first" };
+            return lines[random.nextInt(lines.length)];
+        }
+
+        private String territoryLine(Random random) {
+            String[] lines = {
+                clan + " owns this strip",
+                rivalClan + " got cleared here",
+                "this bank route is watched",
+                clan + " patrol"
+            };
             return lines[random.nextInt(lines.length)];
         }
     }
@@ -769,6 +906,23 @@ public final class WorldBotManager {
         private int respawnSeconds = 20;
         private int saveEverySeconds = 60;
         private int chatFrequency = 1;
+        private int aggression = 3;
+
+        private String aggressionLabel() {
+            if (aggression <= 0) {
+                return "peaceful";
+            }
+            if (aggression == 1) {
+                return "low";
+            }
+            if (aggression == 2 || aggression == 3) {
+                return "normal";
+            }
+            if (aggression == 4) {
+                return "high";
+            }
+            return "dangerous";
+        }
     }
 
     public static final class Snapshot {
