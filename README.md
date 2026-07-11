@@ -1,246 +1,359 @@
-<img width="1200" height="800" alt="rsmap" src="rsmap.png" />
+<img width="1200" height="800" alt="World map" src="rsmap.png" />
 
-# RSC Single Player
+# Single-RSC
 
-**Original Author:** [Sean Niemann](https://github.com/sean-niemann) — [RSC-Single-Player](https://github.com/sean-niemann/RSC-Single-Player)
+A self-contained single-player RuneScape Classic experience for desktop and Android.
 
-A fully self-contained RuneScape Classic client that runs entirely offline — no server, no database, no internet required. Built for preservation, nostalgia, and experimentation.
+**Current release:** `v2.7.3`  
+**Desktop:** Java 17+  
+**Android:** APK included in GitHub releases  
+**License:** GPL v3
 
-**Version 2.4.10** · Java 17+ · GPL v3
-
----
-
-## Table of Contents
-- [Features](#features)
-- [Quick Start](#quick-start)
-- [Commands](#commands)
-- [Bot System](#bot-system)
-- [Hardcore Mode](#hardcore-mode)
-- [Building from Source](#building-from-source)
-- [Project Structure](#project-structure)
-- [Administrator Account](#administrator-account)
-- [Media](#media)
-- [FAQ](#faq)
-- [License](#license)
+Original project by [Sean Niemann](https://github.com/sean-niemann): [RSC-Single-Player](https://github.com/sean-niemann/RSC-Single-Player)
 
 ---
 
-## Features
+## Download
 
-- **Single-process** — everything runs in one JVM, no external dependencies
-- **All 50 quests** playable
-- **18-skill bot system** with auto-banking and combat support
-- **Resizable UI** — drag to any window size
-- **Batched skill actions** — woodcutting, mining, cooking, etc. use a tick-based batch system
-- **8x XP multiplier** (configurable in source)
-- **Hardcore mode** — death permanently deletes your save
-- **Multi-account** — create as many characters as you like
-- **Full music** — 55 MIDI tracks mapped to game regions
+Get the latest release from:
 
-### Quality of Life
-- `::bank` opens your bank from anywhere
-- `::tele` teleports to named locations or coordinates
-- `::stuck` unsticks your character
-- Right-click item swapping in the bank interface
-- Bob's Axes stocks hatchets (Bronze → Rune) and pickaxes (Bronze → Rune)
+https://github.com/kennethyork/Single-RSC/releases
+
+Use:
+
+- `Single-RSC-v2.7.3.zip` for desktop
+- `Single-RSC-v2.7.3.apk` for Android
+
+The release does not include a standalone `rsc.jar` download. The desktop zip already contains the jar and launch scripts.
 
 ---
 
-## Quick Start
+## What This Is
 
-**Requirements:** Java 17 or newer
+Single-RSC runs the game locally. There is no remote server, database, subscription, or internet requirement after download.
 
-1. Download or clone the repository:
-   ```bash
-   git clone https://github.com/theKennethy/Single-RSC.git
-   cd Single-RSC
-   ```
-2. Launch the game:
-   - **Linux / macOS:** `./run.sh`
-   - **Windows:** `run.bat`
-   - **Or:** `java -cp "rsc.jar:lib/*" org.nemotech.rsc.Main`
-3. Click **New User**, create an account, and log in.
-
-> **Tip:** Create a user named `root` for admin privileges.
+The goal is to make RuneScape Classic feel alive as a single-player game. The world now includes autonomous player-like bots that gather resources, fight, enter the wilderness, talk, trade, die, drop items, use shared exchange stock, and appear like players in the client.
 
 ---
 
-## Commands
+## Main Features
 
-### Player Commands
+- Offline single-player RuneScape Classic
+- Desktop and Android builds
+- All 50 quests playable
+- Multi-account local saves
+- Hardcore mode
+- Resizable desktop UI
+- 8x XP multiplier
+- Full music support
+- Admin account and debug commands
+- Skill automation bots for your own player
+- Autonomous world bots that act like fake players
+- Grand Exchange-style shared item stock at banks
+
+---
+
+## World Bots
+
+World bots are autonomous fake players that run around the world while you play.
+
+They can:
+
+- Gather resources
+- Fight monsters
+- Enter and patrol the wilderness
+- Attack the player in the wilderness depending on aggression settings
+- Talk with role/personality-based dialogue
+- Trade items to the player
+- Deposit and withdraw items from shared Grand Exchange stock
+- Gain levels
+- Die, respawn, and drop inventory
+- Show up like player avatars instead of normal NPCs
+
+Useful commands:
 
 | Command | Description |
-|---------|-------------|
-| `::help` | Show help message |
+|---|---|
+| `::worldbots status` | Show active world bots |
+| `::worldbots settings` | Open the in-game settings menu |
+| `::worldbots menu` | Same as settings |
+| `::worldbots start [count]` | Start world bots |
+| `::worldbots stop` | Stop world bots |
+| `::worldbots top` | Show world bot leaderboard |
+| `::worldbots trade` | Trade with the nearest world bot |
+| `::worldbots config` | Show config values |
+| `::worldbots save` | Save bot state |
+
+The settings menu controls:
+
+- Bot count
+- Wilderness aggression
+- Chat frequency
+- Start/stop state
+
+World bot settings are saved in:
+
+```text
+cache/worldbots.properties
+```
+
+World bot progress is saved in:
+
+```text
+cache/worldbots_state.properties
+```
+
+---
+
+## Grand Exchange
+
+Banks now include Grand Exchange access. Items deposited there go into shared stock that both you and bots can use.
+
+Banker menu options include:
+
+- Deposit tradable inventory
+- Pick up an item
+- Show current stock
+
+Chat commands:
+
+| Command | Description |
+|---|---|
+| `::ge list` | Show shared stock |
+| `::ge deposit <itemId> [amount/all]` | Deposit an item |
+| `::ge withdraw <itemId> [amount/all]` | Withdraw an item |
+| `::ge depositall` | Deposit all tradable inventory |
+| `::exchange ...` | Alias for `::ge` |
+
+Bots can buy from and sell into this shared stock, so the economy gets populated as they play.
+
+---
+
+## Quick Start: Desktop
+
+Requirements:
+
+- Java 17 or newer
+
+Steps:
+
+```bash
+unzip Single-RSC-v2.7.3.zip
+cd Single-RSC
+./run.sh
+```
+
+On Windows, run:
+
+```bat
+run.bat
+```
+
+Manual launch:
+
+```bash
+java -cp "rsc.jar:lib/*" org.nemotech.rsc.Main
+```
+
+Create a new user and log in. Create a user named `root` if you want admin privileges.
+
+---
+
+## Quick Start: Android
+
+Install:
+
+```text
+Single-RSC-v2.7.3.apk
+```
+
+Android includes the same gameplay updates as desktop, including world bots, Grand Exchange stock, and bot dialogue/settings.
+
+If Android blocks installation, enable installation from unknown sources for your browser or file manager.
+
+---
+
+## Player Bot Commands
+
+These bots control your own character for skilling/combat automation.
+
+| Command | Description |
+|---|---|
+| `::bot list` | List registered player bots |
+| `::bot start <name>` | Start a named bot |
+| `::bot stop [name]` | Stop a bot |
+| `::bot pause` | Pause/resume active bot |
+| `::bot status` | Show player bot status |
+| `::everything` | Start full skill progression |
+| `::allbots` | Alias for `::everything` |
+| `::stopbot` | Stop all player bots |
+
+Quick skill commands:
+
+| Command | Skill |
+|---|---|
+| `::woodcut [type]` / `::wc [type]` | Woodcutting |
+| `::fish [type]` | Fishing |
+| `::mine [type]` | Mining |
+| `::combat [target]` / `::fight [target]` | Melee combat |
+| `::ranged [target]` / `::range [target]` | Ranged |
+| `::magic [target]` / `::mage [target]` | Magic |
+| `::cook` | Cooking |
+| `::fm` | Firemaking |
+| `::smith` | Smithing |
+| `::fletch` | Fletching |
+| `::craft [mode]` | Crafting |
+| `::herblaw [mode]` | Herblaw |
+| `::agility [course]` / `::agil [course]` | Agility |
+| `::thieve [target]` | Thieving |
+| `::prayer` / `::pray` | Prayer |
+
+Examples:
+
+```text
+::worldbots settings
+::worldbots start 20
+::worldbots trade
+::ge list
+::ge depositall
+::everything
+::woodcut willow
+::combat goblin
+```
+
+---
+
+## General Commands
+
+| Command | Description |
+|---|---|
+| `::help` | Show help |
 | `::bank` | Open bank anywhere |
-| `::stuck` | Unstick your character |
-| `::pos` | Show current coordinates |
-| `::toggleroofs` | Toggle roof rendering on/off |
-| `::mapedit` | Open the real-time map editor |
+| `::stuck` | Move out of a stuck position |
+| `::pos` | Show coordinates |
+| `::toggleroofs` | Toggle roofs |
+| `::mapedit` | Open map editor |
 
-### Admin Commands (user: `root`)
+---
+
+## Admin Account
+
+Create a user named exactly:
+
+```text
+root
+```
+
+Admin commands include:
 
 | Command | Description |
-|---------|-------------|
-| `::tele <location>` | Teleport to a named location |
+|---|---|
+| `::tele <location>` | Teleport to named location |
 | `::tele <x> <y>` | Teleport to coordinates |
-| `::town <location>` | Teleport to a town |
-| `::item <id> [amount]` | Spawn an item |
-| `::npc <id>` | Spawn an NPC |
-| `::object <id> [dir]` | Spawn an object |
-| `::set <skill> <level>` | Set a skill level |
+| `::town <location>` | Teleport to town |
+| `::item <id> [amount]` | Spawn item |
+| `::npc <id>` | Spawn NPC |
+| `::object <id> [dir]` | Spawn object |
+| `::set <skill> <level>` | Set skill level |
 | `::addbank <id> [amount]` | Add item to bank |
 | `::removebank <id> [amount]` | Remove item from bank |
 | `::quest <id> <stage>` | Set quest stage |
-| `::find <entity> <string>` | Search for entities by name |
-| `::stresstest <type> <radius>` | Stress test entities |
-| `::debugobjects [radius]` | List nearby game objects |
-| Mini-map right-click | Teleport to clicked location |
+| `::find <entity> <name>` | Search entities |
+| `::debugobjects [radius]` | List nearby objects |
 
----
-
-## Bot System
-
-A built-in bot framework that automates training for all 18 skills. Bots handle banking, eating, and resource management automatically. They stop cleanly when supplies run out or after repeated failures.
-
-### Bot Management
-
-| Command | Description |
-|---------|-------------|
-| `::bot list` | List all registered bots |
-| `::bot start <name>` | Start a bot by name |
-| `::bot stop [name]` | Stop a bot (or all bots) |
-| `::bot pause` | Pause / resume the active bot |
-| `::bot status` | Show status of all bots |
-| `::botarea <location>` | Set bot working area by name |
-| `::botarea <x1> <x2> <y1> <y2>` | Set bot working area by coordinates |
-| `::botarea clear` | Clear bot area bounds |
-
-### Gathering Bots
-
-| Command | Skill | Details |
-|---------|-------|---------|
-| `::woodcut [type]` | Woodcutting | normal, oak, willow, maple, yew, magic |
-| `::fish [type]` | Fishing | net, fly, cage, harpoon, shark |
-| `::mine [type]` | Mining | copper, tin, iron, coal, gold, mith, addy, rune |
-
-### Combat Bots
-
-| Command | Skill | Details |
-|---------|-------|---------|
-| `::combat [npc]` | Attack/Strength/Defence | Melee combat with auto-looting |
-| `::ranged [npc]` | Ranged | Ranged combat training |
-| `::magic [npc]` | Magic | Casts combat spells on NPCs |
-
-### Production Bots
-
-| Command | Skill | Details |
-|---------|-------|---------|
-| `::cook` | Cooking | Cooks raw food on ranges |
-| `::fm` | Firemaking | Burns logs with tinderbox |
-| `::smith` | Smithing | Smiths bars at anvils |
-| `::fletch` | Fletching | Makes bows and arrows from logs |
-| `::craft [mode]` | Crafting | leather, spinning, pottery |
-| `::herblaw [mode]` | Herblaw | identify herbs, make potions |
-
-### Support Bots
-
-| Command | Skill | Details |
-|---------|-------|---------|
-| `::agility [course]` | Agility | gnome, barb, wild |
-| `::thieve [target]` | Thieving | Pickpockets NPCs |
-| `::prayer` | Prayer | Buries bones from inventory |
-
-### Bot Behavior
-- **Auto-banking** — gathering bots walk to the nearest bank when inventory is full
-- **Auto-eating** — combat bots eat food when HP drops low
-- **Clean shutdown** — bots stop themselves when out of supplies or after 3+ consecutive banking failures
-- **Statistics** — track items collected/processed and XP gained
-
-### Examples
-```
-::woodcut willow       Cut willow trees, bank logs
-::fish lobster         Catch lobsters, bank them
-::mine iron            Mine iron ore, bank it
-::combat goblin        Fight goblins, eat food, loot drops
-::agility gnome        Run the Gnome Agility Course
-::cook                 Cook raw food on a nearby range
-::prayer               Bury all bones in inventory
-::craft leather        Craft leather items
-::herblaw identify     Identify unidentified herbs
-```
+Admin users can also right-click the mini-map to teleport.
 
 ---
 
 ## Hardcore Mode
 
-- Toggle when creating a new account (check the Hardcore box)
-- **On death:** your save file is permanently deleted and the client closes
-- Logging in again starts a fresh character
-- Back up your save file manually if you want a safety net
+Hardcore mode can be enabled when creating a character.
+
+If a hardcore character dies:
+
+- The save file is permanently deleted
+- The client closes
+- Logging in again starts fresh
+
+Back up saves manually if you want a recovery point.
 
 ---
 
-## Building from Source
+## Building Desktop
 
-**Requirements:** Java 17+, `lib/gson-2.6.2.jar` (included)
+Requirements:
+
+- Java 17+
+- `lib/gson-2.6.2.jar` included in the repo
+
+Build:
 
 ```bash
-BUILD_DIR="build" && \
-rm -rf "$BUILD_DIR" && \
-mkdir -p "$BUILD_DIR" && \
-find src -name '*.java' -print0 | xargs -0 javac -source 17 -target 17 -cp lib/gson-2.6.2.jar -d "$BUILD_DIR" && \
-jar cfm "rsc.jar" META-INF/MANIFEST.MF -C "$BUILD_DIR" . && \
-rm -rf "$BUILD_DIR"
+bash compile.txt
 ```
 
-This produces `rsc.jar` in the project root. The build command is also saved in `compile.txt`.
+This produces:
+
+```text
+rsc.jar
+```
 
 ---
 
-## Project Structure
+## Building Android
 
+The Android project is in:
+
+```text
+Single-RSC-Mobile/
 ```
+
+Build a release APK:
+
+```bash
+cd Single-RSC-Mobile
+./gradlew clean assembleRelease
+```
+
+Output:
+
+```text
+Single-RSC-Mobile/app/build/outputs/apk/release/Single-RSC.apk
+```
+
+---
+
+## Project Layout
+
+```text
 Single-RSC/
-├── rsc.jar                  # Prebuilt game client
-├── run.sh / run.bat         # Launch scripts
-├── compile.txt              # Build command reference
+├── rsc.jar
+├── run.sh
+├── run.bat
+├── compile.txt
 ├── cache/
-│   ├── audio/music/         # 55 MIDI music tracks
-│   ├── audio/sounds/        # Sound effects
-│   ├── data/                # Game definitions (JSON)
-│   │   ├── item_def.json
-│   │   ├── npc_def.json
-│   │   ├── object_def.json
-│   │   └── ...
-│   ├── jags/                # Jagex cache archives
-│   └── players/             # Player save files
+│   ├── data/
+│   ├── audio/
+│   ├── jags/
+│   └── players/
 ├── lib/
-│   └── gson-2.6.2.jar       # JSON library dependency
-├── src/org/nemotech/rsc/
-│   ├── Main.java            # Entry point
-│   ├── Constants.java       # Configuration values
-│   ├── bot/                 # Bot framework
-│   │   ├── Bot.java         # Abstract base class
-│   │   ├── BotAPI.java      # 100+ game interaction methods
-│   │   ├── BotManager.java  # Lifecycle management
-│   │   └── scripts/         # 15 skill bot implementations
-│   ├── client/              # Client rendering and input
-│   ├── core/                # Game engine core
-│   ├── event/               # Event system
-│   ├── model/               # Game entities and world model
-│   └── ...
-└── META-INF/MANIFEST.MF     # JAR manifest
+├── src/
+│   └── org/nemotech/rsc/
+│       ├── bot/
+│       ├── client/
+│       ├── model/
+│       └── plugins/
+└── Single-RSC-Mobile/
 ```
 
----
+Important bot files:
 
-## Administrator Account
-
-Create a user named exactly **`root`** (case-sensitive) to unlock:
-- All admin `::` commands (item spawning, teleportation, skill setting, etc.)
-- Mini-map right-click teleportation
-- Debug and stress-testing tools
+| File | Purpose |
+|---|---|
+| `src/org/nemotech/rsc/bot/WorldBotManager.java` | Autonomous world bots |
+| `src/org/nemotech/rsc/model/GrandExchange.java` | Shared exchange stock |
+| `src/org/nemotech/rsc/plugins/commands/BotCommands.java` | Bot and GE commands |
+| `src/org/nemotech/rsc/plugins/npcs/Bankers.java` | Bank/Grand Exchange menu |
 
 ---
 
@@ -255,32 +368,32 @@ Create a user named exactly **`root`** (case-sensitive) to unlock:
 
 ## FAQ
 
-**Q: Does this connect to any external server?**
-A: No. Everything runs locally in a single process.
+**Does this connect to a real MMO server?**  
+No. It runs locally as a single-player game.
 
-**Q: What Java version do I need?**
-A: Java 17 or newer.
+**Are the world bots real players?**  
+No. They are local AI-controlled fake players designed to make the world feel more active.
 
-**Q: Can I resize the window?**
-A: Yes, the UI scales dynamically.
+**Do desktop and Android have the same updates?**  
+Yes. The `v2.7.3` desktop zip and Android APK were both rebuilt from the same updated code.
 
-**Q: How do I restore a Hardcore character after death?**
-A: You can't — that's the point. Back up your save file beforehand if you want a safety net.
+**Where are saves stored?**  
+Player saves are stored locally under the game cache/player save directories.
 
-**Q: Can I change XP rates?**
-A: Edit `EXPERIENCE_MULTIPLIER` in `Constants.java` and rebuild (default is 8x).
+**Can bots buy my items?**  
+Yes. Bots can interact with shared Grand Exchange stock, and nearby world bots can trade directly with you.
 
-**Q: Where are save files stored?**
-A: In the `saves/` directory (created at runtime in the working directory).
+**How do I make wilderness bots less aggressive?**  
+Use `::worldbots settings` and lower aggression.
 
 ---
 
 ## Disclaimer
 
-This project is a preservation and educational single-player reimplementation. All original game assets, names, and concepts belong to their respective owners. Use responsibly and in accordance with applicable laws.
+This project is a preservation and educational single-player reimplementation. Original game assets, names, and concepts belong to their respective owners.
 
 ---
 
 ## License
 
-GPL v3.0 — see [LICENSE](LICENSE) or https://www.gnu.org/licenses/gpl-3.0.txt
+GPL v3.0. See [LICENSE](LICENSE).
