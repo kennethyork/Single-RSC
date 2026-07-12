@@ -29,7 +29,8 @@ public final class WorldBotManager {
     private static final int FIGHTER_NPC = 796;
     private static final int WILDERNESS_NPC = 797;
     private static final int PLAYER_SERVER_INDEX_BASE = 3000;
-    private static final int DEFAULT_BOT_COUNT = 12;
+    private static final int DEFAULT_BOT_COUNT = 50;
+    private static final int DEFAULT_MAX_BOT_COUNT = 100;
     private static final long MIN_SESSION_MS = 5 * 60 * 1000L;
     private static final long SESSION_VARIANCE_MS = 10 * 60 * 1000L;
     private static final long MIN_OFFLINE_MS = 30 * 1000L;
@@ -343,7 +344,7 @@ public final class WorldBotManager {
             properties.load(in);
             config.autoStart = Boolean.parseBoolean(properties.getProperty("autostart", String.valueOf(config.autoStart)));
             config.defaultCount = parseInt(properties.getProperty("default_count"), DEFAULT_BOT_COUNT);
-            config.maxCount = parseInt(properties.getProperty("max_count"), 50);
+            config.maxCount = parseInt(properties.getProperty("max_count"), DEFAULT_MAX_BOT_COUNT);
             config.respawnSeconds = parseInt(properties.getProperty("respawn_seconds"), 20);
             config.saveEverySeconds = parseInt(properties.getProperty("save_every_seconds"), 60);
             config.chatFrequency = Math.max(0, parseInt(properties.getProperty("chat_frequency"), 1));
@@ -385,7 +386,7 @@ public final class WorldBotManager {
             Properties properties = new Properties();
             properties.setProperty("autostart", "true");
             properties.setProperty("default_count", String.valueOf(DEFAULT_BOT_COUNT));
-            properties.setProperty("max_count", "50");
+            properties.setProperty("max_count", String.valueOf(DEFAULT_MAX_BOT_COUNT));
             properties.setProperty("respawn_seconds", "20");
             properties.setProperty("save_every_seconds", "60");
             properties.setProperty("chat_frequency", "1");
@@ -1058,7 +1059,11 @@ public final class WorldBotManager {
                 BotArea[] areas = {
                     new BotArea(350, 370, 604, 624),
                     new BotArea(285, 305, 656, 676),
-                    new BotArea(245, 265, 392, 410)
+                    new BotArea(245, 265, 392, 410),
+                    new BotArea(210, 260, 490, 540),
+                    new BotArea(560, 620, 720, 780),
+                    new BotArea(680, 740, 500, 560),
+                    new BotArea(520, 580, 560, 620)
                 };
                 return areas[index % areas.length];
             }
@@ -1071,12 +1076,24 @@ public final class WorldBotManager {
                 return areas[index % areas.length];
             }
             BotArea[] areas = {
-                new BotArea(112, 145, 625, 670),
-                new BotArea(98, 154, 498, 515),
-                new BotArea(190, 235, 600, 650),
-                new BotArea(280, 335, 545, 575),
-                new BotArea(430, 470, 480, 505),
-                new BotArea(500, 550, 430, 470)
+                new BotArea(100, 160, 620, 680),
+                new BotArea(100, 160, 480, 550),
+                new BotArea(190, 240, 600, 660),
+                new BotArea(280, 340, 510, 580),
+                new BotArea(250, 290, 620, 670),
+                new BotArea(350, 400, 660, 710),
+                new BotArea(70, 120, 660, 720),
+                new BotArea(190, 250, 420, 480),
+                new BotArea(350, 400, 470, 530),
+                new BotArea(480, 550, 420, 480),
+                new BotArea(300, 350, 640, 690),
+                new BotArea(420, 470, 480, 530),
+                new BotArea(480, 560, 330, 430),
+                new BotArea(520, 580, 560, 620),
+                new BotArea(560, 620, 720, 780),
+                new BotArea(100, 160, 3490, 3550),
+                new BotArea(680, 740, 500, 560),
+                new BotArea(190, 250, 720, 770)
             };
             return areas[index % areas.length];
         }
