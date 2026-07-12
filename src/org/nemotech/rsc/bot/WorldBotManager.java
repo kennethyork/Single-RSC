@@ -119,11 +119,50 @@ public final class WorldBotManager {
                     .append(" [").append(bot.personality.clan).append("]")
                     .append(" lvl ").append(bot.level)
                     .append(bot.statusText())
+                    .append(" doing ").append(bot.activity)
                     .append(" inv ").append(bot.inventorySize())
                     .append(" kills ").append(bot.kills)
                     .append(" deaths ").append(bot.deaths);
         }
         return report.toString();
+    }
+
+    public synchronized String getNearbyReport(Player player, int radius) {
+        List<WorldBot> nearby = new ArrayList<>();
+        for (WorldBot bot : bots) {
+            if (bot.active && bot.online && bot.npc != null && !bot.npc.isRemoved()
+                    && bot.npc.getLocation().withinRange(player.getLocation(), radius)) {
+                nearby.add(bot);
+            }
+        }
+        Collections.sort(nearby, new Comparator<WorldBot>() {
+            @Override
+            public int compare(WorldBot first, WorldBot second) {
+                return distance(first, player) - distance(second, player);
+            }
+        });
+
+        StringBuilder report = new StringBuilder("Nearby world bots within ").append(radius).append(" tiles");
+        if (nearby.isEmpty()) {
+            report.append("\nnone nearby");
+            return report.toString();
+        }
+        for (int i = 0; i < nearby.size() && i < 10; i++) {
+            WorldBot bot = nearby.get(i);
+            report.append("\n").append(bot.name)
+                    .append(" d").append(distance(bot, player))
+                    .append(" ").append(bot.role.label)
+                    .append(" at ").append(bot.npc.getX()).append(",").append(bot.npc.getY())
+                    .append(" - ").append(bot.activity);
+        }
+        if (nearby.size() > 10) {
+            report.append("\n").append(nearby.size() - 10).append(" more nearby");
+        }
+        return report.toString();
+    }
+
+    private int distance(WorldBot bot, Player player) {
+        return Math.abs(bot.npc.getX() - player.getX()) + Math.abs(bot.npc.getY() - player.getY());
     }
 
     public synchronized String getLeaderboardReport() {
@@ -494,6 +533,7 @@ public final class WorldBotManager {
         private int itemsBanked;
         private boolean online = true;
         private long nextSessionChangeAt;
+        private String activity;
 
         private WorldBot(int index, Role role, NPC npc, BotArea area, Personality personality) {
             this.name = personality.name;
@@ -505,6 +545,7 @@ public final class WorldBotManager {
             chooseCarriedItem(index);
             level = personality.startLevel;
             npc.setCombatLevel(level);
+            activity = "starting in " + area.name;
             scheduleLogout();
         }
 
@@ -515,10 +556,13 @@ public final class WorldBotManager {
             if (!online) {
                 if (System.currentTimeMillis() >= nextSessionChangeAt) {
                     login();
+                } else {
+                    activity = "offline";
                 }
                 return;
             }
             if (npc.isRemoved() || npc.inCombat()) {
+                activity = "busy";
                 return;
             }
 
@@ -582,15 +626,18 @@ public final class WorldBotManager {
             if (role == Role.GATHERER) {
                 addInventory(carriedItem, 1 + random.nextInt(4));
                 gainXp(2);
+                activity = "collecting " + carriedItemName + " in " + area.name;
             } else if (role == Role.FIGHTER) {
                 addInventory(carriedItem, 1 + random.nextInt(3));
                 gainXp(4);
+                activity = "hunting drops in " + area.name;
                 if (random.nextInt(4) == 0) {
                     addInventory(10, 5 + random.nextInt(60));
                 }
             } else {
                 addInventory(carriedItem, 1 + random.nextInt(2));
                 gainXp(6);
+                activity = "patrolling " + area.name;
                 if (random.nextInt(3) == 0) {
                     addInventory(10, 25 + random.nextInt(150));
                 }
@@ -603,19 +650,22 @@ public final class WorldBotManager {
             }
             if (GrandExchange.countId(373) > 0 && random.nextInt(10) == 0 && GrandExchange.withdrawSystem(373, 1)) {
                 addInventory(373, 1);
+                activity = "buying food from the exchange";
                 say("buying food");
             }
             if (role == Role.WILDERNESS && GrandExchange.countId(81) > 0 && random.nextInt(20) == 0
                     && GrandExchange.withdrawSystem(81, 1)) {
                 addInventory(81, 1);
+                activity = "upgrading gear from the exchange";
                 say("upgrading gear");
             }
         }
 
         private void walkSomewhere() {
             if (role == Role.GATHERER && random.nextInt(12) == 0) {
-                area = Role.GATHERER.areaFor(random.nextInt(8));
+                area = Role.GATHERER.randomArea(random);
             }
+            activity = "walking through " + area.name;
             npc.setPath(new Path(npc.getX(), npc.getY(), area.randomX(random), area.randomY(random)));
         }
 
@@ -753,6 +803,7 @@ public final class WorldBotManager {
                 }
             }
             itemsBanked += deposited;
+            activity = "banking " + deposited + " items at the exchange";
             return deposited;
         }
 
@@ -775,11 +826,12 @@ public final class WorldBotManager {
         }
 
         private void respawn() {
-            BotArea spawnArea = role.areaFor(random.nextInt(8));
+            BotArea spawnArea = role.randomArea(random);
             spawn(spawnArea);
             active = true;
             online = true;
             scheduleLogout();
+            activity = "respawned in " + spawnArea.name;
             say("back again");
         }
 
@@ -787,16 +839,18 @@ public final class WorldBotManager {
             if (!online || npc.inCombat()) {
                 return;
             }
+            activity = "logging out from " + area.name;
             World.getWorld().unregisterNpc(npc);
             online = false;
             nextSessionChangeAt = System.currentTimeMillis() + MIN_OFFLINE_MS + random.nextInt((int) OFFLINE_VARIANCE_MS);
         }
 
         private void login() {
-            BotArea spawnArea = role.areaFor(random.nextInt(8));
+            BotArea spawnArea = role.randomArea(random);
             spawn(spawnArea);
             online = true;
             scheduleLogout();
+            activity = "logged in at " + spawnArea.name;
             say("just logged in");
         }
 
@@ -1055,57 +1109,66 @@ public final class WorldBotManager {
         }
 
         private BotArea areaFor(int index) {
+            BotArea[] areas = areas();
+            return areas[index % areas.length];
+        }
+
+        private BotArea randomArea(Random random) {
+            BotArea[] areas = areas();
+            return areas[random.nextInt(areas.length)];
+        }
+
+        private BotArea[] areas() {
             if (this == FIGHTER) {
-                BotArea[] areas = {
-                    new BotArea(350, 370, 604, 624),
-                    new BotArea(285, 305, 656, 676),
-                    new BotArea(245, 265, 392, 410),
-                    new BotArea(210, 260, 490, 540),
-                    new BotArea(560, 620, 720, 780),
-                    new BotArea(680, 740, 500, 560),
-                    new BotArea(520, 580, 560, 620)
+                return new BotArea[] {
+                    new BotArea("Karamja dungeon", 350, 370, 604, 624),
+                    new BotArea("Rimmington monsters", 285, 305, 656, 676),
+                    new BotArea("Edgeville dungeon", 245, 265, 392, 410),
+                    new BotArea("Varrock combat", 210, 260, 490, 540),
+                    new BotArea("Yanille combat", 560, 620, 720, 780),
+                    new BotArea("Gnome combat", 680, 740, 500, 560),
+                    new BotArea("Ardougne combat", 520, 580, 560, 620)
                 };
-                return areas[index % areas.length];
             }
             if (this == WILDERNESS) {
-                BotArea[] areas = {
-                    new BotArea(198, 224, 390, 430),
-                    new BotArea(250, 275, 384, 420),
-                    new BotArea(300, 330, 360, 410)
+                return new BotArea[] {
+                    new BotArea("Wilderness west", 198, 224, 390, 430),
+                    new BotArea("Wilderness center", 250, 275, 384, 420),
+                    new BotArea("Wilderness east", 300, 330, 360, 410)
                 };
-                return areas[index % areas.length];
             }
-            BotArea[] areas = {
-                new BotArea(100, 160, 620, 680),
-                new BotArea(100, 160, 480, 550),
-                new BotArea(190, 240, 600, 660),
-                new BotArea(280, 340, 510, 580),
-                new BotArea(250, 290, 620, 670),
-                new BotArea(350, 400, 660, 710),
-                new BotArea(70, 120, 660, 720),
-                new BotArea(190, 250, 420, 480),
-                new BotArea(350, 400, 470, 530),
-                new BotArea(480, 550, 420, 480),
-                new BotArea(300, 350, 640, 690),
-                new BotArea(420, 470, 480, 530),
-                new BotArea(480, 560, 330, 430),
-                new BotArea(520, 580, 560, 620),
-                new BotArea(560, 620, 720, 780),
-                new BotArea(100, 160, 3490, 3550),
-                new BotArea(680, 740, 500, 560),
-                new BotArea(190, 250, 720, 770)
+            return new BotArea[] {
+                new BotArea("Lumbridge", 100, 160, 620, 680),
+                new BotArea("Varrock", 100, 160, 480, 550),
+                new BotArea("Draynor", 190, 240, 600, 660),
+                new BotArea("Falador", 280, 340, 510, 580),
+                new BotArea("Port Sarim", 250, 290, 620, 670),
+                new BotArea("Karamja", 350, 400, 660, 710),
+                new BotArea("Al Kharid", 70, 120, 660, 720),
+                new BotArea("Edgeville", 190, 250, 420, 480),
+                new BotArea("Taverley", 350, 400, 470, 530),
+                new BotArea("Seers", 480, 550, 420, 480),
+                new BotArea("Rimmington", 300, 350, 640, 690),
+                new BotArea("Catherby", 420, 470, 480, 530),
+                new BotArea("Camelot", 480, 560, 330, 430),
+                new BotArea("Ardougne", 520, 580, 560, 620),
+                new BotArea("Yanille", 560, 620, 720, 780),
+                new BotArea("Lost City", 100, 160, 3490, 3550),
+                new BotArea("Gnome Stronghold", 680, 740, 500, 560),
+                new BotArea("Tutorial Island", 190, 250, 720, 770)
             };
-            return areas[index % areas.length];
         }
     }
 
     private static final class BotArea {
+        private final String name;
         private final int minX;
         private final int maxX;
         private final int minY;
         private final int maxY;
 
-        private BotArea(int minX, int maxX, int minY, int maxY) {
+        private BotArea(String name, int minX, int maxX, int minY, int maxY) {
+            this.name = name;
             this.minX = minX;
             this.maxX = maxX;
             this.minY = minY;

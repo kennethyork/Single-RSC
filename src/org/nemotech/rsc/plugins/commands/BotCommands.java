@@ -278,7 +278,7 @@ public class BotCommands extends Plugin implements CommandListener {
         String subCommand = args.length > 0 ? args[0].toLowerCase() : "status";
 
         if (subCommand.equals("start")) {
-            int count = 12;
+            int count = manager.getDefaultCount();
             if (args.length > 1) {
                 try {
                     count = Integer.parseInt(args[1]);
@@ -300,6 +300,22 @@ public class BotCommands extends Plugin implements CommandListener {
 
         if (subCommand.equals("status")) {
             for (String line : manager.getStatusReport().split("\\n")) {
+                player.getSender().sendMessage("@cya@[WorldBots] @whi@" + line);
+            }
+            return;
+        }
+
+        if (subCommand.equals("nearby") || subCommand.equals("where") || subCommand.equals("map")) {
+            int radius = 64;
+            if (args.length > 1) {
+                try {
+                    radius = Math.max(8, Math.min(128, Integer.parseInt(args[1])));
+                } catch (NumberFormatException e) {
+                    player.getSender().sendMessage("@cya@[WorldBots] @red@Radius must be a number.");
+                    return;
+                }
+            }
+            for (String line : manager.getNearbyReport(player, radius).split("\\n")) {
                 player.getSender().sendMessage("@cya@[WorldBots] @whi@" + line);
             }
             return;
@@ -335,7 +351,7 @@ public class BotCommands extends Plugin implements CommandListener {
             return;
         }
 
-        player.getSender().sendMessage("@cya@[WorldBots] @whi@Usage: ::worldbots start [count], stop, status, top, trade, config, settings, save");
+        player.getSender().sendMessage("@cya@[WorldBots] @whi@Usage: ::worldbots start [count], stop, status, nearby [radius], top, trade, config, settings, save");
     }
 
     private void showWorldBotSettingsMenu(final Player player) {
