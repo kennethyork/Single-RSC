@@ -123,6 +123,25 @@ function appendPlayerRow(player) {
 }
 
 if (highscoreTableBody) {
+  [
+    { name: "kenyyhy", status: "Online", level: 42, score: 3200, coins: 9200, trades: 8, kills: 0, xpRate: "1x" },
+    { name: "kenyy", status: "Offline", level: 37, score: 2850, coins: 7800, trades: 6, kills: 0, xpRate: "1x" },
+    { name: "kenyyhu", status: "Offline", level: 31, score: 2400, coins: 6400, trades: 5, kills: 0, xpRate: "1x" },
+    { name: "almostdead", status: "Offline", level: 28, score: 2100, coins: 5100, trades: 4, kills: 1, xpRate: "1x" },
+    { name: "almostead", status: "Offline", level: 24, score: 1850, coins: 4300, trades: 3, kills: 0, xpRate: "1x" },
+    { name: "almosdead", status: "Offline", level: 21, score: 1600, coins: 3600, trades: 2, kills: 0, xpRate: "1x" },
+    { name: "hcalmostdead", status: "Offline", level: 18, score: 1400, coins: 2900, trades: 1, kills: 0, xpRate: "1x" },
+    { name: "kenyyhy]", status: "Offline", level: 12, score: 950, coins: 1700, trades: 0, kills: 0, xpRate: "1x" },
+  ].forEach((character) => {
+    appendPlayerRow({
+      rank: highscorePlayers.length + 1,
+      role: character.name.startsWith("hc") ? "Hardcore player" : "Player",
+      clan: "Your characters",
+      goal: character.status === "Online" ? "currently playing" : "saved character",
+      ...character,
+    });
+  });
+
   for (let rank = highscorePlayers.length + 1; rank <= 200; rank += 1) {
     appendPlayerRow(makeGeneratedPlayer(rank));
   }
