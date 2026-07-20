@@ -32,10 +32,7 @@ public final class WorldBotManager {
     private static final int COINS = 10;
     private static final int DEFAULT_BOT_COUNT = 200;
     private static final int DEFAULT_MAX_BOT_COUNT = 200;
-    private static final long MIN_SESSION_MS = 5 * 60 * 1000L;
-    private static final long SESSION_VARIANCE_MS = 10 * 60 * 1000L;
-    private static final long MIN_OFFLINE_MS = 30 * 1000L;
-    private static final long OFFLINE_VARIANCE_MS = 2 * 60 * 1000L;
+    private static final long MINUTE_MS = 60 * 1000L;
     private static final String CONFIG_FILE = Constants.CACHE_DIRECTORY + "worldbots.properties";
     private static final String STATE_FILE = Constants.CACHE_DIRECTORY + "worldbots_state.properties";
 
@@ -128,6 +125,7 @@ public final class WorldBotManager {
                     .append(" doing ").append(bot.activity)
                     .append(" inv ").append(bot.inventorySize())
                     .append(" coins ").append(bot.coins())
+                    .append(" fights ").append(bot.fights)
                     .append(" kills ").append(bot.kills)
                     .append(" deaths ").append(bot.deaths);
         }
@@ -194,6 +192,7 @@ public final class WorldBotManager {
                     .append(" banked ").append(bot.itemsBanked)
                     .append(" coins ").append(bot.coins())
                     .append(" trades ").append(bot.trades)
+                    .append(" fights ").append(bot.fights)
                     .append(" score ").append(bot.score());
         }
         return report.toString();
@@ -219,6 +218,7 @@ public final class WorldBotManager {
                         + "\ncoins=" + bot.coins()
                         + "\ntrades=" + bot.trades
                         + "\nmarket_volume=" + bot.marketVolume
+                        + "\nfights=" + bot.fights
                         + "\nkills=" + bot.kills
                         + "\ndeaths=" + bot.deaths
                         + "\nscore=" + bot.score();
@@ -347,6 +347,11 @@ public final class WorldBotManager {
             return;
         }
         bot.say(bot.personality.attackedLine(random));
+        bot.fights++;
+        bot.activity = "fighting " + player.getUsername() + " in the wilderness";
+        if (bot.role == Role.WILDERNESS && random.nextInt(3) == 0) {
+            bot.say(bot.personality.counterAttackLine(random, player.getCombatLevel(), bot.level));
+        }
     }
 
     public synchronized void onPlayerKilledBot(Player player, NPC npc) {
@@ -356,7 +361,7 @@ public final class WorldBotManager {
         }
         bot.deaths++;
         bot.active = false;
-        bot.say(bot.personality.deathLine(random));
+        bot.say(bot.personality.deathLine(random, bot.coins()));
         bot.dropInventory(player);
         scheduleRespawn(bot);
     }
@@ -511,6 +516,7 @@ public final class WorldBotManager {
                 bot.xpRate = Math.max(1, parseInt(properties.getProperty(prefix + "xp_rate"), bot.xpRate));
                 bot.kills = parseInt(properties.getProperty(prefix + "kills"), bot.kills);
                 bot.deaths = parseInt(properties.getProperty(prefix + "deaths"), bot.deaths);
+                bot.fights = parseInt(properties.getProperty(prefix + "fights"), bot.fights);
                 bot.itemsBanked = parseInt(properties.getProperty(prefix + "banked"), bot.itemsBanked);
                 bot.trades = parseInt(properties.getProperty(prefix + "trades"), bot.trades);
                 bot.marketVolume = parseInt(properties.getProperty(prefix + "market_volume"), bot.marketVolume);
@@ -547,6 +553,7 @@ public final class WorldBotManager {
             properties.setProperty(prefix + "xp_rate", String.valueOf(bot.xpRate));
             properties.setProperty(prefix + "kills", String.valueOf(bot.kills));
             properties.setProperty(prefix + "deaths", String.valueOf(bot.deaths));
+            properties.setProperty(prefix + "fights", String.valueOf(bot.fights));
             properties.setProperty(prefix + "banked", String.valueOf(bot.itemsBanked));
             properties.setProperty(prefix + "trades", String.valueOf(bot.trades));
             properties.setProperty(prefix + "market_volume", String.valueOf(bot.marketVolume));
@@ -596,6 +603,7 @@ public final class WorldBotManager {
         private int xpRate;
         private int kills;
         private int deaths;
+        private int fights;
         private int itemsBanked;
         private int trades;
         private int marketVolume;
@@ -685,14 +693,23 @@ public final class WorldBotManager {
             }
             if (personality.riskLevel < 3 && player.getCombatLevel() > level + 8) {
                 say(personality.safeLine(random));
+                activity = "avoiding " + player.getUsername() + " near " + area.name;
+                walkSomewhere();
+                return false;
+            }
+            if (inventory.getOrDefault(COINS, 0) > 10000 && player.getCombatLevel() > level + 3 && random.nextInt(3) == 0) {
+                say("not risking this cash");
+                activity = "protecting loot near " + area.name;
                 walkSomewhere();
                 return false;
             }
             if (random.nextInt(6) == 0) {
                 say(personality.territoryLine(random));
             }
+            fights++;
+            activity = "skulling on " + player.getUsername() + " in " + area.name;
             npc.startCombat(player);
-            say(randomPkLine());
+            say(personality.attackLine(random, player.getCombatLevel(), level, coins()));
             return true;
         }
 
@@ -951,7 +968,7 @@ public final class WorldBotManager {
         }
 
         private int score() {
-            return kills * 1000 + level * 100 + effectiveXp() / 10 + itemsBanked * 5 + trades * 25 + coins() / 25 - deaths * 250;
+            return kills * 1000 + fights * 50 + level * 100 + effectiveXp() / 10 + itemsBanked * 5 + trades * 25 + coins() / 25 - deaths * 250;
         }
 
         private int effectiveXp() {
@@ -1003,10 +1020,10 @@ public final class WorldBotManager {
             if (!online || npc.inCombat()) {
                 return;
             }
-            activity = "logging out from " + area.name;
+            activity = logoutActivity();
             World.getWorld().unregisterNpc(npc);
             online = false;
-            nextSessionChangeAt = System.currentTimeMillis() + MIN_OFFLINE_MS + random.nextInt((int) OFFLINE_VARIANCE_MS);
+            nextSessionChangeAt = System.currentTimeMillis() + offlineDuration();
         }
 
         private void login() {
@@ -1014,8 +1031,8 @@ public final class WorldBotManager {
             spawn(spawnArea);
             online = true;
             scheduleLogout();
-            activity = "logged in at " + spawnArea.name;
-            say("just logged in");
+            activity = "logged in at " + spawnArea.name + " for " + goal.label;
+            say(loginLine());
         }
 
         private void spawn(BotArea spawnArea) {
@@ -1029,7 +1046,56 @@ public final class WorldBotManager {
         }
 
         private void scheduleLogout() {
-            nextSessionChangeAt = System.currentTimeMillis() + MIN_SESSION_MS + random.nextInt((int) SESSION_VARIANCE_MS);
+            nextSessionChangeAt = System.currentTimeMillis() + sessionDuration();
+        }
+
+        private long sessionDuration() {
+            if (role == Role.WILDERNESS) {
+                return (3 + random.nextInt(10)) * MINUTE_MS;
+            }
+            if (role == Role.FIGHTER) {
+                return (8 + random.nextInt(18)) * MINUTE_MS;
+            }
+            return (12 + random.nextInt(28)) * MINUTE_MS;
+        }
+
+        private long offlineDuration() {
+            if (random.nextInt(8) == 0) {
+                return (20 + random.nextInt(70)) * 1000L;
+            }
+            if (role == Role.WILDERNESS) {
+                return (1 + random.nextInt(5)) * MINUTE_MS;
+            }
+            if (role == Role.FIGHTER) {
+                return (2 + random.nextInt(8)) * MINUTE_MS;
+            }
+            return (3 + random.nextInt(12)) * MINUTE_MS;
+        }
+
+        private String loginLine() {
+            if (role == Role.WILDERNESS) {
+                String[] lines = { "world hop found", "back north", "anyone out?", "scouting again", "risk check" };
+                return lines[random.nextInt(lines.length)];
+            }
+            if (role == Role.FIGHTER) {
+                String[] lines = { "back to train", "need drops", "checking exchange first", "new trip", "food ready" };
+                return lines[random.nextInt(lines.length)];
+            }
+            String[] lines = { "back to skill", "fresh trip", "checking prices", "need supplies", "new route" };
+            return lines[random.nextInt(lines.length)];
+        }
+
+        private String logoutActivity() {
+            if (role == Role.WILDERNESS && coins() > 5000) {
+                return "banking loot and hopping out from " + area.name;
+            }
+            if (inventorySize() >= role.depositAt / 2) {
+                return "logging out after a bank trip from " + area.name;
+            }
+            if (random.nextInt(4) == 0) {
+                return "world hopping from " + area.name;
+            }
+            return "logging out from " + area.name;
         }
 
         private String statusText() {
@@ -1037,9 +1103,13 @@ public final class WorldBotManager {
                 return " respawning";
             }
             if (!online) {
-                return " offline";
+                return " offline " + secondsUntil(nextSessionChangeAt) + "s";
             }
-            return " at " + npc.getX() + "," + npc.getY();
+            return " at " + npc.getX() + "," + npc.getY() + " session " + secondsUntil(nextSessionChangeAt) + "s";
+        }
+
+        private long secondsUntil(long time) {
+            return Math.max(0, (time - System.currentTimeMillis()) / 1000L);
         }
     }
 
@@ -1047,7 +1117,9 @@ public final class WorldBotManager {
         private static final String[] NAMES = {
             "Zezima Jr", "OreLord", "WillowWisp", "Lobster Lad", "RuneRita", "EdgePker",
             "CoalCart", "BankSale", "Risky Rob", "Maple Max", "Chaos Cat", "Iron Ivy",
-            "Trout Tom", "SkullSam", "YewOnly", "DeepWild"
+            "Trout Tom", "SkullSam", "YewOnly", "DeepWild", "Pure Str", "Rune Runner",
+            "Dds Soon", "Banker Bait", "North Lurer", "Prayer Off", "Food Check",
+            "Red Cape", "Blue Cape", "No Tele", "Wild Scout", "Loot Pile"
         };
 
         private final String name;
@@ -1092,8 +1164,10 @@ public final class WorldBotManager {
             return lines[random.nextInt(lines.length)];
         }
 
-        private String deathLine(Random random) {
-            String[] lines = { "gf", "lag", "rematch later", "there goes my loot", "banking faster next time", "close one" };
+        private String deathLine(Random random, int coins) {
+            String[] lines = coins > 5000
+                    ? new String[] { "gf", "lost my cash", "banking faster next time", "that was my risk", "sit me then", "rematch after bank" }
+                    : new String[] { "gf", "lag", "rematch later", "there goes my loot", "close one", "no food left" };
             return lines[random.nextInt(lines.length)];
         }
 
@@ -1158,6 +1232,44 @@ public final class WorldBotManager {
             if (aggression <= 1) {
                 return calmLines[random.nextInt(calmLines.length)];
             }
+            return lines[random.nextInt(lines.length)];
+        }
+
+        private String attackLine(Random random, int playerLevel, int botLevel, int coins) {
+            String[] underdog = {
+                "worth a try",
+                "big risk on you?",
+                "dont run",
+                "catching you south",
+                "smite would be nice"
+            };
+            String[] confident = {
+                "free loot",
+                "you are mine",
+                "no tele now",
+                "drop the food",
+                "skulled on you",
+                "bank trip after this"
+            };
+            String[] rich = {
+                "protect item on",
+                "risking " + coins + " gp",
+                "cash stack fight",
+                "one kill then bank"
+            };
+            if (coins > 10000 && random.nextInt(3) == 0) {
+                return rich[random.nextInt(rich.length)];
+            }
+            if (playerLevel > botLevel + 5) {
+                return underdog[random.nextInt(underdog.length)];
+            }
+            return confident[random.nextInt(confident.length)];
+        }
+
+        private String counterAttackLine(Random random, int playerLevel, int botLevel) {
+            String[] lines = playerLevel > botLevel
+                    ? new String[] { "brave hit", "you risk?", "not free", "try finish it", "I have food" }
+                    : new String[] { "bad click", "now you skull", "mine now", "sit soon", "wrong target" };
             return lines[random.nextInt(lines.length)];
         }
 

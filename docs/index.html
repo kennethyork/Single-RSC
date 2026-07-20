@@ -111,6 +111,19 @@
 
     <h2 id="highscores">Highscores</h2>
     <p class="section-copy">Representative world-bot highscores. In-game, use <code>::worldbots top</code> and <code>::worldbots lookup &lt;name&gt;</code> for your live save.</p>
+    <div class="population-panel" aria-live="polite">
+      <div>
+        <span class="population-label">World Bots Online</span>
+        <strong id="onlineBotCount">--</strong>
+        <span class="population-total">/ 200</span>
+      </div>
+      <div class="population-breakdown">
+        <span>Skillers <strong id="skillerOnline">--</strong></span>
+        <span>Fighters <strong id="fighterOnline">--</strong></span>
+        <span>Wilderness <strong id="wildOnline">--</strong></span>
+      </div>
+      <p>Static site estimate. Your live save can differ; use <code>::worldbots status</code> in-game for exact online bots.</p>
+    </div>
     <div class="highscore-tools">
       <input id="highscoreSearch" type="search" placeholder="Look up a bot name, clan, role, or goal" aria-label="Search highscores">
     </div>

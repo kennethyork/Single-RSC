@@ -110,6 +110,48 @@ a:hover {
   margin: 1rem 0;
 }
 
+.population-panel {
+  display: grid;
+  gap: 0.75rem;
+  margin: 1rem 0;
+  padding: 1rem;
+  border: 1px solid #333;
+  background: #181818;
+}
+
+.population-label {
+  color: #cfcfcf;
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+#onlineBotCount {
+  color: #ffd700;
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.population-total {
+  color: #cfcfcf;
+}
+
+.population-breakdown {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.population-breakdown span {
+  background: #222;
+  border-left: 4px solid #3ddc84;
+  padding: 0.5rem 0.75rem;
+}
+
+.population-panel p {
+  color: #bdbdbd;
+  margin: 0;
+}
+
 .highscore-tools input {
   width: 100%;
   box-sizing: border-box;
