@@ -101,6 +101,59 @@ a:hover {
   text-decoration: underline;
 }
 
+.section-copy {
+  color: #cfcfcf;
+  line-height: 1.5;
+}
+
+.highscore-tools {
+  margin: 1rem 0;
+}
+
+.highscore-tools input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.75rem;
+  border: 1px solid #3d3d3d;
+  background: #171717;
+  color: #f4f4f4;
+  border-radius: 4px;
+  font-size: 1rem;
+}
+
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid #333;
+  background: #181818;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 760px;
+}
+
+th,
+td {
+  padding: 0.75rem;
+  border-bottom: 1px solid #303030;
+  text-align: left;
+  white-space: nowrap;
+}
+
+th {
+  color: #ffd700;
+  background: #202020;
+}
+
+tbody tr:nth-child(even) {
+  background: #1f1f1f;
+}
+
+tbody tr.is-hidden {
+  display: none;
+}
+
 /* Gallery layout */
 .gallery .images {
   display: flex;

@@ -5,6 +5,7 @@ import org.nemotech.rsc.model.World;
 import org.nemotech.rsc.external.EntityManager;
 import org.nemotech.rsc.external.definition.PrayerDef;
 import org.nemotech.rsc.Constants;
+import org.nemotech.rsc.bot.BotManager;
 import org.nemotech.rsc.util.Util;
 import org.nemotech.rsc.util.Formulae;
 import org.nemotech.rsc.util.StatefulEntityCollection;
@@ -1852,7 +1853,7 @@ public final class Player extends Mob {
 
     public void incExp(int i, double amount, boolean useFatigue, boolean multiplied) {
         // Fatigue disabled: ignore fatigue checks and increments entirely
-        if(multiplied)
+        if(multiplied && !BotManager.getInstance().isBotRunning())
             amount *= Constants.EXPERIENCE_MULTIPLIER;
         exp[i] += amount;
         if(exp[i] < 0) {

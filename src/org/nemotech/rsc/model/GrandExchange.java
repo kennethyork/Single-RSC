@@ -2,7 +2,9 @@ package org.nemotech.rsc.model;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.nemotech.rsc.external.EntityManager;
 import org.nemotech.rsc.model.player.InvItem;
@@ -13,6 +15,7 @@ public final class GrandExchange {
     private static final int COINS = 10;
     private static final int MAX_PRICE = 2_000_000_000;
     private static final org.nemotech.rsc.model.player.Bank STOCK = new org.nemotech.rsc.model.player.Bank();
+    private static final Map<Integer, MarketItem> MARKET = new LinkedHashMap<>();
     private static boolean seeded;
 
     private GrandExchange() {}
@@ -53,6 +56,26 @@ public final class GrandExchange {
         return price > MAX_PRICE ? MAX_PRICE : (int) price;
     }
 
+    public static synchronized String getMarketReport() {
+        seedMarketIfNeeded();
+        List<InvItem> stock = getStockSnapshot();
+        StringBuilder report = new StringBuilder("Grand Exchange market");
+        if (stock.isEmpty()) {
+            return report.append("\nempty").toString();
+        }
+        for (int i = 0; i < stock.size() && i < 10; i++) {
+            InvItem item = stock.get(i);
+            MarketItem market = marketItem(item.getID());
+            report.append("\n").append(item.getID()).append(" ").append(item.getDef().getName())
+                    .append(" stock ").append(item.getAmount())
+                    .append(" buy ").append(buyPrice(item.getID(), 1))
+                    .append(" sell ").append(sellPrice(item.getID(), 1))
+                    .append(" sold ").append(market.sold)
+                    .append(" bought ").append(market.bought);
+        }
+        return report.toString();
+    }
+
     public static synchronized boolean deposit(Player player, int itemId, int amount) {
         if (!validExchangeItem(itemId) || amount < 1 || player.getInventory().countId(itemId) < amount) {
             return false;
@@ -66,6 +89,7 @@ public final class GrandExchange {
             }
             STOCK.add(item);
             player.getInventory().add(new InvItem(COINS, coins));
+            recordSell(itemId, amount, coins);
             return true;
         }
 
@@ -78,7 +102,9 @@ public final class GrandExchange {
             deposited++;
         }
         if (deposited > 0) {
-            player.getInventory().add(new InvItem(COINS, sellPrice(itemId, deposited)));
+            int paid = sellPrice(itemId, deposited);
+            player.getInventory().add(new InvItem(COINS, paid));
+            recordSell(itemId, deposited, paid);
         }
         return deposited > 0;
     }
@@ -111,6 +137,7 @@ public final class GrandExchange {
         }
         int coins = sellPrice(itemId, amount);
         STOCK.add(new InvItem(itemId, amount));
+        recordSell(itemId, amount, coins);
         return coins;
     }
 
@@ -127,6 +154,7 @@ public final class GrandExchange {
         if (STOCK.remove(new InvItem(itemId, amount)) < 0) {
             return 0;
         }
+        recordBuy(itemId, amount, coins);
         return coins;
     }
 
@@ -152,6 +180,7 @@ public final class GrandExchange {
             }
             player.getInventory().remove(COINS, coins);
             player.getInventory().add(item);
+            recordBuy(itemId, amount, coins);
             return true;
         }
 
@@ -168,9 +197,32 @@ public final class GrandExchange {
         if (withdrawn == 0) {
             player.getSender().sendMessage("You don't have room for that in your inventory");
         } else {
-            player.getInventory().remove(COINS, Math.min(coins, unitPrice * withdrawn));
+            int paid = Math.min(coins, unitPrice * withdrawn);
+            player.getInventory().remove(COINS, paid);
+            recordBuy(itemId, withdrawn, paid);
         }
         return withdrawn > 0;
+    }
+
+    private static void recordBuy(int itemId, int amount, int coins) {
+        MarketItem item = marketItem(itemId);
+        item.bought += amount;
+        item.buyCoins += coins;
+    }
+
+    private static void recordSell(int itemId, int amount, int coins) {
+        MarketItem item = marketItem(itemId);
+        item.sold += amount;
+        item.sellCoins += coins;
+    }
+
+    private static MarketItem marketItem(int itemId) {
+        MarketItem item = MARKET.get(itemId);
+        if (item == null) {
+            item = new MarketItem();
+            MARKET.put(itemId, item);
+        }
+        return item;
     }
 
     private static void seedMarketIfNeeded() {
@@ -206,5 +258,12 @@ public final class GrandExchange {
 
     private static boolean validItem(int itemId) {
         return itemId >= 0 && itemId < EntityManager.getItems().length && EntityManager.getItem(itemId) != null;
+    }
+
+    private static final class MarketItem {
+        private int bought;
+        private int sold;
+        private int buyCoins;
+        private int sellCoins;
     }
 }

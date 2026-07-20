@@ -328,6 +328,21 @@ public class BotCommands extends Plugin implements CommandListener {
             return;
         }
 
+        if (subCommand.equals("lookup") || subCommand.equals("find")) {
+            if (args.length < 2) {
+                player.getSender().sendMessage("@cya@[WorldBots] @red@Usage: ::worldbots lookup <name>");
+                return;
+            }
+            StringBuilder query = new StringBuilder(args[1]);
+            for (int i = 2; i < args.length; i++) {
+                query.append(" ").append(args[i]);
+            }
+            for (String line : manager.lookupBot(query.toString()).split("\\n")) {
+                player.getSender().sendMessage("@cya@[WorldBots] @whi@" + line);
+            }
+            return;
+        }
+
         if (subCommand.equals("config")) {
             for (String line : manager.getConfigReport().split("\\n")) {
                 player.getSender().sendMessage("@cya@[WorldBots] @whi@" + line);
@@ -351,7 +366,7 @@ public class BotCommands extends Plugin implements CommandListener {
             return;
         }
 
-        player.getSender().sendMessage("@cya@[WorldBots] @whi@Usage: ::worldbots start [count], stop, status, nearby [radius], top, trade, config, settings, save");
+        player.getSender().sendMessage("@cya@[WorldBots] @whi@Usage: ::worldbots start [count], stop, status, nearby [radius], top, lookup <name>, trade, config, settings, save");
     }
 
     private void showWorldBotSettingsMenu(final Player player) {
@@ -479,12 +494,20 @@ public class BotCommands extends Plugin implements CommandListener {
             player.getSender().sendMessage("@whi@::ge deposit <itemId> [amount|all] - Sell items");
             player.getSender().sendMessage("@whi@::ge withdraw <itemId> [amount|all] - Buy items");
             player.getSender().sendMessage("@whi@::ge depositall - Sell tradable inventory");
+            player.getSender().sendMessage("@whi@::ge market - Show market volume");
             return;
         }
 
         String subCommand = args[0].toLowerCase();
         if (subCommand.equals("list")) {
             listGrandExchange(player);
+            return;
+        }
+
+        if (subCommand.equals("market")) {
+            for (String line : GrandExchange.getMarketReport().split("\\n")) {
+                player.getSender().sendMessage("@cya@[GE] @whi@" + line);
+            }
             return;
         }
 

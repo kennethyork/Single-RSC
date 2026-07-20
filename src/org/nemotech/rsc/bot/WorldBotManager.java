@@ -47,6 +47,8 @@ public final class WorldBotManager {
     private DelayedEvent tickEvent;
     private boolean running;
     private long lastStateSave;
+    private String currentWorldEvent = "quiet market";
+    private long nextWorldEventAt;
 
     private WorldBotManager() {}
 
@@ -113,15 +115,18 @@ public final class WorldBotManager {
     public synchronized String getStatusReport() {
         StringBuilder report = new StringBuilder();
         report.append("World bots: ").append(running ? "running" : "stopped")
-                .append(" (").append(bots.size()).append(")");
+                .append(" (").append(bots.size()).append(")")
+                .append("\nEvent: ").append(currentWorldEvent);
         for (WorldBot bot : bots) {
             report.append("\n").append(bot.name)
                     .append(" - ").append(bot.personality.title)
                     .append(" [").append(bot.personality.clan).append("]")
                     .append(" lvl ").append(bot.level)
                     .append(bot.statusText())
+                    .append(" goal ").append(bot.goal.label)
                     .append(" doing ").append(bot.activity)
                     .append(" inv ").append(bot.inventorySize())
+                    .append(" coins ").append(bot.coins())
                     .append(" kills ").append(bot.kills)
                     .append(" deaths ").append(bot.deaths);
         }
@@ -154,7 +159,7 @@ public final class WorldBotManager {
                     .append(" d").append(distance(bot, player))
                     .append(" ").append(bot.role.label)
                     .append(" at ").append(bot.npc.getX()).append(",").append(bot.npc.getY())
-                    .append(" - ").append(bot.activity);
+                    .append(" - ").append(bot.goal.label).append(": ").append(bot.activity);
         }
         if (nearby.size() > 10) {
             report.append("\n").append(nearby.size() - 10).append(" more nearby");
@@ -184,9 +189,38 @@ public final class WorldBotManager {
                     .append(" lvl ").append(bot.level)
                     .append(" kills ").append(bot.kills)
                     .append(" deaths ").append(bot.deaths)
-                    .append(" banked ").append(bot.itemsBanked);
+                    .append(" banked ").append(bot.itemsBanked)
+                    .append(" coins ").append(bot.coins())
+                    .append(" trades ").append(bot.trades)
+                    .append(" score ").append(bot.score());
         }
         return report.toString();
+    }
+
+    public synchronized String lookupBot(String query) {
+        if (query == null || query.trim().isEmpty()) {
+            return "Usage: ::worldbots lookup <name>";
+        }
+        String needle = query.toLowerCase();
+        for (WorldBot bot : bots) {
+            if (bot.name.toLowerCase().contains(needle)) {
+                return bot.name
+                        + "\nrole=" + bot.role.label
+                        + "\nclan=" + bot.personality.clan
+                        + "\nrival=" + bot.personality.rivalClan
+                        + "\nlevel=" + bot.level
+                        + "\nxp=" + bot.xp + " (1x world-bot progression)"
+                        + "\ngoal=" + bot.goal.label
+                        + "\nactivity=" + bot.activity
+                        + "\ncoins=" + bot.coins()
+                        + "\ntrades=" + bot.trades
+                        + "\nmarket_volume=" + bot.marketVolume
+                        + "\nkills=" + bot.kills
+                        + "\ndeaths=" + bot.deaths
+                        + "\nscore=" + bot.score();
+            }
+        }
+        return "No world bot found matching: " + query;
     }
 
     public synchronized String getConfigReport() {
@@ -347,6 +381,7 @@ public final class WorldBotManager {
         if (!running) {
             return;
         }
+        updateWorldEvent();
         for (WorldBot bot : bots) {
             bot.tick();
         }
@@ -372,6 +407,23 @@ public final class WorldBotManager {
         npc.setShouldRespawn(false);
         World.getWorld().registerNpc(npc);
         return new WorldBot(index, role, npc, area, Personality.forBot(index, role));
+    }
+
+    private void updateWorldEvent() {
+        long now = System.currentTimeMillis();
+        if (nextWorldEventAt != 0 && now < nextWorldEventAt) {
+            return;
+        }
+        String[] events = {
+            "quiet market",
+            "skilling rush around banks",
+            "food shortage at the exchange",
+            "wilderness patrol forming",
+            "ore and log prices moving",
+            "clans watching Edgeville"
+        };
+        currentWorldEvent = events[random.nextInt(events.length)];
+        nextWorldEventAt = now + 180000L + random.nextInt(240000);
     }
 
     private void loadConfig() {
@@ -455,6 +507,9 @@ public final class WorldBotManager {
                 bot.kills = parseInt(properties.getProperty(prefix + "kills"), bot.kills);
                 bot.deaths = parseInt(properties.getProperty(prefix + "deaths"), bot.deaths);
                 bot.itemsBanked = parseInt(properties.getProperty(prefix + "banked"), bot.itemsBanked);
+                bot.trades = parseInt(properties.getProperty(prefix + "trades"), bot.trades);
+                bot.marketVolume = parseInt(properties.getProperty(prefix + "market_volume"), bot.marketVolume);
+                bot.goal = Goal.fromName(properties.getProperty(prefix + "goal"), bot.goal);
                 bot.inventory.clear();
                 String inventory = properties.getProperty(prefix + "inventory", "");
                 if (!inventory.isEmpty()) {
@@ -487,6 +542,9 @@ public final class WorldBotManager {
             properties.setProperty(prefix + "kills", String.valueOf(bot.kills));
             properties.setProperty(prefix + "deaths", String.valueOf(bot.deaths));
             properties.setProperty(prefix + "banked", String.valueOf(bot.itemsBanked));
+            properties.setProperty(prefix + "trades", String.valueOf(bot.trades));
+            properties.setProperty(prefix + "market_volume", String.valueOf(bot.marketVolume));
+            properties.setProperty(prefix + "goal", bot.goal.name());
             properties.setProperty(prefix + "inventory", bot.inventoryString());
         }
         try {
@@ -532,9 +590,12 @@ public final class WorldBotManager {
         private int kills;
         private int deaths;
         private int itemsBanked;
+        private int trades;
+        private int marketVolume;
         private boolean online = true;
         private long nextSessionChangeAt;
         private String activity;
+        private Goal goal;
 
         private WorldBot(int index, Role role, NPC npc, BotArea area, Personality personality) {
             this.name = personality.name;
@@ -547,6 +608,7 @@ public final class WorldBotManager {
             level = personality.startLevel;
             addInventory(COINS, 500 + (level * 25) + random.nextInt(1500));
             npc.setCombatLevel(level);
+            goal = Goal.forRole(role);
             activity = "starting in " + area.name;
             scheduleLogout();
         }
@@ -571,6 +633,8 @@ public final class WorldBotManager {
             if (role == Role.WILDERNESS && tryAttackPlayer()) {
                 return;
             }
+
+            updateGoal();
 
             if (System.currentTimeMillis() >= nextWorkAt) {
                 work();
@@ -653,13 +717,34 @@ public final class WorldBotManager {
             if (GrandExchange.countId(373) > 0 && random.nextInt(10) == 0 && buyFromExchange(373, 1)) {
                 addInventory(373, 1);
                 activity = "buying food from the exchange";
+                trades++;
                 say("buying food");
             }
             if (role == Role.WILDERNESS && GrandExchange.countId(81) > 0 && random.nextInt(20) == 0
                     && buyFromExchange(81, 1)) {
                 addInventory(81, 1);
                 activity = "upgrading gear from the exchange";
+                trades++;
                 say("upgrading gear");
+            }
+        }
+
+        private void updateGoal() {
+            if (goal == Goal.BUILD_BANK && coins() > 10000 && random.nextInt(8) == 0) {
+                goal = role == Role.WILDERNESS ? Goal.PK_TRIP : Goal.UPGRADE_GEAR;
+                say("bank is looking good");
+                return;
+            }
+            if (goal == Goal.UPGRADE_GEAR && (hasItem(81) || coins() < 250) && random.nextInt(8) == 0) {
+                goal = Goal.BUILD_BANK;
+                say("saving gp now");
+                return;
+            }
+            if (role == Role.GATHERER && inventorySize() > role.depositAt / 2 && random.nextInt(10) == 0) {
+                goal = Goal.BUILD_BANK;
+            }
+            if (role == Role.WILDERNESS && currentWorldEvent.contains("wilderness")) {
+                goal = Goal.PK_TRIP;
             }
         }
 
@@ -741,6 +826,8 @@ public final class WorldBotManager {
             player.getInventory().add(item);
             player.getSender().sendInventory();
             addInventory(COINS, price);
+            trades++;
+            marketVolume += price;
             int remaining = offer.getValue() - amount;
             if (remaining > 0) {
                 inventory.put(itemId, remaining);
@@ -798,6 +885,7 @@ public final class WorldBotManager {
                 return false;
             }
             removeInventory(COINS, paid);
+            marketVolume += paid;
             return true;
         }
 
@@ -837,15 +925,25 @@ public final class WorldBotManager {
                 if (paid > 0) {
                     deposited += entry.getValue();
                     coins += paid;
+                    marketVolume += paid;
                     inventory.remove(entry.getKey());
                 }
             }
             if (coins > 0) {
                 addInventory(COINS, coins);
+                trades++;
             }
             itemsBanked += deposited;
             activity = "selling " + deposited + " items for " + coins + " coins";
             return deposited;
+        }
+
+        private int coins() {
+            return inventory.getOrDefault(COINS, 0);
+        }
+
+        private int score() {
+            return kills * 1000 + level * 100 + itemsBanked * 5 + trades * 25 + coins() / 25 - deaths * 250;
         }
 
         private void dropInventory(Player owner) {
@@ -1127,6 +1225,40 @@ public final class WorldBotManager {
             return org.nemotech.rsc.external.EntityManager.getItem(itemId).getName();
         } catch (Exception e) {
             return "item " + itemId;
+        }
+    }
+
+    private enum Goal {
+        BUILD_BANK("build bank"),
+        UPGRADE_GEAR("upgrade gear"),
+        PK_TRIP("pk trip"),
+        SKILLING("skilling");
+
+        private final String label;
+
+        Goal(String label) {
+            this.label = label;
+        }
+
+        private static Goal forRole(Role role) {
+            if (role == Role.WILDERNESS) {
+                return PK_TRIP;
+            }
+            if (role == Role.FIGHTER) {
+                return UPGRADE_GEAR;
+            }
+            return SKILLING;
+        }
+
+        private static Goal fromName(String name, Goal fallback) {
+            if (name == null) {
+                return fallback;
+            }
+            try {
+                return Goal.valueOf(name);
+            } catch (Exception e) {
+                return fallback;
+            }
         }
     }
 

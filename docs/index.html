@@ -19,12 +19,12 @@
       <div class="container">
         <p>No servers. No setup. No internet required. Just pure solo RuneScape Classic gameplay &mdash; preserved and reimagined.</p>
         <div class="download-buttons">
-          <a href="https://github.com/kennethyork/Single-RSC/releases/tag/v2.7.0" class="cta">Desktop Download (v2.7.0)</a>
-          <a href="https://github.com/kennethyork/Single-RSC/releases/tag/v2.7.0" class="cta cta-mobile">Mobile Download (v2.7.0)</a>
+          <a href="https://github.com/kennethyork/Single-RSC/releases/tag/v2.7.3" class="cta">Desktop Download (v2.7.3)</a>
+          <a href="https://github.com/kennethyork/Single-RSC/releases/tag/v2.7.3" class="cta cta-mobile">Mobile Download (v2.7.3)</a>
         </div>
         <div class="badges">
-          <img src="https://img.shields.io/github/downloads/kennethyork/Single-RSC/latest/Single-RSC-v2.7.0.zip?label=Desktop%20Downloads" alt="Desktop Downloads" />
-          <img src="https://img.shields.io/github/downloads/kennethyork/Single-RSC/latest/Single-RSC-v2.7.0.apk?label=Mobile%20Downloads&color=green" alt="Mobile Downloads" />
+          <img src="https://img.shields.io/github/downloads/kennethyork/Single-RSC/latest/Single-RSC-v2.7.3.zip?label=Desktop%20Downloads" alt="Desktop Downloads" />
+          <img src="https://img.shields.io/github/downloads/kennethyork/Single-RSC/latest/Single-RSC-v2.7.3.apk?label=Mobile%20Downloads&color=green" alt="Mobile Downloads" />
         </div>
       </div>
     </section>
@@ -63,7 +63,7 @@
       <li>Admin account: create user named <code>root</code> for all admin commands</li>
     </ul>
 
-    <h3>Desktop (v2.7.0)</h3>
+    <h3>Desktop (v2.7.3)</h3>
     <ul>
       <li>Java 17+ required</li>
       <li>Launch via <code>run.sh</code> (Linux/macOS) or <code>run.bat</code> (Windows)</li>
@@ -71,7 +71,7 @@
       <li>Build from source with included compile command</li>
     </ul>
 
-    <h3>Mobile (v2.7.0)</h3>
+    <h3>Mobile (v2.7.3)</h3>
     <ul>
       <li>Android 7.0+ (API 24) &mdash; ~6 MB</li>
       <li>Tap = left click, Long press = right click</li>
@@ -82,6 +82,10 @@
 
     <h3>Bot System</h3>
     <ul>
+      <li><strong>World bots:</strong> Autonomous skilling, fighting, trading, login/logout, wilderness patrols, and region travel</li>
+      <li><strong>1x bot progression:</strong> Managed bot XP is locked to authentic 1x progression even if manual play uses a higher XP rate</li>
+      <li><strong>Bot lookup:</strong> Use <code>::worldbots lookup &lt;name&gt;</code> to inspect a world bot profile</li>
+      <li><strong>World bot highscores:</strong> Use <code>::worldbots top</code> for score, coins, trades, kills, deaths, and banked items</li>
       <li><strong>Auto-switch at 99:</strong> Bots automatically switch to next bot when skill reaches 99</li>
       <li><strong>Teleport Home:</strong> Bots teleport back when exceeding 50 tiles from home</li>
       <li><strong>Progression:</strong> Woodcutting &rarr; Mining &rarr; Fishing &rarr; Combat</li>
@@ -104,7 +108,49 @@
       <li><strong>Admin (root):</strong> <code>::item</code>, <code>::npc</code>, <code>::object</code>, <code>::set</code>, <code>::addbank</code>, <code>::quest</code>, <code>::find</code>, minimap right-click teleport</li>
     </ul>
 
+    <h2 id="highscores">Highscores</h2>
+    <p class="section-copy">Representative world-bot highscores. In-game, use <code>::worldbots top</code> and <code>::worldbots lookup &lt;name&gt;</code> for your live save.</p>
+    <div class="highscore-tools">
+      <input id="highscoreSearch" type="search" placeholder="Look up a bot name, clan, role, or goal" aria-label="Search highscores">
+    </div>
+    <div class="table-wrap">
+      <table id="highscoreTable">
+        <thead>
+          <tr>
+            <th>Rank</th>
+            <th>Name</th>
+            <th>Role</th>
+            <th>Clan</th>
+            <th>Goal</th>
+            <th>Level</th>
+            <th>Score</th>
+            <th>Coins</th>
+            <th>Trades</th>
+            <th>Kills</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>1</td><td>DeepWild</td><td>PKer</td><td>Wild guard</td><td>pk trip</td><td>69</td><td>13,940</td><td>18,200</td><td>38</td><td>6</td></tr>
+          <tr><td>2</td><td>RuneRita</td><td>Skiller</td><td>Red capes</td><td>build bank</td><td>17</td><td>10,850</td><td>42,500</td><td>61</td><td>0</td></tr>
+          <tr><td>3</td><td>Risky Rob</td><td>PKer</td><td>Red capes</td><td>upgrade gear</td><td>58</td><td>9,520</td><td>12,800</td><td>27</td><td>4</td></tr>
+          <tr><td>4</td><td>OreLord</td><td>Skiller</td><td>Blue moon</td><td>skilling</td><td>14</td><td>8,370</td><td>31,600</td><td>44</td><td>0</td></tr>
+          <tr><td>5</td><td>CoalCart</td><td>Monster hunter</td><td>Bank crew</td><td>upgrade gear</td><td>32</td><td>7,680</td><td>9,900</td><td>31</td><td>1</td></tr>
+          <tr><td>6</td><td>WillowWisp</td><td>Skiller</td><td>Bank crew</td><td>build bank</td><td>11</td><td>6,940</td><td>24,250</td><td>36</td><td>0</td></tr>
+          <tr><td>7</td><td>EdgePker</td><td>PKer</td><td>Blue moon</td><td>pk trip</td><td>51</td><td>6,710</td><td>7,450</td><td>18</td><td>2</td></tr>
+          <tr><td>8</td><td>Lobster Lad</td><td>Skiller</td><td>Wild guard</td><td>skilling</td><td>10</td><td>5,880</td><td>19,800</td><td>28</td><td>0</td></tr>
+        </tbody>
+      </table>
+    </div>
+
     <h2 id="changelog">Changelog</h2>
+    <details open>
+      <summary>v2.7.3</summary>
+      <ul>
+        <li>Add autonomous world bots across many regions with lookup, nearby reports, and highscores</li>
+        <li>Add transactional Grand Exchange pricing, stock, and market-volume reports</li>
+        <li>Lock managed bot XP to 1x progression</li>
+      </ul>
+    </details>
     <details>
       <summary>v2.7.0</summary>
       <ul>
@@ -141,7 +187,7 @@
 
         <h3>Desktop</h3>
         <ol>
-          <li>Download <code>Single-RSC-v2.7.0.zip</code> from <a href="https://github.com/kennethyork/Single-RSC/releases/tag/v2.7.0">GitHub releases</a></li>
+          <li>Download <code>Single-RSC-v2.7.3.zip</code> from <a href="https://github.com/kennethyork/Single-RSC/releases/tag/v2.7.3">GitHub releases</a></li>
           <li>Extract the zip file</li>
           <li>Ensure Java 17+ is installed: <code>java -version</code></li>
           <li>Run <code>run.sh</code> (Linux/macOS) or <code>run.bat</code> (Windows)</li>
@@ -149,7 +195,7 @@
 
         <h3>Mobile</h3>
         <ol>
-          <li>Download <code>Single-RSC-v2.7.0.apk</code> from <a href="https://github.com/kennethyork/Single-RSC/releases/tag/v2.7.0">GitHub releases</a></li>
+          <li>Download <code>Single-RSC-v2.7.3.apk</code> from <a href="https://github.com/kennethyork/Single-RSC/releases/tag/v2.7.3">GitHub releases</a></li>
           <li>Enable "Install from unknown sources" in Settings</li>
           <li>Open the APK file to install</li>
           <li>Launch the app from your app drawer</li>
