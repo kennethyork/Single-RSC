@@ -6,6 +6,8 @@ import org.nemotech.rsc.model.GrandExchange;
 import org.nemotech.rsc.model.NPC;
 import org.nemotech.rsc.model.player.InvItem;
 import org.nemotech.rsc.model.player.Player;
+import org.nemotech.rsc.client.action.ActionManager;
+import org.nemotech.rsc.client.action.impl.ShopHandler;
 import org.nemotech.rsc.plugins.listeners.action.TalkToNpcListener;
 import org.nemotech.rsc.plugins.listeners.executive.TalkToNpcExecutiveListener;
 
@@ -53,14 +55,13 @@ public class Bankers implements TalkToNpcExecutiveListener, TalkToNpcListener {
         npcTalk(player, npc, "The Grand Exchange stock is shared by everyone",
                 "You can sell items for coins or buy stocked items");
         int option = showMenu(player, npc,
-                "Sell my tradable inventory",
+                "Open the Grand Exchange",
                 "Buy an item",
                 "Show current stock",
                 "Cancel");
 
         if (option == 0) {
-            int deposited = GrandExchange.depositInventory(player);
-            player.getSender().sendMessage("@cya@[GE] @whi@Sold " + deposited + " tradable item" + (deposited == 1 ? "" : "s") + ".");
+            ActionManager.get(ShopHandler.class).handleGrandExchangeOpen();
         } else if (option == 1) {
             withdrawFromExchange(player, npc);
         } else if (option == 2) {

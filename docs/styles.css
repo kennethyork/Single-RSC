@@ -108,6 +108,8 @@ a:hover {
 
 .highscore-tools {
   margin: 1rem 0;
+  display: flex;
+  gap: 0.5rem;
 }
 
 .population-panel {
@@ -163,6 +165,89 @@ a:hover {
   font-size: 1rem;
 }
 
+.highscore-tools button {
+  padding: 0 1rem;
+  border: 1px solid #5b4b16;
+  background: #ffd700;
+  color: #111;
+  border-radius: 4px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.highscore-profile {
+  margin: 1rem 0;
+  border: 1px solid #333;
+  background: #181818;
+}
+
+.profile-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem;
+  border-bottom: 1px solid #303030;
+}
+
+.profile-header h3 {
+  margin: 0 0 0.35rem;
+  border: 0;
+  padding: 0;
+}
+
+.profile-header p {
+  margin: 0;
+  color: #cfcfcf;
+}
+
+.profile-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+  padding: 1rem;
+}
+
+.profile-summary span {
+  background: #222;
+  border-left: 4px solid #ffd700;
+  padding: 0.65rem;
+  color: #cfcfcf;
+}
+
+.profile-summary strong {
+  display: block;
+  color: #fff;
+  margin-top: 0.25rem;
+}
+
+.profile-table-wrap {
+  border-left: 0;
+  border-right: 0;
+  border-bottom: 0;
+}
+
+.status {
+  display: inline-block;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.status.online {
+  background: #123d22;
+  color: #7dffa7;
+}
+
+.status.offline {
+  background: #3a2727;
+  color: #ff9a9a;
+}
+
+.highscore-empty {
+  color: #ffcf76;
+}
+
 .table-wrap {
   overflow-x: auto;
   border: 1px solid #333;
@@ -193,6 +278,10 @@ tbody tr:nth-child(even) {
 }
 
 tbody tr.is-hidden {
+  display: none;
+}
+
+.is-hidden {
   display: none;
 }
 

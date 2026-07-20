@@ -1,5 +1,8 @@
 package org.nemotech.rsc.client.action.impl;
 
+import java.util.List;
+
+import org.nemotech.rsc.model.GrandExchange;
 import org.nemotech.rsc.model.player.InvItem;
 import org.nemotech.rsc.model.Shop;
 import org.nemotech.rsc.model.player.Player;
@@ -14,9 +17,11 @@ public class ShopHandler implements ActionHandler {
     private mudclient mc = mudclient.getInstance();
     private Player player = World.getWorld().getPlayer();
     private Shop shop;
+    private boolean grandExchangeOpen;
     
     public void handleShopOpen(Shop shop) {
         this.shop = shop;
+        grandExchangeOpen = false;
         mc.showDialogShop = true;
         int shopSize = shop.getShopSize();
         int shopType = shop.getType();
@@ -64,13 +69,25 @@ public class ShopHandler implements ActionHandler {
             mc.shopSelectedItemType = -2;
         }
     }
+
+    public void handleGrandExchangeOpen() {
+        shop = null;
+        grandExchangeOpen = true;
+        mc.showDialogShop = true;
+        refreshGrandExchangeStock();
+    }
     
     public void handleShopClose() {
         shop = null;
+        grandExchangeOpen = false;
         mc.showDialogShop = false;
     }
     
     public void handleBuyItem(int id) {
+        if (grandExchangeOpen) {
+            handleGrandExchangeBuy(id);
+            return;
+        }
         if(shop == null) {
             return;
         }
@@ -101,6 +118,10 @@ public class ShopHandler implements ActionHandler {
     }
     
     public void handleSellItem(int id) {
+        if (grandExchangeOpen) {
+            handleGrandExchangeSell(id);
+            return;
+        }
         InvItem item = new InvItem(id, 1);
 
         if (player.getInventory().countId(item.getID()) < 1) {
@@ -127,6 +148,83 @@ public class ShopHandler implements ActionHandler {
             shop.addShopItem(item);
             player.getSender().sendInventory();
             mc.playSoundEffect(SoundEffect.COINS);
+        }
+    }
+
+    private void refreshGrandExchangeStock() {
+        for (int itemIndex = 0; itemIndex < 40; itemIndex++) {
+            mc.shopItem[itemIndex] = -1;
+            mc.shopItemCount[itemIndex] = 0;
+            mc.shopItemBuyPrice[itemIndex] = 0;
+            mc.shopItemSellPrice[itemIndex] = 0;
+        }
+
+        int slot = 0;
+        List<InvItem> stock = GrandExchange.getStockSnapshot();
+        for (InvItem item : stock) {
+            if (slot >= 40) {
+                break;
+            }
+            mc.shopItem[slot] = item.getID();
+            mc.shopItemCount[slot] = item.getAmount();
+            mc.shopItemBuyPrice[slot] = GrandExchange.buyPrice(item.getID(), 1);
+            mc.shopItemSellPrice[slot] = GrandExchange.sellPrice(item.getID(), 1);
+            slot++;
+        }
+
+        for (int inventoryIndex = 0; inventoryIndex < mc.inventoryItemsCount && slot < 40; inventoryIndex++) {
+            int itemId = mc.inventoryItemId[inventoryIndex] & 0x7fff;
+            if (itemId == 10 || GrandExchange.sellPrice(itemId, 1) <= 0 || containsGrandExchangeItem(itemId)) {
+                continue;
+            }
+            mc.shopItem[slot] = itemId;
+            mc.shopItemCount[slot] = 0;
+            mc.shopItemBuyPrice[slot] = GrandExchange.buyPrice(itemId, 1);
+            mc.shopItemSellPrice[slot] = GrandExchange.sellPrice(itemId, 1);
+            slot++;
+        }
+
+        mc.shopName = "Grand Exchange";
+        if (mc.shopSelectedItemIndex >= 0 && mc.shopSelectedItemIndex < 40
+                && mc.shopItem[mc.shopSelectedItemIndex] != mc.shopSelectedItemType) {
+            mc.shopSelectedItemIndex = -1;
+            mc.shopSelectedItemType = -2;
+        }
+    }
+
+    private boolean containsGrandExchangeItem(int itemId) {
+        for (int i = 0; i < 40; i++) {
+            if (mc.shopItem[i] == itemId) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void handleGrandExchangeBuy(int id) {
+        if (GrandExchange.countId(id) < 1) {
+            player.getSender().sendMessage("@cya@[GE] @red@That item is not currently available.");
+            return;
+        }
+        int coins = GrandExchange.buyPrice(id, 1);
+        if (GrandExchange.withdraw(player, id, 1)) {
+            player.getSender().sendMessage("@cya@[GE] @whi@Bought 1 " + new InvItem(id, 1).getDef().getName() + " for " + coins + " coins.");
+            player.getSender().sendInventory();
+            mc.playSoundEffect(SoundEffect.COINS);
+            refreshGrandExchangeStock();
+        }
+    }
+
+    private void handleGrandExchangeSell(int id) {
+        if (player.getInventory().countId(id) < 1) {
+            return;
+        }
+        int coins = GrandExchange.sellPrice(id, 1);
+        if (GrandExchange.deposit(player, id, 1)) {
+            player.getSender().sendMessage("@cya@[GE] @whi@Sold 1 " + new InvItem(id, 1).getDef().getName() + " for " + coins + " coins.");
+            player.getSender().sendInventory();
+            mc.playSoundEffect(SoundEffect.COINS);
+            refreshGrandExchangeStock();
         }
     }
     

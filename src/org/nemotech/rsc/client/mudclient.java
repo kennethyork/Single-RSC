@@ -366,6 +366,9 @@ public class mudclient extends Shell {
     public int shopItem[];
     public int shopItemCount[];
     public int[] shopItemBuyPrice, shopItemSellPrice;
+    private int grandExchangePage;
+    private boolean grandExchangeSellMode;
+    private String grandExchangeSearch = "";
     public Model gameModels[];
     private String serverMessage;
     private int cameraRotationTime;
@@ -1082,6 +1085,10 @@ public class mudclient extends Shell {
             }
         }
         if (loggedIn == 1) {
+            if (showDialogShop && "Grand Exchange".equals(shopName)) {
+                handleGrandExchangeKeyPress(i);
+                return;
+            }
             if (showAppearanceChange && panelAppearance != null) {
                 panelAppearance.keyPress(i);
                 return;
@@ -3426,6 +3433,10 @@ OUTER:		for (int animationIndex = 0; animationIndex < EntityManager.getAnimation
     }
 
     private void drawDialogShop() {
+        if ("Grand Exchange".equals(shopName)) {
+            drawDialogGrandExchange();
+            return;
+        }
         if (mouseButtonClick != 0) {
             mouseButtonClick = 0;
             int mouseX = super.mouseX - 52;
@@ -3474,7 +3485,8 @@ OUTER:		for (int animationIndex = 0; animationIndex < EntityManager.getAnimation
             colour = 0xff0000;
         }
         surface.drawStringRight("Close window", dialogX + 406, dialogY + 10, 1, colour);
-        surface.drawString("Shops stock in green", dialogX + 2, dialogY + 24, 1, 65280);
+        boolean grandExchange = "Grand Exchange".equals(shopName);
+        surface.drawString(grandExchange ? "Exchange stock in green" : "Shops stock in green", dialogX + 2, dialogY + 24, 1, 65280);
         surface.drawString("Number you own in blue", dialogX + 135, dialogY + 24, 1, 65535);
         surface.drawString("Your money: " + getInventoryCount(10) + "gp", dialogX + 280, dialogY + 24, 1, 0xffff00);
         int itemIndex = 0;
@@ -3500,14 +3512,14 @@ OUTER:		for (int animationIndex = 0; animationIndex < EntityManager.getAnimation
 
         surface.drawLineHoriz(dialogX + 5, dialogY + 222, 398, 0);
         if (shopSelectedItemIndex == -1) {
-            surface.drawStringCenter("Select an object to buy or sell", dialogX + 204, dialogY + 214, 3, 0xffff00);
+            surface.drawStringCenter(grandExchange ? "Select an offer to buy or sell" : "Select an object to buy or sell", dialogX + 204, dialogY + 214, 3, 0xffff00);
             return;
         }
         int selectedItemType = shopItem[shopSelectedItemIndex];
         if (selectedItemType != -1) {
             if (shopItemCount[shopSelectedItemIndex] > 0) {
                 int itemPrice = shopItemBuyPrice[shopSelectedItemIndex];
-                surface.drawString("Buy a new " + EntityManager.getItem(selectedItemType).getName() + " for " + itemPrice + "gp", dialogX + 2, dialogY + 214, 1, 0xffff00);
+                surface.drawString((grandExchange ? "Buy " : "Buy a new ") + EntityManager.getItem(selectedItemType).getName() + " for " + itemPrice + "gp", dialogX + 2, dialogY + 214, 1, 0xffff00);
                 colour = 0xffffff;
                 if (super.mouseX > dialogX + 298 && super.mouseY >= dialogY + 204 && super.mouseX < dialogX + 408 && super.mouseY <= dialogY + 215) {
                     colour = 0xff0000;
@@ -3531,6 +3543,238 @@ OUTER:		for (int animationIndex = 0; animationIndex < EntityManager.getAnimation
             }
             surface.drawStringCenter("You do not have any of this item to sell", dialogX + 204, dialogY + 239, 3, 0xffff00);
         }
+    }
+
+    private void drawDialogGrandExchange() {
+        byte dialogX = 52;
+        byte dialogY = 44;
+        int dialogW = 408;
+        int dialogH = 246;
+        grandExchangePage = Math.min(grandExchangePage, grandExchangeMaxPage());
+
+        if (mouseButtonClick != 0) {
+            mouseButtonClick = 0;
+            int mouseX = super.mouseX - dialogX;
+            int mouseY = super.mouseY - dialogY;
+
+            if (mouseX < 0 || mouseY < 0 || mouseX >= dialogW || mouseY >= dialogH
+                    || mouseX > 382 && mouseY < 18) {
+                ActionManager.get(ShopHandler.class).handleShopClose();
+                return;
+            }
+
+            if (mouseX >= 10 && mouseY >= 32 && mouseX <= 68 && mouseY <= 52 && !grandExchangeSellMode) {
+                grandExchangeSellMode = true;
+                grandExchangePage = 0;
+                shopSelectedItemIndex = -1;
+                shopSelectedItemType = -2;
+                return;
+            }
+            if (mouseX >= 74 && mouseY >= 32 && mouseX <= 132 && mouseY <= 52 && grandExchangeSellMode) {
+                grandExchangeSellMode = false;
+                grandExchangePage = 0;
+                shopSelectedItemIndex = -1;
+                shopSelectedItemType = -2;
+                return;
+            }
+            if (mouseX >= 357 && mouseY >= 32 && mouseX <= 398 && mouseY <= 52 && grandExchangeSearch.length() > 0) {
+                grandExchangeSearch = "";
+                grandExchangePage = 0;
+                return;
+            }
+
+            int maxPage = grandExchangeMaxPage();
+            if (mouseX >= 274 && mouseY >= 180 && mouseX <= 326 && mouseY <= 200 && grandExchangePage > 0) {
+                grandExchangePage--;
+                shopSelectedItemIndex = -1;
+                shopSelectedItemType = -2;
+                return;
+            }
+            if (mouseX >= 334 && mouseY >= 180 && mouseX <= 398 && mouseY <= 200 && grandExchangePage < maxPage) {
+                grandExchangePage++;
+                shopSelectedItemIndex = -1;
+                shopSelectedItemType = -2;
+                return;
+            }
+
+            int slotIndex = grandExchangeSlotAt(mouseX, mouseY);
+            if (slotIndex >= 0 && shopItem[slotIndex] != -1) {
+                shopSelectedItemIndex = slotIndex;
+                shopSelectedItemType = shopItem[slotIndex];
+            }
+
+            if (shopSelectedItemIndex >= 0 && shopSelectedItemIndex < 40) {
+                int selectedItem = shopItem[shopSelectedItemIndex];
+                if (selectedItem != -1) {
+                    if (!grandExchangeSellMode && shopItemCount[shopSelectedItemIndex] > 0 && mouseX >= 270 && mouseY >= 214 && mouseX <= 401 && mouseY <= 238) {
+                        ActionManager.get(ShopHandler.class).handleBuyItem(selectedItem);
+                    }
+                    if (grandExchangeSellMode && getInventoryCount(selectedItem) > 0 && mouseX >= 270 && mouseY >= 214 && mouseX <= 401 && mouseY <= 238) {
+                        ActionManager.get(ShopHandler.class).handleSellItem(selectedItem);
+                    }
+                }
+            }
+        }
+
+        surface.drawBox(dialogX, dialogY, dialogW, dialogH, 0x252525);
+        surface.drawBoxEdge(dialogX, dialogY, dialogW, dialogH, 0x8a8170);
+        surface.drawBoxAlpha(dialogX + 4, dialogY + 4, dialogW - 8, 22, 0x383838, 220);
+        surface.drawStringCenter("Grand Exchange", dialogX + 204, dialogY + 19, 4, 0xffb83d);
+
+        int closeColour = 0xffffff;
+        if (super.mouseX > dialogX + 382 && super.mouseY >= dialogY && super.mouseX < dialogX + dialogW && super.mouseY < dialogY + 20) {
+            closeColour = 0xff0000;
+        }
+        surface.drawStringRight("X", dialogX + 399, dialogY + 17, 4, closeColour);
+
+        drawGrandExchangeButton(dialogX + 10, dialogY + 32, 58, 20, "Sell", grandExchangeSellMode);
+        drawGrandExchangeButton(dialogX + 74, dialogY + 32, 58, 20, "Buy", !grandExchangeSellMode);
+        surface.drawBox(dialogX + 138, dialogY + 32, 213, 20, 0x111111);
+        surface.drawBoxEdge(dialogX + 138, dialogY + 32, 213, 20, 0x6b6253);
+        surface.drawString("Search: " + (grandExchangeSearch.length() == 0 ? "type item name" : grandExchangeSearch), dialogX + 143, dialogY + 46, 1, grandExchangeSearch.length() == 0 ? 0x9f9f9f : 0xffffff);
+        drawGrandExchangeButton(dialogX + 357, dialogY + 32, 41, 20, "Clear", grandExchangeSearch.length() > 0);
+
+        surface.drawBoxAlpha(dialogX + 8, dialogY + 58, 392, 117, 0x161616, 220);
+        surface.drawBoxEdge(dialogX + 8, dialogY + 58, 392, 117, 0x4d4d4d);
+        surface.drawString("Item", dialogX + 14, dialogY + 72, 1, 0xffd36b);
+        surface.drawStringRight(grandExchangeSellMode ? "You own" : "Stock", dialogX + 300, dialogY + 72, 1, 0xffd36b);
+        surface.drawStringRight(grandExchangeSellMode ? "Sell each" : "Buy each", dialogX + 394, dialogY + 72, 1, 0xffd36b);
+        drawGrandExchangeList(dialogX, dialogY);
+
+        drawGrandExchangeButton(dialogX + 274, dialogY + 180, 52, 20, "Prev", grandExchangePage > 0);
+        drawGrandExchangeButton(dialogX + 334, dialogY + 180, 64, 20, "Next", grandExchangePage < grandExchangeMaxPage());
+        surface.drawString("Page " + (grandExchangePage + 1) + "/" + (grandExchangeMaxPage() + 1), dialogX + 14, dialogY + 194, 1, 0xffd36b);
+
+        surface.drawBoxAlpha(dialogX + 7, dialogY + 205, 394, 36, 0x1f1a14, 210);
+        surface.drawBoxEdge(dialogX + 7, dialogY + 205, 394, 36, 0x6b6253);
+        if (shopSelectedItemIndex < 0 || shopSelectedItemIndex >= 40 || shopItem[shopSelectedItemIndex] == -1) {
+            surface.drawStringCenter(grandExchangeSellMode ? "Choose an item from your inventory to sell" : "Choose an available item to buy", dialogX + 204, dialogY + 228, 3, 0xffd36b);
+            return;
+        }
+
+        int selectedItem = shopItem[shopSelectedItemIndex];
+        String name = fitGrandExchangeText(EntityManager.getItem(selectedItem).getName(), 155);
+        surface.spriteClipping(dialogX + 15, dialogY + 208, 32, 27,
+                spriteItem + EntityManager.getItem(selectedItem).getSprite(),
+                EntityManager.getItem(selectedItem).getMask(), 0, 0, false);
+        surface.drawString(name, dialogX + 52, dialogY + 219, 1, 0xffffff);
+        surface.drawString((grandExchangeSellMode ? "Own " + getInventoryCount(selectedItem) : "Stock " + shopItemCount[shopSelectedItemIndex]), dialogX + 52, dialogY + 234, 1, grandExchangeSellMode ? 0x66d9ff : 0x55ff55);
+        surface.drawStringRight((grandExchangeSellMode ? shopItemSellPrice[shopSelectedItemIndex] : shopItemBuyPrice[shopSelectedItemIndex]) + "gp", dialogX + 262, dialogY + 234, 1, 0xffd36b);
+        drawGrandExchangeButton(dialogX + 270, dialogY + 214, 131, 24, grandExchangeSellMode ? "Sell 1" : "Buy 1",
+                grandExchangeSellMode ? getInventoryCount(selectedItem) > 0 : shopItemCount[shopSelectedItemIndex] > 0);
+    }
+
+    private int grandExchangeSlotAt(int mouseX, int mouseY) {
+        int listX = 8;
+        int listY = 76;
+        if (mouseX < listX || mouseX > 400 || mouseY < listY || mouseY >= listY + 96) {
+            return -1;
+        }
+        int row = (mouseY - listY) / 12;
+        int target = grandExchangePage * 8 + row;
+        int seen = 0;
+        for (int i = 0; i < shopItem.length; i++) {
+            if (grandExchangeMatches(i)) {
+                if (seen == target) {
+                    return i;
+                }
+                seen++;
+            }
+        }
+        return -1;
+    }
+
+    private int grandExchangeMaxPage() {
+        int count = 0;
+        for (int i = 0; i < shopItem.length; i++) {
+            if (grandExchangeMatches(i)) {
+                count++;
+            }
+        }
+        return Math.max(0, (Math.max(1, count) - 1) / 8);
+    }
+
+    private void drawGrandExchangeList(int dialogX, int dialogY) {
+        int skipped = 0;
+        int drawn = 0;
+        int start = grandExchangePage * 8;
+        for (int i = 0; i < shopItem.length && drawn < 8; i++) {
+            if (!grandExchangeMatches(i)) {
+                continue;
+            }
+            if (skipped++ < start) {
+                continue;
+            }
+            int rowY = dialogY + 79 + drawn * 12;
+            boolean selected = shopSelectedItemIndex == i;
+            surface.drawBoxAlpha(dialogX + 10, rowY - 10, 388, 12, selected ? 0x4d3a18 : 0x202020, 190);
+            int itemId = shopItem[i];
+            surface.drawString(fitGrandExchangeText(EntityManager.getItem(itemId).getName(), 180), dialogX + 14, rowY, 1, selected ? 0xffffff : 0xd8d8d8);
+            surface.drawStringRight(String.valueOf(grandExchangeSellMode ? getInventoryCount(itemId) : shopItemCount[i]), dialogX + 300, rowY, 1, grandExchangeSellMode ? 0x66d9ff : 0x55ff55);
+            surface.drawStringRight(String.valueOf(grandExchangeSellMode ? shopItemSellPrice[i] : shopItemBuyPrice[i]), dialogX + 394, rowY, 1, 0xffd36b);
+            drawn++;
+        }
+        if (drawn == 0) {
+            surface.drawStringCenter("No matching items", dialogX + 204, dialogY + 132, 3, 0xffd36b);
+        }
+    }
+
+    private boolean grandExchangeMatches(int index) {
+        if (index < 0 || index >= shopItem.length || shopItem[index] == -1) {
+            return false;
+        }
+        int itemId = shopItem[index];
+        if (grandExchangeSellMode && (itemId == 10 || getInventoryCount(itemId) < 1)) {
+            return false;
+        }
+        if (!grandExchangeSellMode && shopItemCount[index] < 1) {
+            return false;
+        }
+        if (grandExchangeSearch.length() == 0) {
+            return true;
+        }
+        return EntityManager.getItem(itemId).getName().toLowerCase().contains(grandExchangeSearch.toLowerCase());
+    }
+
+    private void handleGrandExchangeKeyPress(int key) {
+        if (key == 8 || key == 127) {
+            if (grandExchangeSearch.length() > 0) {
+                grandExchangeSearch = grandExchangeSearch.substring(0, grandExchangeSearch.length() - 1);
+                grandExchangePage = 0;
+            }
+            return;
+        }
+        if (key == 27) {
+            grandExchangeSearch = "";
+            grandExchangePage = 0;
+            return;
+        }
+        char ch = (char) key;
+        if (grandExchangeSearch.length() < 20 && (Character.isLetterOrDigit(ch) || ch == ' ' || ch == '-' || ch == '_')) {
+            grandExchangeSearch += ch;
+            grandExchangePage = 0;
+            shopSelectedItemIndex = -1;
+            shopSelectedItemType = -2;
+        }
+    }
+
+    private void drawGrandExchangeButton(int x, int y, int w, int h, String text, boolean enabled) {
+        int fill = enabled ? 0x6d6251 : 0x4b4438;
+        int textColour = enabled ? 0xffffff : 0xb7ad9a;
+        surface.drawBoxAlpha(x, y, w, h, fill, 230);
+        surface.drawBoxEdge(x, y, w, h, enabled ? 0xb7ad9a : 0x6b6253);
+        surface.drawStringCenter(text, x + w / 2, y + h / 2 + 5, 3, textColour);
+    }
+
+    private String fitGrandExchangeText(String text, int width) {
+        if (surface.textWidth(text, 1) <= width) {
+            return text;
+        }
+        String shortened = text;
+        while (shortened.length() > 3 && surface.textWidth(shortened + "...", 1) > width) {
+            shortened = shortened.substring(0, shortened.length() - 1);
+        }
+        return shortened + "...";
     }
 
     private boolean hasInventoryItems(int id, int mincount) {

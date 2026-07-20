@@ -588,6 +588,11 @@ public final class WorldBotManager {
         private final Role role;
         private final Personality personality;
         private final int playerServerIndex;
+        private final int[] appearanceSprites;
+        private final int hairColour;
+        private final int topColour;
+        private final int bottomColour;
+        private final int skinColour;
         private NPC npc;
         private BotArea area;
         private int carriedItem;
@@ -619,6 +624,11 @@ public final class WorldBotManager {
             this.playerServerIndex = PLAYER_SERVER_INDEX_BASE + index;
             this.npc = npc;
             this.area = area;
+            this.appearanceSprites = role.appearanceSprites(index);
+            this.hairColour = Math.floorMod(index + role.ordinal() * 3, 10);
+            this.topColour = Math.floorMod(index * 3 + role.ordinal() * 5, 15);
+            this.bottomColour = Math.floorMod(index * 5 + role.ordinal() * 2, 15);
+            this.skinColour = Math.floorMod(index + role.ordinal(), 5);
             chooseCarriedItem(index);
             level = personality.startLevel;
             xpRate = xpRateFor(index, role);
@@ -865,19 +875,10 @@ public final class WorldBotManager {
         }
 
         private Snapshot snapshot() {
-            int[] equipment = new int[12];
-            if (hasItem(81)) {
-                equipment[4] = 81;
-            } else if (role == Role.FIGHTER) {
-                equipment[4] = 81;
-            } else if (role == Role.WILDERNESS) {
-                equipment[4] = 93;
-            } else {
-                equipment[4] = 87;
-            }
+            int[] equipment = appearanceSprites.clone();
             return new Snapshot(playerServerIndex, name, npc.getX(), npc.getY(), npc.getSprite(),
                     level, role == Role.WILDERNESS, equipment,
-                    role.hairColour, role.topColour, role.bottomColour, 15523536,
+                    hairColour, topColour, bottomColour, skinColour,
                     System.currentTimeMillis() < messageUntil ? lastMessage : null, messageSequence);
         }
 
@@ -1400,22 +1401,26 @@ public final class WorldBotManager {
     }
 
     private enum Role {
-        GATHERER("Gatherer", 18, 15658734, 25088, 8409120),
-        FIGHTER("Fighter", 10, 7360576, 8409120, 3),
-        WILDERNESS("Wilderness", 8, 7360576, 16711680, 3);
+        GATHERER("Gatherer", 18, new int[] {1, 4, 6, 7, 8}, new int[] {2}),
+        FIGHTER("Fighter", 10, new int[] {1, 4, 6, 7, 8}, new int[] {2, 5}),
+        WILDERNESS("Wilderness", 8, new int[] {1, 4, 6, 7, 8}, new int[] {5, 2});
 
         private final String label;
         private final int depositAt;
-        private final int hairColour;
-        private final int topColour;
-        private final int bottomColour;
+        private final int[] headSprites;
+        private final int[] bodySprites;
 
-        Role(String label, int depositAt, int hairColour, int topColour, int bottomColour) {
+        Role(String label, int depositAt, int[] headSprites, int[] bodySprites) {
             this.label = label;
             this.depositAt = depositAt;
-            this.hairColour = hairColour;
-            this.topColour = topColour;
-            this.bottomColour = bottomColour;
+            this.headSprites = headSprites;
+            this.bodySprites = bodySprites;
+        }
+
+        private int[] appearanceSprites(int index) {
+            int headSprite = headSprites[Math.floorMod(index + ordinal(), headSprites.length)];
+            int bodySprite = bodySprites[Math.floorMod(index / Math.max(1, headSprites.length), bodySprites.length)];
+            return new int[] {headSprite, bodySprite, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0};
         }
 
         private BotArea areaFor(int index) {
