@@ -407,8 +407,8 @@ public class BotCommands extends Plugin implements CommandListener {
     }
 
     private void showWorldBotCountMenu(final Player player, final int aggression, final int chat, final boolean shouldRun) {
-        final int[] counts = { 6, 12, 20, 35, 50 };
-        String[] options = { "6 bots", "12 bots", "20 bots", "35 bots", "50 bots" };
+        final int[] counts = { 50, 100, 150, 200 };
+        String[] options = { "50 bots", "100 bots", "150 bots", "200 bots" };
         player.setMenuHandler(new MenuHandler(options) {
             @Override
             public void handleReply(int option, String reply) {

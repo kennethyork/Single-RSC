@@ -30,8 +30,8 @@ public final class WorldBotManager {
     private static final int WILDERNESS_NPC = 797;
     private static final int PLAYER_SERVER_INDEX_BASE = 3000;
     private static final int COINS = 10;
-    private static final int DEFAULT_BOT_COUNT = 50;
-    private static final int DEFAULT_MAX_BOT_COUNT = 100;
+    private static final int DEFAULT_BOT_COUNT = 200;
+    private static final int DEFAULT_MAX_BOT_COUNT = 200;
     private static final long MIN_SESSION_MS = 5 * 60 * 1000L;
     private static final long SESSION_VARIANCE_MS = 10 * 60 * 1000L;
     private static final long MIN_OFFLINE_MS = 30 * 1000L;
@@ -122,6 +122,7 @@ public final class WorldBotManager {
                     .append(" - ").append(bot.personality.title)
                     .append(" [").append(bot.personality.clan).append("]")
                     .append(" lvl ").append(bot.level)
+                    .append(" xp ").append(bot.xpRate).append("x")
                     .append(bot.statusText())
                     .append(" goal ").append(bot.goal.label)
                     .append(" doing ").append(bot.activity)
@@ -187,6 +188,7 @@ public final class WorldBotManager {
             WorldBot bot = ranked.get(i);
             report.append("\n").append(i + 1).append(". ").append(bot.name)
                     .append(" lvl ").append(bot.level)
+                    .append(" xp ").append(bot.xpRate).append("x")
                     .append(" kills ").append(bot.kills)
                     .append(" deaths ").append(bot.deaths)
                     .append(" banked ").append(bot.itemsBanked)
@@ -209,7 +211,9 @@ public final class WorldBotManager {
                         + "\nclan=" + bot.personality.clan
                         + "\nrival=" + bot.personality.rivalClan
                         + "\nlevel=" + bot.level
-                        + "\nxp=" + bot.xp + " (1x world-bot progression)"
+                        + "\nxp_rate=" + bot.xpRate + "x"
+                        + "\nxp=" + bot.xp
+                        + "\neffective_xp=" + bot.effectiveXp()
                         + "\ngoal=" + bot.goal.label
                         + "\nactivity=" + bot.activity
                         + "\ncoins=" + bot.coins()
@@ -504,6 +508,7 @@ public final class WorldBotManager {
                 String prefix = "bot." + i + ".";
                 bot.level = parseInt(properties.getProperty(prefix + "level"), bot.level);
                 bot.xp = parseInt(properties.getProperty(prefix + "xp"), bot.xp);
+                bot.xpRate = Math.max(1, parseInt(properties.getProperty(prefix + "xp_rate"), bot.xpRate));
                 bot.kills = parseInt(properties.getProperty(prefix + "kills"), bot.kills);
                 bot.deaths = parseInt(properties.getProperty(prefix + "deaths"), bot.deaths);
                 bot.itemsBanked = parseInt(properties.getProperty(prefix + "banked"), bot.itemsBanked);
@@ -539,6 +544,7 @@ public final class WorldBotManager {
             properties.setProperty(prefix + "role", bot.role.name());
             properties.setProperty(prefix + "level", String.valueOf(bot.level));
             properties.setProperty(prefix + "xp", String.valueOf(bot.xp));
+            properties.setProperty(prefix + "xp_rate", String.valueOf(bot.xpRate));
             properties.setProperty(prefix + "kills", String.valueOf(bot.kills));
             properties.setProperty(prefix + "deaths", String.valueOf(bot.deaths));
             properties.setProperty(prefix + "banked", String.valueOf(bot.itemsBanked));
@@ -587,6 +593,7 @@ public final class WorldBotManager {
         private boolean active = true;
         private int level = 3;
         private int xp;
+        private int xpRate;
         private int kills;
         private int deaths;
         private int itemsBanked;
@@ -606,6 +613,7 @@ public final class WorldBotManager {
             this.area = area;
             chooseCarriedItem(index);
             level = personality.startLevel;
+            xpRate = xpRateFor(index, role);
             addInventory(COINS, 500 + (level * 25) + random.nextInt(1500));
             npc.setCombatLevel(level);
             goal = Goal.forRole(role);
@@ -943,7 +951,11 @@ public final class WorldBotManager {
         }
 
         private int score() {
-            return kills * 1000 + level * 100 + itemsBanked * 5 + trades * 25 + coins() / 25 - deaths * 250;
+            return kills * 1000 + level * 100 + effectiveXp() / 10 + itemsBanked * 5 + trades * 25 + coins() / 25 - deaths * 250;
+        }
+
+        private int effectiveXp() {
+            return xp;
         }
 
         private void dropInventory(Player owner) {
@@ -955,13 +967,26 @@ public final class WorldBotManager {
         }
 
         private void gainXp(int amount) {
-            xp += amount;
+            xp += amount * xpRate;
             int newLevel = Math.min(99, 3 + (xp / 100));
             if (newLevel > level) {
                 level = newLevel;
                 npc.setCombatLevel(level);
                 say("level " + level);
             }
+        }
+
+        private int xpRateFor(int index, Role role) {
+            if (role == Role.WILDERNESS) {
+                int[] rates = { 1, 2, 3, 5 };
+                return rates[index % rates.length];
+            }
+            if (role == Role.FIGHTER) {
+                int[] rates = { 1, 1, 2, 3 };
+                return rates[index % rates.length];
+            }
+            int[] rates = { 1, 1, 1, 2, 3 };
+            return rates[index % rates.length];
         }
 
         private void respawn() {
@@ -1155,7 +1180,7 @@ public final class WorldBotManager {
     private static final class Config {
         private boolean autoStart = true;
         private int defaultCount = DEFAULT_BOT_COUNT;
-        private int maxCount = 50;
+        private int maxCount = DEFAULT_MAX_BOT_COUNT;
         private int respawnSeconds = 20;
         private int saveEverySeconds = 60;
         private int chatFrequency = 1;
