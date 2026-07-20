@@ -110,7 +110,7 @@
     </ul>
 
     <h2 id="highscores">Highscores</h2>
-    <p class="section-copy">Representative world-bot highscores. In-game, use <code>::worldbots top</code> and <code>::worldbots lookup &lt;name&gt;</code> for your live save.</p>
+    <p class="section-copy">Exported from your local save files and world-bot state. The site refreshes the export every 30 seconds while open.</p>
     <div class="population-panel" aria-live="polite">
       <div>
         <span class="population-label">World Bots Online</span>
@@ -128,6 +128,12 @@
       <input id="highscoreSearch" type="search" placeholder="Look up a bot name, clan, role, or goal" aria-label="Search highscores">
       <button id="highscoreLookup" type="button">Lookup</button>
     </div>
+    <div class="highscore-filters" aria-label="Highscore list filter">
+      <button class="is-active" type="button" data-highscore-filter="players">Your characters</button>
+      <button type="button" data-highscore-filter="bots">World bots</button>
+      <button type="button" data-highscore-filter="all">All</button>
+    </div>
+    <p id="highscoreSource" class="highscore-source">Waiting for local highscores export...</p>
     <div id="highscoreProfile" class="highscore-profile is-hidden" aria-live="polite">
       <div class="profile-header">
         <div>

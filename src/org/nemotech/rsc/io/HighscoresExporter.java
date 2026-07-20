@@ -23,6 +23,10 @@ public final class HighscoresExporter {
 
     private HighscoresExporter() {}
 
+    public static void main(String[] args) {
+        export();
+    }
+
     public static synchronized void export() {
         try {
             List<Entry> entries = new ArrayList<>();

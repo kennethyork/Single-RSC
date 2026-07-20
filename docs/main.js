@@ -1,5 +1,7 @@
 const highscoreSearch = document.getElementById("highscoreSearch");
 const highscoreLookup = document.getElementById("highscoreLookup");
+const highscoreFilterButtons = Array.from(document.querySelectorAll("[data-highscore-filter]"));
+const highscoreSource = document.getElementById("highscoreSource");
 const highscoreTableBody = document.querySelector("#highscoreTable tbody");
 let highscoreRows = Array.from(document.querySelectorAll("#highscoreTable tbody tr"));
 const highscoreProfile = document.getElementById("highscoreProfile");
@@ -39,6 +41,7 @@ let highscorePlayers = highscoreRows.map((row) => {
     name: cells[1],
     role: cells[2],
     clan: cells[3],
+    type: cells[3] === "Your characters" ? "Player" : "World bot",
     status: cells[4],
     goal: cells[5],
     level: Number(cells[6].replace(/,/g, "")),
@@ -76,9 +79,45 @@ const generatedNames = [
 ];
 
 let liveHighscoresLoaded = false;
+let currentHighscoreFilter = "players";
 
 function statusMarkup(status) {
   return `<span class="status ${status.toLowerCase()}">${status}</span>`;
+}
+
+function isPlayerCharacter(player) {
+  return player.type !== "World bot" && player.clan === "Your characters";
+}
+
+function rowMatchesCurrentFilter(player) {
+  if (currentHighscoreFilter === "all") {
+    return true;
+  }
+  if (currentHighscoreFilter === "bots") {
+    return player.type === "World bot";
+  }
+  return isPlayerCharacter(player);
+}
+
+function updateHighscoreSource(generatedAt) {
+  if (!highscoreSource) {
+    return;
+  }
+  const playerCount = highscorePlayers.filter(isPlayerCharacter).length;
+  const botCount = highscorePlayers.filter((player) => player.type === "World bot").length;
+  const timestamp = generatedAt ? new Date(generatedAt).toLocaleString() : "local fallback";
+  highscoreSource.textContent = `Showing exported data: ${playerCount} saved characters, ${botCount} world bots. Last export: ${timestamp}.`;
+}
+
+function applyHighscoreFilters() {
+  const query = highscoreSearch ? highscoreSearch.value.trim().toLowerCase() : "";
+  highscorePlayers.forEach((player) => {
+    if (!player.row) {
+      return;
+    }
+    const text = player.row.textContent.toLowerCase();
+    player.row.classList.toggle("is-hidden", !rowMatchesCurrentFilter(player) || (query && !text.includes(query)));
+  });
 }
 
 function makeGeneratedPlayer(rank) {
@@ -90,6 +129,7 @@ function makeGeneratedPlayer(rank) {
   return {
     rank,
     name: generatedNames[(rank - 31) % generatedNames.length],
+    type: "World bot",
     role,
     clan: clans[rank % clans.length],
     status,
@@ -105,6 +145,7 @@ function makeGeneratedPlayer(rank) {
 
 function appendPlayerRow(player) {
   const row = document.createElement("tr");
+  player.type = player.type || (player.clan === "Your characters" ? player.role : "World bot");
   row.innerHTML = `
     <td>${player.rank}</td>
     <td>${player.name}</td>
@@ -122,6 +163,7 @@ function appendPlayerRow(player) {
   highscoreTableBody.appendChild(row);
   player.row = row;
   highscorePlayers.push(player);
+  applyHighscoreFilters();
 }
 
 if (highscoreTableBody) {
@@ -137,6 +179,7 @@ if (highscoreTableBody) {
   ].forEach((character) => {
     appendPlayerRow({
       rank: highscorePlayers.length + 1,
+      type: "Player",
       role: character.name.startsWith("hc") ? "Hardcore player" : "Player",
       clan: "Your characters",
       goal: character.status === "Online" ? "currently playing" : "saved character",
@@ -154,6 +197,7 @@ function playerFromLive(entry) {
   return {
     rank: Number(entry.rank) || 0,
     name: entry.name || "unknown",
+    type: entry.type || "Player",
     role: entry.role || entry.type || "Player",
     clan: entry.clan || "",
     status: entry.status || "Offline",
@@ -173,7 +217,7 @@ function playerFromLive(entry) {
   };
 }
 
-function rebuildHighscores(players) {
+function rebuildHighscores(players, generatedAt) {
   if (!highscoreTableBody || !Array.isArray(players) || players.length === 0) {
     return;
   }
@@ -188,6 +232,8 @@ function rebuildHighscores(players) {
   });
   highscoreRows = Array.from(document.querySelectorAll("#highscoreTable tbody tr"));
   bindHighscoreRows();
+  applyHighscoreFilters();
+  updateHighscoreSource(generatedAt);
   liveHighscoresLoaded = true;
 }
 
@@ -201,7 +247,7 @@ function loadLiveHighscores() {
     })
     .then((data) => {
       if (data && Array.isArray(data.players)) {
-        rebuildHighscores(data.players);
+        rebuildHighscores(data.players, data.generatedAt);
       }
     })
     .catch(() => {
@@ -312,9 +358,7 @@ function runLookup() {
 if (highscoreSearch) {
   highscoreSearch.addEventListener("input", () => {
     const query = highscoreSearch.value.trim().toLowerCase();
-    highscoreRows.forEach((row) => {
-      row.classList.toggle("is-hidden", query.length > 0 && !row.textContent.toLowerCase().includes(query));
-    });
+    applyHighscoreFilters();
     if (!query) {
       highscoreProfile.classList.add("is-hidden");
       highscoreEmpty.classList.add("is-hidden");
@@ -342,6 +386,18 @@ function bindHighscoreRows() {
 }
 
 bindHighscoreRows();
+applyHighscoreFilters();
+updateHighscoreSource();
+
+highscoreFilterButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    currentHighscoreFilter = button.dataset.highscoreFilter || "players";
+    highscoreFilterButtons.forEach((other) => {
+      other.classList.toggle("is-active", other === button);
+    });
+    applyHighscoreFilters();
+  });
+});
 
 const initialPlayer = new URLSearchParams(window.location.hash.split("?")[1] || "").get("player");
 if (initialPlayer && highscoreSearch) {

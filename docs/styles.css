@@ -112,6 +112,35 @@ a:hover {
   gap: 0.5rem;
 }
 
+.highscore-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.highscore-filters button {
+  padding: 0.55rem 0.8rem;
+  border: 1px solid #3d3d3d;
+  background: #202020;
+  color: #f4f4f4;
+  border-radius: 4px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.highscore-filters button.is-active {
+  border-color: #5b4b16;
+  background: #ffd700;
+  color: #111;
+}
+
+.highscore-source {
+  color: #bdbdbd;
+  font-size: 0.9rem;
+  margin: 0 0 0.75rem;
+}
+
 .population-panel {
   display: grid;
   gap: 0.75rem;
