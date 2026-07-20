@@ -1,6 +1,7 @@
 const highscoreSearch = document.getElementById("highscoreSearch");
 const highscoreLookup = document.getElementById("highscoreLookup");
-const highscoreRows = Array.from(document.querySelectorAll("#highscoreTable tbody tr"));
+const highscoreTableBody = document.querySelector("#highscoreTable tbody");
+let highscoreRows = Array.from(document.querySelectorAll("#highscoreTable tbody tr"));
 const highscoreProfile = document.getElementById("highscoreProfile");
 const highscoreEmpty = document.getElementById("highscoreEmpty");
 const profileTitle = document.getElementById("profileTitle");
@@ -31,7 +32,7 @@ const skills = [
   "Thieving",
 ];
 
-const highscorePlayers = highscoreRows.map((row) => {
+let highscorePlayers = highscoreRows.map((row) => {
   const cells = Array.from(row.children).map((cell) => cell.textContent.trim());
   return {
     rank: Number(cells[0].replace(/,/g, "")),
@@ -49,6 +50,84 @@ const highscorePlayers = highscoreRows.map((row) => {
     row,
   };
 });
+
+const generatedNames = [
+  "AlKharidAli", "AshRunner", "AuburyAlt", "BarbBrian", "BlackArmBob", "BlueWizard", "BronzeBelle", "CabbageCam",
+  "CamelotCole", "CastleCarl", "CaveCrawler", "ChaosCat", "CookedCod", "CopperCora", "CowhideCal", "DarkWizard",
+  "DraynorDrew", "DuelDaisy", "DwarfDale", "EastVarrock", "EdgeEmma", "EntranaEli", "FaladorFinn", "FireRune",
+  "FishingFred", "ForestFletch", "GoblinGary", "GoldGrace", "GreenDragon", "GuardGlen", "GuthixGail", "HerbHarry",
+  "IceMountain", "IronIvy", "KaramjaKai", "KnightNora", "LavaMaze", "LeatherLee", "LongbowLou", "LumbyLia",
+  "MagicMilo", "MapleMona", "MithMack", "MonkMara", "MossMarty", "Mudskipper", "NatureNed", "NorthArdy",
+  "OakOscar", "OreOlive", "PaladinPam", "PrayerPaul", "RangeRalph", "RatRicky", "RedBeard", "RuneRuby",
+  "SaradominSid", "ScimitarSue", "SeersSally", "ShantaySid", "SilverSue", "SkullSam", "SmithSonia", "SouthGate",
+  "SpiderStan", "SteelStacy", "SwordSeth", "ThieveTheo", "TinTara", "TroutTina", "VarrockVal", "WestArdy",
+  "WhiteKnight", "WillowWade", "WizardWes", "YewYara", "ZamorakZed", "AgilityAna", "ArrowArt", "BankBeth",
+  "BeerBarry", "BigBones", "BrassKey", "CakeClara", "CoalCasey", "CraftCleo", "DeathDune", "EdgeElla",
+  "FeatherFox", "FletchFern", "GhostGreg", "HillHank", "JailJimmy", "KiteKara", "LobsterLiz", "MineMolly",
+  "NeedleNia", "PickPete", "RawTuna", "RingRosa", "ShrimpShay", "SilkSasha", "SmeltSean", "SpinFlax",
+  "StaffTess", "TannerTom", "UncutUma", "VialVera", "WildWill", "WineWalt", "WolfWynn", "ZaffZane",
+  "ArcherAmy", "BattleBen", "CatherCarl", "DruidDana", "EssenceEd", "FalconFia", "GnomeGina", "HunterHal",
+  "IslandIan", "JollyJade", "KebabKen", "LesserLeo", "MarketMae", "NettleNash", "OgreOwen", "PiratePip",
+  "QuartzQuin", "RangerRen", "SailorSky", "TavernTim", "UndeadUna", "VannakaVic", "WanderWren", "XbowXan",
+  "YanilleYin", "ZealZoe", "AmberAsh", "BriarBo", "CinderCy", "DaggerDee", "ElmEvan", "FurnaceFay",
+  "GraniteGil", "HarpoonHex", "IvoryIke", "JadeJon", "KeeperKay", "LanternLex", "MarbleMay", "NobleNix",
+  "OnyxOllie", "PebblePaz", "QuestQuill", "RopeRae", "SapphireSol", "TempleTia", "UrnUri", "ValeVik",
+  "WheatWes", "XeniaX", "YewYork", "ZincZara",
+];
+
+function statusMarkup(status) {
+  return `<span class="status ${status.toLowerCase()}">${status}</span>`;
+}
+
+function makeGeneratedPlayer(rank) {
+  const roles = ["Skiller", "Monster hunter", "PKer"];
+  const clans = ["Bank crew", "Blue moon", "Red capes", "Wild guard", "Iron bank", "Oak table"];
+  const goals = ["skilling", "build bank", "upgrade gear", "pk trip"];
+  const role = roles[rank % roles.length];
+  const status = rank % 4 === 0 ? "Offline" : "Online";
+  return {
+    rank,
+    name: generatedNames[(rank - 31) % generatedNames.length],
+    role,
+    clan: clans[rank % clans.length],
+    status,
+    goal: role === "PKer" ? "pk trip" : goals[rank % goals.length],
+    level: Math.max(3, 62 - Math.floor(rank / 4) + (rank % 7)),
+    xpRate: [1, 1, 2, 3, 5][rank % 5] + "x",
+    score: Math.max(250, 2050 - rank * 7 + (rank % 9) * 18),
+    coins: Math.max(150, 5100 - rank * 13 + (rank % 11) * 120),
+    trades: Math.max(0, 22 - Math.floor(rank / 10) + (rank % 3)),
+    kills: role === "PKer" ? Math.max(0, 9 - Math.floor(rank / 20)) : rank % 17 === 0 ? 1 : 0,
+  };
+}
+
+function appendPlayerRow(player) {
+  const row = document.createElement("tr");
+  row.innerHTML = `
+    <td>${player.rank}</td>
+    <td>${player.name}</td>
+    <td>${player.role}</td>
+    <td>${player.clan}</td>
+    <td>${statusMarkup(player.status)}</td>
+    <td>${player.goal}</td>
+    <td>${player.level}</td>
+    <td>${player.xpRate}</td>
+    <td>${formatNumber(player.score)}</td>
+    <td>${formatNumber(player.coins)}</td>
+    <td>${formatNumber(player.trades)}</td>
+    <td>${formatNumber(player.kills)}</td>
+  `;
+  highscoreTableBody.appendChild(row);
+  player.row = row;
+  highscorePlayers.push(player);
+}
+
+if (highscoreTableBody) {
+  for (let rank = highscorePlayers.length + 1; rank <= 200; rank += 1) {
+    appendPlayerRow(makeGeneratedPlayer(rank));
+  }
+  highscoreRows = Array.from(document.querySelectorAll("#highscoreTable tbody tr"));
+}
 
 function formatNumber(value) {
   return value.toLocaleString("en-US");
