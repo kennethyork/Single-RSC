@@ -83,6 +83,10 @@ public class BotManager {
     public Bot getActiveBot() {
         return activeBot;
     }
+
+    public boolean isBotRunning() {
+        return activeBot != null && activeBot.isRunning() && !activeBot.isPaused();
+    }
     
     /**
      * Starts a bot by name.
