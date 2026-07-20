@@ -29,6 +29,7 @@ public final class WorldBotManager {
     private static final int FIGHTER_NPC = 796;
     private static final int WILDERNESS_NPC = 797;
     private static final int PLAYER_SERVER_INDEX_BASE = 3000;
+    private static final int COINS = 10;
     private static final int DEFAULT_BOT_COUNT = 50;
     private static final int DEFAULT_MAX_BOT_COUNT = 100;
     private static final long MIN_SESSION_MS = 5 * 60 * 1000L;
@@ -544,6 +545,7 @@ public final class WorldBotManager {
             this.area = area;
             chooseCarriedItem(index);
             level = personality.startLevel;
+            addInventory(COINS, 500 + (level * 25) + random.nextInt(1500));
             npc.setCombatLevel(level);
             activity = "starting in " + area.name;
             scheduleLogout();
@@ -632,14 +634,14 @@ public final class WorldBotManager {
                 gainXp(4);
                 activity = "hunting drops in " + area.name;
                 if (random.nextInt(4) == 0) {
-                    addInventory(10, 5 + random.nextInt(60));
+                    addInventory(COINS, 5 + random.nextInt(60));
                 }
             } else {
                 addInventory(carriedItem, 1 + random.nextInt(2));
                 gainXp(6);
                 activity = "patrolling " + area.name;
                 if (random.nextInt(3) == 0) {
-                    addInventory(10, 25 + random.nextInt(150));
+                    addInventory(COINS, 25 + random.nextInt(150));
                 }
             }
         }
@@ -648,13 +650,13 @@ public final class WorldBotManager {
             if (role == Role.GATHERER) {
                 return;
             }
-            if (GrandExchange.countId(373) > 0 && random.nextInt(10) == 0 && GrandExchange.withdrawSystem(373, 1)) {
+            if (GrandExchange.countId(373) > 0 && random.nextInt(10) == 0 && buyFromExchange(373, 1)) {
                 addInventory(373, 1);
                 activity = "buying food from the exchange";
                 say("buying food");
             }
             if (role == Role.WILDERNESS && GrandExchange.countId(81) > 0 && random.nextInt(20) == 0
-                    && GrandExchange.withdrawSystem(81, 1)) {
+                    && buyFromExchange(81, 1)) {
                 addInventory(81, 1);
                 activity = "upgrading gear from the exchange";
                 say("upgrading gear");
@@ -709,7 +711,7 @@ public final class WorldBotManager {
         private boolean tradeWith(Player player) {
             Map.Entry<Integer, Integer> offer = null;
             for (Map.Entry<Integer, Integer> entry : inventory.entrySet()) {
-                if (entry.getKey() != 10 && entry.getValue() > 0) {
+                if (entry.getKey() != COINS && entry.getValue() > 0) {
                     offer = entry;
                     break;
                 }
@@ -722,8 +724,8 @@ public final class WorldBotManager {
 
             int itemId = offer.getKey();
             int amount = Math.min(offer.getValue(), Math.max(1, player.getInventory().getFreeSpaces()));
-            int price = Math.max(1, amount * Math.max(1, org.nemotech.rsc.external.EntityManager.getItem(itemId).getPrice() / 3));
-            if (player.getInventory().countId(10) < price) {
+            int price = GrandExchange.buyPrice(itemId, amount);
+            if (player.getInventory().countId(COINS) < price) {
                 say("bring coins");
                 player.getSender().sendMessage("@cya@[WorldBots] @red@" + name + " wants " + price + " coins.");
                 return false;
@@ -734,11 +736,11 @@ public final class WorldBotManager {
                 return false;
             }
 
-            player.getInventory().remove(10, price);
+            player.getInventory().remove(COINS, price);
             player.getSender().sendInventory();
             player.getInventory().add(item);
             player.getSender().sendInventory();
-            addInventory(10, price);
+            addInventory(COINS, price);
             int remaining = offer.getValue() - amount;
             if (remaining > 0) {
                 inventory.put(itemId, remaining);
@@ -771,14 +773,44 @@ public final class WorldBotManager {
             inventory.put(itemId, inventory.getOrDefault(itemId, 0) + amount);
         }
 
+        private boolean removeInventory(int itemId, int amount) {
+            int current = inventory.getOrDefault(itemId, 0);
+            if (amount < 1 || current < amount) {
+                return false;
+            }
+            int remaining = current - amount;
+            if (remaining > 0) {
+                inventory.put(itemId, remaining);
+            } else {
+                inventory.remove(itemId);
+            }
+            return true;
+        }
+
+        private boolean buyFromExchange(int itemId, int amount) {
+            int price = GrandExchange.buyPrice(itemId, amount);
+            if (inventory.getOrDefault(COINS, 0) < price) {
+                activity = "saving coins for " + itemName(itemId);
+                return false;
+            }
+            int paid = GrandExchange.buySystem(itemId, amount);
+            if (paid < 1) {
+                return false;
+            }
+            removeInventory(COINS, paid);
+            return true;
+        }
+
         private boolean hasItem(int itemId) {
             return inventory.containsKey(itemId) && inventory.get(itemId) > 0;
         }
 
         private int inventorySize() {
             int total = 0;
-            for (int amount : inventory.values()) {
-                total += amount;
+            for (Map.Entry<Integer, Integer> entry : inventory.entrySet()) {
+                if (entry.getKey() != COINS) {
+                    total += entry.getValue();
+                }
             }
             return total;
         }
@@ -796,14 +828,23 @@ public final class WorldBotManager {
 
         private int depositInventoryToExchange() {
             int deposited = 0;
+            int coins = 0;
             for (Map.Entry<Integer, Integer> entry : new ArrayList<>(inventory.entrySet())) {
-                if (GrandExchange.depositSystem(entry.getKey(), entry.getValue())) {
+                if (entry.getKey() == COINS) {
+                    continue;
+                }
+                int paid = GrandExchange.sellSystem(entry.getKey(), entry.getValue());
+                if (paid > 0) {
                     deposited += entry.getValue();
+                    coins += paid;
                     inventory.remove(entry.getKey());
                 }
             }
+            if (coins > 0) {
+                addInventory(COINS, coins);
+            }
             itemsBanked += deposited;
-            activity = "banking " + deposited + " items at the exchange";
+            activity = "selling " + deposited + " items for " + coins + " coins";
             return deposited;
         }
 
@@ -812,7 +853,7 @@ public final class WorldBotManager {
                 World.getWorld().registerItem(new Item(entry.getKey(), npc.getX(), npc.getY(), entry.getValue(), owner));
             }
             inventory.clear();
-            World.getWorld().registerItem(new Item(10, npc.getX(), npc.getY(), 25 + random.nextInt(100), owner));
+            World.getWorld().registerItem(new Item(COINS, npc.getX(), npc.getY(), 25 + random.nextInt(100), owner));
         }
 
         private void gainXp(int amount) {

@@ -475,10 +475,10 @@ public class BotCommands extends Plugin implements CommandListener {
     private void handleGrandExchangeCommand(String[] args, Player player) {
         if (args.length == 0 || args[0].equalsIgnoreCase("help")) {
             player.getSender().sendMessage("@cya@=== Grand Exchange Commands ===");
-            player.getSender().sendMessage("@whi@::ge list - Show shared stock");
-            player.getSender().sendMessage("@whi@::ge deposit <itemId> [amount|all]");
-            player.getSender().sendMessage("@whi@::ge withdraw <itemId> [amount|all]");
-            player.getSender().sendMessage("@whi@::ge depositall - Deposit all tradable inventory");
+            player.getSender().sendMessage("@whi@::ge list - Show market stock and prices");
+            player.getSender().sendMessage("@whi@::ge deposit <itemId> [amount|all] - Sell items");
+            player.getSender().sendMessage("@whi@::ge withdraw <itemId> [amount|all] - Buy items");
+            player.getSender().sendMessage("@whi@::ge depositall - Sell tradable inventory");
             return;
         }
 
@@ -490,7 +490,7 @@ public class BotCommands extends Plugin implements CommandListener {
 
         if (subCommand.equals("depositall")) {
             int deposited = GrandExchange.depositInventory(player);
-            player.getSender().sendMessage("@cya@[GE] @whi@Deposited " + deposited + " tradable item" + (deposited == 1 ? "" : "s") + ".");
+            player.getSender().sendMessage("@cya@[GE] @whi@Sold " + deposited + " tradable item" + (deposited == 1 ? "" : "s") + ".");
             return;
         }
 
@@ -520,19 +520,21 @@ public class BotCommands extends Plugin implements CommandListener {
         }
 
         if (subCommand.equals("deposit")) {
+            int coins = GrandExchange.sellPrice(itemId, amount);
             if (GrandExchange.deposit(player, itemId, amount)) {
-                player.getSender().sendMessage("@cya@[GE] @whi@Deposited " + amount + " " + EntityManager.getItem(itemId).getName() + ".");
+                player.getSender().sendMessage("@cya@[GE] @whi@Sold " + amount + " " + EntityManager.getItem(itemId).getName() + " for " + coins + " coins.");
             } else {
-                player.getSender().sendMessage("@cya@[GE] @red@Could not deposit that item.");
+                player.getSender().sendMessage("@cya@[GE] @red@Could not sell that item.");
             }
             return;
         }
 
         if (subCommand.equals("withdraw") || subCommand.equals("pickup")) {
+            int coins = GrandExchange.buyPrice(itemId, amount);
             if (GrandExchange.withdraw(player, itemId, amount)) {
-                player.getSender().sendMessage("@cya@[GE] @whi@Picked up " + amount + " " + EntityManager.getItem(itemId).getName() + ".");
+                player.getSender().sendMessage("@cya@[GE] @whi@Bought " + amount + " " + EntityManager.getItem(itemId).getName() + " for " + coins + " coins.");
             } else {
-                player.getSender().sendMessage("@cya@[GE] @red@Could not pick that up.");
+                player.getSender().sendMessage("@cya@[GE] @red@Could not buy that item.");
             }
             return;
         }
@@ -563,7 +565,10 @@ public class BotCommands extends Plugin implements CommandListener {
         player.getSender().sendMessage("@cya@=== Grand Exchange Stock ===");
         for (int i = 0; i < stock.size() && i < 20; i++) {
             InvItem item = stock.get(i);
-            player.getSender().sendMessage("@whi@" + item.getID() + " - " + item.getDef().getName() + ": " + item.getAmount());
+            player.getSender().sendMessage("@whi@" + item.getID() + " - " + item.getDef().getName()
+                    + ": " + item.getAmount()
+                    + " buy " + GrandExchange.buyPrice(item.getID(), 1)
+                    + " sell " + GrandExchange.sellPrice(item.getID(), 1));
         }
     }
     

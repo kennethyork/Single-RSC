@@ -51,16 +51,16 @@ public class Bankers implements TalkToNpcExecutiveListener, TalkToNpcListener {
 
     private void handleGrandExchange(Player player, NPC npc) {
         npcTalk(player, npc, "The Grand Exchange stock is shared by everyone",
-                "Items deposited here can be collected from any bank");
+                "You can sell items for coins or buy stocked items");
         int option = showMenu(player, npc,
-                "Deposit my tradable inventory",
-                "Pick up an item",
+                "Sell my tradable inventory",
+                "Buy an item",
                 "Show current stock",
                 "Cancel");
 
         if (option == 0) {
             int deposited = GrandExchange.depositInventory(player);
-            player.getSender().sendMessage("@cya@[GE] @whi@Deposited " + deposited + " tradable item" + (deposited == 1 ? "" : "s") + ".");
+            player.getSender().sendMessage("@cya@[GE] @whi@Sold " + deposited + " tradable item" + (deposited == 1 ? "" : "s") + ".");
         } else if (option == 1) {
             withdrawFromExchange(player, npc);
         } else if (option == 2) {
@@ -79,7 +79,7 @@ public class Bankers implements TalkToNpcExecutiveListener, TalkToNpcListener {
         String[] options = new String[size + 1];
         for (int i = 0; i < size; i++) {
             InvItem item = stock.get(i);
-            options[i] = item.getDef().getName() + " (" + item.getAmount() + ")";
+            options[i] = item.getDef().getName() + " (" + item.getAmount() + ") " + GrandExchange.buyPrice(item.getID(), 1) + "gp";
         }
         options[size] = "Cancel";
 
@@ -102,10 +102,11 @@ public class Bankers implements TalkToNpcExecutiveListener, TalkToNpcListener {
         }
 
         amount = Math.min(amount, GrandExchange.countId(selected.getID()));
+        int coins = GrandExchange.buyPrice(selected.getID(), amount);
         if (GrandExchange.withdraw(player, selected.getID(), amount)) {
-            player.getSender().sendMessage("@cya@[GE] @whi@Picked up " + amount + " " + selected.getDef().getName() + ".");
+            player.getSender().sendMessage("@cya@[GE] @whi@Bought " + amount + " " + selected.getDef().getName() + " for " + coins + " coins.");
         } else {
-            player.getSender().sendMessage("@cya@[GE] @red@Could not pick that up.");
+            player.getSender().sendMessage("@cya@[GE] @red@Could not buy that.");
         }
     }
 
@@ -119,7 +120,10 @@ public class Bankers implements TalkToNpcExecutiveListener, TalkToNpcListener {
         player.getSender().sendMessage("@cya@=== Grand Exchange Stock ===");
         for (int i = 0; i < stock.size() && i < 10; i++) {
             InvItem item = stock.get(i);
-            player.getSender().sendMessage("@whi@" + item.getID() + " - " + item.getDef().getName() + ": " + item.getAmount());
+            player.getSender().sendMessage("@whi@" + item.getID() + " - " + item.getDef().getName()
+                    + ": " + item.getAmount()
+                    + " buy " + GrandExchange.buyPrice(item.getID(), 1)
+                    + " sell " + GrandExchange.sellPrice(item.getID(), 1));
         }
         if (stock.size() > 10) {
             player.getSender().sendMessage("@whi@Use ::ge list to see stock in chat.");
