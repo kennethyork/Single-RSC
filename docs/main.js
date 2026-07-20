@@ -14,6 +14,10 @@ const profileLevel = document.getElementById("profileLevel");
 const profileXp = document.getElementById("profileXp");
 const profileScore = document.getElementById("profileScore");
 const profileSkillsBody = document.querySelector("#profileSkills tbody");
+const onlineBotCount = document.getElementById("onlineBotCount");
+const skillerOnline = document.getElementById("skillerOnline");
+const fighterOnline = document.getElementById("fighterOnline");
+const wildOnline = document.getElementById("wildOnline");
 
 const skills = [
   "Overall",
@@ -107,6 +111,27 @@ function updateHighscoreSource(generatedAt) {
   const botCount = highscorePlayers.filter((player) => player.type === "World bot").length;
   const timestamp = generatedAt ? new Date(generatedAt).toLocaleString() : "local fallback";
   highscoreSource.textContent = `Showing exported data: ${playerCount} saved characters, ${botCount} world bots. Last export: ${timestamp}.`;
+}
+
+function updatePopulationFromHighscores() {
+  if (!onlineBotCount) {
+    return;
+  }
+  const onlineBots = highscorePlayers.filter((player) => player.type === "World bot" && player.status === "Online");
+  const skillers = onlineBots.filter((player) => player.role === "Skiller").length;
+  const fighters = onlineBots.filter((player) => player.role === "Monster hunter").length;
+  const wilderness = onlineBots.filter((player) => player.role === "PKer").length;
+
+  onlineBotCount.textContent = onlineBots.length;
+  if (skillerOnline) {
+    skillerOnline.textContent = skillers;
+  }
+  if (fighterOnline) {
+    fighterOnline.textContent = fighters;
+  }
+  if (wildOnline) {
+    wildOnline.textContent = wilderness;
+  }
 }
 
 function applyHighscoreFilters() {
@@ -234,6 +259,7 @@ function rebuildHighscores(players, generatedAt) {
   bindHighscoreRows();
   applyHighscoreFilters();
   updateHighscoreSource(generatedAt);
+  updatePopulationFromHighscores();
   liveHighscoresLoaded = true;
 }
 
@@ -388,6 +414,7 @@ function bindHighscoreRows() {
 bindHighscoreRows();
 applyHighscoreFilters();
 updateHighscoreSource();
+updatePopulationFromHighscores();
 
 highscoreFilterButtons.forEach((button) => {
   button.addEventListener("click", () => {
@@ -407,32 +434,3 @@ if (initialPlayer && highscoreSearch) {
 
 loadLiveHighscores();
 setInterval(loadLiveHighscores, 30000);
-
-const onlineBotCount = document.getElementById("onlineBotCount");
-const skillerOnline = document.getElementById("skillerOnline");
-const fighterOnline = document.getElementById("fighterOnline");
-const wildOnline = document.getElementById("wildOnline");
-
-function updatePopulationEstimate() {
-  if (!onlineBotCount) {
-    return;
-  }
-
-  const now = Date.now();
-  const wave = Math.sin(now / 420000) * 7;
-  const churn = Math.sin(now / 31000) * 3;
-  const skiller = Math.round(96 + wave + Math.sin(now / 73000) * 4);
-  const fighter = Math.round(43 + churn + Math.sin(now / 91000) * 3);
-  const wild = Math.round(24 + Math.sin(now / 47000) * 5);
-  const boundedSkiller = Math.max(74, Math.min(118, skiller));
-  const boundedFighter = Math.max(28, Math.min(58, fighter));
-  const boundedWild = Math.max(12, Math.min(38, wild));
-
-  skillerOnline.textContent = boundedSkiller;
-  fighterOnline.textContent = boundedFighter;
-  wildOnline.textContent = boundedWild;
-  onlineBotCount.textContent = boundedSkiller + boundedFighter + boundedWild;
-}
-
-updatePopulationEstimate();
-setInterval(updatePopulationEstimate, 5000);

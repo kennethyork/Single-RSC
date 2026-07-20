@@ -22,6 +22,7 @@ import org.nemotech.rsc.model.World;
 import org.nemotech.rsc.model.landscape.Path;
 import org.nemotech.rsc.model.player.InvItem;
 import org.nemotech.rsc.model.player.Player;
+import org.nemotech.rsc.io.HighscoresExporter;
 
 public final class WorldBotManager {
 
@@ -520,6 +521,7 @@ public final class WorldBotManager {
                 bot.itemsBanked = parseInt(properties.getProperty(prefix + "banked"), bot.itemsBanked);
                 bot.trades = parseInt(properties.getProperty(prefix + "trades"), bot.trades);
                 bot.marketVolume = parseInt(properties.getProperty(prefix + "market_volume"), bot.marketVolume);
+                bot.online = Boolean.parseBoolean(properties.getProperty(prefix + "online", String.valueOf(bot.online)));
                 bot.goal = Goal.fromName(properties.getProperty(prefix + "goal"), bot.goal);
                 bot.inventory.clear();
                 String inventory = properties.getProperty(prefix + "inventory", "");
@@ -532,6 +534,9 @@ public final class WorldBotManager {
                     }
                 }
                 bot.npc.setCombatLevel(bot.level);
+                if (!bot.online && bot.npc != null && !bot.npc.isRemoved()) {
+                    World.getWorld().unregisterNpc(bot.npc);
+                }
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -557,6 +562,7 @@ public final class WorldBotManager {
             properties.setProperty(prefix + "banked", String.valueOf(bot.itemsBanked));
             properties.setProperty(prefix + "trades", String.valueOf(bot.trades));
             properties.setProperty(prefix + "market_volume", String.valueOf(bot.marketVolume));
+            properties.setProperty(prefix + "online", String.valueOf(bot.online));
             properties.setProperty(prefix + "goal", bot.goal.name());
             properties.setProperty(prefix + "inventory", bot.inventoryString());
         }
@@ -570,6 +576,7 @@ public final class WorldBotManager {
                 properties.store(out, "Single-RSC autonomous world bot state");
             }
             lastStateSave = System.currentTimeMillis();
+            HighscoresExporter.export();
         } catch (Exception e) {
             e.printStackTrace();
         }

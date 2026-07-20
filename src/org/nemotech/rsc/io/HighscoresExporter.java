@@ -117,13 +117,14 @@ public final class HighscoresExporter {
             int fights = parseInt(properties.getProperty(prefix + "fights"), 0);
             int banked = parseInt(properties.getProperty(prefix + "banked"), 0);
             int trades = parseInt(properties.getProperty(prefix + "trades"), 0);
+            boolean online = Boolean.parseBoolean(properties.getProperty(prefix + "online", "true"));
 
             Entry entry = new Entry();
             entry.name = name;
             entry.type = "World bot";
             entry.role = roleLabel(properties.getProperty(prefix + "role"));
             entry.clan = "World bots";
-            entry.status = "Offline";
+            entry.status = online ? "Online" : "Offline";
             entry.goal = goalLabel(properties.getProperty(prefix + "goal"));
             entry.level = level;
             entry.xpRate = Math.max(1, xpRate) + "x";
