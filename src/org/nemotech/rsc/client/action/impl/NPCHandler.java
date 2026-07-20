@@ -223,6 +223,10 @@ public class NPCHandler implements ActionHandler {
                 NPCDef def = npc.getDef();
                 String command = def.getCommand();
                 npc.resetPath();
+
+                if (WorldBotManager.getInstance().tradeWithBotNpc(owner, npc)) {
+                    return;
+                }
                 
                 if(PluginManager.getInstance().blockDefaultAction("NpcCommand", new Object[] { npc, command, owner })) {
                     return;

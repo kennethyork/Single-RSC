@@ -356,7 +356,20 @@ public class BotCommands extends Plugin implements CommandListener {
         }
 
         if (subCommand.equals("trade")) {
-            manager.tradeWithNearestBot(player);
+            if (args.length > 1) {
+                StringBuilder query = new StringBuilder(args[1]);
+                for (int i = 2; i < args.length; i++) {
+                    query.append(" ").append(args[i]);
+                }
+                manager.tradeWithNamedBot(player, query.toString());
+            } else {
+                manager.tradeWithNearestBot(player);
+            }
+            return;
+        }
+
+        if (subCommand.equals("group") || subCommand.equals("party") || subCommand.equals("team")) {
+            handleWorldBotGroupCommand(args, player, manager);
             return;
         }
 
@@ -366,7 +379,102 @@ public class BotCommands extends Plugin implements CommandListener {
             return;
         }
 
-        player.getSender().sendMessage("@cya@[WorldBots] @whi@Usage: ::worldbots start [count], stop, status, nearby [radius], top, lookup <name>, trade, config, settings, save");
+        player.getSender().sendMessage("@cya@[WorldBots] @whi@Usage: ::worldbots start [count], stop, status, nearby [radius], top, lookup <name>, trade, group, config, settings, save");
+    }
+
+    private void handleWorldBotGroupCommand(String[] args, Player player, WorldBotManager manager) {
+        String action = args.length > 1 ? args[1].toLowerCase() : "status";
+
+        if (action.equals("nearest")) {
+            player.getSender().sendMessage("@cya@[WorldBots] @whi@" + manager.inviteNearest(player));
+            return;
+        }
+
+        if (action.equals("nearby")) {
+            int count = parseCommandInt(args, 2, 3);
+            int radius = parseCommandInt(args, 3, 32);
+            player.getSender().sendMessage("@cya@[WorldBots] @whi@" + manager.inviteNearby(player, count, radius));
+            return;
+        }
+
+        if (action.equals("all")) {
+            int count = parseCommandInt(args, 2, 8);
+            player.getSender().sendMessage("@cya@[WorldBots] @whi@" + manager.inviteAny(player, count));
+            return;
+        }
+
+        if (action.equals("role")) {
+            if (args.length < 3) {
+                player.getSender().sendMessage("@cya@[WorldBots] @red@Usage: ::worldbots group role <skiller|fighter|pker> [count]");
+                return;
+            }
+            int count = parseCommandInt(args, 3, 3);
+            player.getSender().sendMessage("@cya@[WorldBots] @whi@" + manager.inviteRole(player, args[2], count));
+            return;
+        }
+
+        if (action.equals("clan")) {
+            if (args.length < 3) {
+                player.getSender().sendMessage("@cya@[WorldBots] @red@Usage: ::worldbots group clan <name> [count]");
+                return;
+            }
+            int count = parseCommandInt(args, args.length - 1, 3);
+            StringBuilder clan = new StringBuilder(args[2]);
+            int end = args.length > 3 && isInteger(args[args.length - 1]) ? args.length - 1 : args.length;
+            for (int i = 3; i < end; i++) {
+                clan.append(" ").append(args[i]);
+            }
+            player.getSender().sendMessage("@cya@[WorldBots] @whi@" + manager.inviteClan(player, clan.toString(), count));
+            return;
+        }
+
+        if (action.equals("mode")) {
+            if (args.length < 3) {
+                player.getSender().sendMessage("@cya@[WorldBots] @red@Usage: ::worldbots group mode <boss|combat|skill|wild|social>");
+                return;
+            }
+            player.getSender().sendMessage("@cya@[WorldBots] @whi@" + manager.setPartyMode(player, args[2]));
+            return;
+        }
+
+        if (action.equals("trade")) {
+            manager.tradeWithGroupedBot(player);
+            return;
+        }
+
+        if (action.equals("dismiss") || action.equals("leave") || action.equals("clear")) {
+            player.getSender().sendMessage("@cya@[WorldBots] @whi@" + manager.dismissParty(player));
+            return;
+        }
+
+        if (action.equals("status")) {
+            for (String line : manager.getPartyReport(player).split("\\n")) {
+                player.getSender().sendMessage("@cya@[WorldBots] @whi@" + line);
+            }
+            return;
+        }
+
+        player.getSender().sendMessage("@cya@[WorldBots] @whi@Usage: ::worldbots group nearest|nearby [count] [radius]|all [count]|role <skiller|fighter|pker> [count]|clan <name> [count]|mode <boss|combat|skill|wild|social>|trade|status|dismiss");
+    }
+
+    private int parseCommandInt(String[] args, int index, int fallback) {
+        if (index < 0 || index >= args.length) {
+            return fallback;
+        }
+        try {
+            return Integer.parseInt(args[index]);
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
+    }
+
+    private boolean isInteger(String value) {
+        try {
+            Integer.parseInt(value);
+            return true;
+        } catch (NumberFormatException e) {
+            return false;
+        }
     }
 
     private void showWorldBotSettingsMenu(final Player player) {

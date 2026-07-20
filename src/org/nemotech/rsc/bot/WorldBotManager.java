@@ -16,6 +16,7 @@ import org.nemotech.rsc.Constants;
 import org.nemotech.rsc.event.DelayedEvent;
 import org.nemotech.rsc.model.GrandExchange;
 import org.nemotech.rsc.model.Item;
+import org.nemotech.rsc.model.Mob;
 import org.nemotech.rsc.model.NPC;
 import org.nemotech.rsc.model.Point;
 import org.nemotech.rsc.model.World;
@@ -167,6 +168,145 @@ public final class WorldBotManager {
         return report.toString();
     }
 
+    public synchronized String inviteNearest(Player player) {
+        WorldBot nearest = nearestAvailableBot(player, 20, null, null);
+        if (nearest == null) {
+            return "No available world bot nearby.";
+        }
+        inviteToParty(player, nearest, PartyMode.COMBAT);
+        return nearest.name + " joined your group.";
+    }
+
+    public synchronized String inviteNearby(Player player, int count, int radius) {
+        List<WorldBot> candidates = availableBots(player, radius, null, null);
+        return inviteMany(player, candidates, count, PartyMode.COMBAT);
+    }
+
+    public synchronized String inviteRole(Player player, String roleName, int count) {
+        Role role = Role.fromGroupName(roleName);
+        if (role == null) {
+            return "Role must be skiller, fighter, or pker.";
+        }
+        List<WorldBot> candidates = availableBots(player, 64, role, null);
+        return inviteMany(player, candidates, count, role == Role.GATHERER ? PartyMode.SKILLING : PartyMode.COMBAT);
+    }
+
+    public synchronized String inviteClan(Player player, String clan, int count) {
+        List<WorldBot> candidates = availableBots(player, 96, null, clan.toLowerCase());
+        return inviteMany(player, candidates, count, PartyMode.COMBAT);
+    }
+
+    public synchronized String inviteAny(Player player, int count) {
+        List<WorldBot> candidates = availableBots(player, 96, null, null);
+        return inviteMany(player, candidates, count, PartyMode.COMBAT);
+    }
+
+    public synchronized String setPartyMode(Player player, String modeName) {
+        PartyMode mode = PartyMode.fromName(modeName);
+        if (mode == null) {
+            return "Mode must be boss, combat, skill, wild, or social.";
+        }
+        int changed = 0;
+        for (WorldBot bot : bots) {
+            if (bot.isGroupedWith(player)) {
+                bot.partyMode = mode;
+                bot.activity = "grouping with " + player.getUsername() + " (" + mode.label + ")";
+                changed++;
+            }
+        }
+        if (changed == 0) {
+            return "You do not have any grouped world bots.";
+        }
+        return "Set " + changed + " grouped bots to " + mode.label + " mode.";
+    }
+
+    public synchronized String dismissParty(Player player) {
+        int dismissed = 0;
+        for (WorldBot bot : bots) {
+            if (bot.isGroupedWith(player)) {
+                bot.partyOwner = null;
+                bot.partyMode = PartyMode.NONE;
+                bot.activity = "leaving " + player.getUsername() + "'s group";
+                bot.say("thanks for the group");
+                dismissed++;
+            }
+        }
+        return dismissed == 0 ? "You do not have any grouped world bots." : "Dismissed " + dismissed + " grouped bots.";
+    }
+
+    public synchronized String getPartyReport(Player player) {
+        StringBuilder report = new StringBuilder("Your world-bot group");
+        int count = 0;
+        for (WorldBot bot : bots) {
+            if (bot.isGroupedWith(player)) {
+                count++;
+                report.append("\n").append(bot.name)
+                        .append(" - ").append(bot.role.label)
+                        .append(" lvl ").append(bot.level)
+                        .append(" ").append(bot.partyMode.label)
+                        .append(" ").append(bot.activity);
+            }
+        }
+        if (count == 0) {
+            report.append("\nnone");
+        }
+        return report.toString();
+    }
+
+    private WorldBot nearestAvailableBot(Player player, int radius, Role role, String clan) {
+        List<WorldBot> candidates = availableBots(player, radius, role, clan);
+        return candidates.isEmpty() ? null : candidates.get(0);
+    }
+
+    private List<WorldBot> availableBots(final Player player, int radius, Role role, String clan) {
+        List<WorldBot> candidates = new ArrayList<>();
+        for (WorldBot bot : bots) {
+            if (!bot.active || !bot.online || bot.npc == null || bot.npc.isRemoved() || bot.partyOwner != null) {
+                continue;
+            }
+            if (role != null && bot.role != role) {
+                continue;
+            }
+            if (clan != null && !bot.personality.clan.toLowerCase().contains(clan)) {
+                continue;
+            }
+            if (!bot.npc.getLocation().withinRange(player.getLocation(), radius)) {
+                continue;
+            }
+            candidates.add(bot);
+        }
+        Collections.sort(candidates, new Comparator<WorldBot>() {
+            @Override
+            public int compare(WorldBot first, WorldBot second) {
+                return distance(first, player) - distance(second, player);
+            }
+        });
+        return candidates;
+    }
+
+    private String inviteMany(Player player, List<WorldBot> candidates, int count, PartyMode mode) {
+        if (candidates.isEmpty()) {
+            return "No available world bots found.";
+        }
+        int invited = 0;
+        int limit = Math.max(1, Math.min(8, count));
+        for (WorldBot bot : candidates) {
+            inviteToParty(player, bot, mode);
+            invited++;
+            if (invited >= limit) {
+                break;
+            }
+        }
+        return "Invited " + invited + " world bots to your group.";
+    }
+
+    private void inviteToParty(Player player, WorldBot bot, PartyMode mode) {
+        bot.partyOwner = player.getUsername();
+        bot.partyMode = mode;
+        bot.activity = "grouping with " + player.getUsername() + " (" + mode.label + ")";
+        bot.say(mode.inviteLine);
+    }
+
     private int distance(WorldBot bot, Player player) {
         return Math.abs(bot.npc.getX() - player.getX()) + Math.abs(bot.npc.getY() - player.getY());
     }
@@ -289,7 +429,7 @@ public final class WorldBotManager {
         WorldBot nearest = null;
         int nearestDistance = Integer.MAX_VALUE;
         for (WorldBot bot : bots) {
-            if (!bot.active || !bot.online || bot.inventory.isEmpty()) {
+            if (!bot.canTrade()) {
                 continue;
             }
             int distance = Math.abs(bot.npc.getX() - player.getX()) + Math.abs(bot.npc.getY() - player.getY());
@@ -303,6 +443,63 @@ public final class WorldBotManager {
             return false;
         }
         return nearest.tradeWith(player);
+    }
+
+    public synchronized boolean tradeWithNamedBot(Player player, String query) {
+        if (query == null || query.trim().isEmpty()) {
+            player.getSender().sendMessage("@cya@[WorldBots] @red@Usage: ::worldbots trade <name>");
+            return false;
+        }
+        String needle = query.toLowerCase();
+        WorldBot match = null;
+        for (WorldBot bot : bots) {
+            if (bot.canTrade() && bot.name.toLowerCase().contains(needle)) {
+                match = bot;
+                break;
+            }
+        }
+        if (match == null) {
+            player.getSender().sendMessage("@cya@[WorldBots] @red@No trading bot found matching: " + query);
+            return false;
+        }
+        if (Math.abs(match.npc.getX() - player.getX()) + Math.abs(match.npc.getY() - player.getY()) > 12) {
+            player.getSender().sendMessage("@cya@[WorldBots] @red@" + match.name + " is too far away to trade.");
+            return false;
+        }
+        return match.tradeWith(player);
+    }
+
+    public synchronized boolean tradeWithGroupedBot(Player player) {
+        WorldBot nearest = null;
+        int nearestDistance = Integer.MAX_VALUE;
+        for (WorldBot bot : bots) {
+            if (!bot.canTrade() || !bot.isGroupedWith(player)) {
+                continue;
+            }
+            int distance = Math.abs(bot.npc.getX() - player.getX()) + Math.abs(bot.npc.getY() - player.getY());
+            if (distance < nearestDistance) {
+                nearest = bot;
+                nearestDistance = distance;
+            }
+        }
+        if (nearest == null || nearestDistance > 12) {
+            player.getSender().sendMessage("@cya@[WorldBots] @red@No grouped trading bot nearby.");
+            return false;
+        }
+        return nearest.tradeWith(player);
+    }
+
+    public synchronized boolean tradeWithBotNpc(Player player, NPC npc) {
+        WorldBot bot = findBot(npc);
+        if (bot == null) {
+            return false;
+        }
+        if (!bot.canTrade()) {
+            player.getSender().sendMessage("@cya@[WorldBots] @whi@" + bot.name + " has nothing useful to sell.");
+            return true;
+        }
+        bot.tradeWith(player);
+        return true;
     }
 
     public synchronized List<Snapshot> getSnapshotsNear(Point point, int radius) {
@@ -621,6 +818,9 @@ public final class WorldBotManager {
         private int marketVolume;
         private boolean online = true;
         private long nextSessionChangeAt;
+        private String partyOwner;
+        private PartyMode partyMode = PartyMode.NONE;
+        private long nextAssistAt;
         private String activity;
         private Goal goal;
 
@@ -660,6 +860,11 @@ public final class WorldBotManager {
             }
             if (npc.isRemoved() || npc.inCombat()) {
                 activity = "busy";
+                return;
+            }
+
+            if (partyOwner != null && partyMode != PartyMode.NONE) {
+                groupTick();
                 return;
             }
 
@@ -728,6 +933,85 @@ public final class WorldBotManager {
             npc.startCombat(player);
             say(personality.attackLine(random, player.getCombatLevel(), level, coins()));
             return true;
+        }
+
+        private boolean isGroupedWith(Player player) {
+            return partyOwner != null && player != null && partyOwner.equalsIgnoreCase(player.getUsername());
+        }
+
+        private void groupTick() {
+            Player player = World.getWorld().getPlayer();
+            if (player == null || !player.isLoggedIn() || !isGroupedWith(player)) {
+                partyOwner = null;
+                partyMode = PartyMode.NONE;
+                activity = "looking for a group";
+                return;
+            }
+            if (!npc.getLocation().withinRange(player.getLocation(), 12)) {
+                activity = "following " + player.getUsername();
+                npc.setPath(new Path(npc.getX(), npc.getY(), player.getX(), player.getY()));
+                return;
+            }
+
+            Mob opponent = player.getOpponent();
+            if (opponent instanceof NPC && !opponent.isRemoved() && !WorldBotManager.this.isWorldBotNpc((NPC) opponent)) {
+                assistPlayer(player, (NPC) opponent);
+                return;
+            }
+
+            if (partyMode == PartyMode.SKILLING) {
+                activity = "skilling with " + player.getUsername();
+                if (System.currentTimeMillis() >= nextWorkAt) {
+                    work();
+                    nextWorkAt = System.currentTimeMillis() + 7000 + random.nextInt(9000);
+                }
+            } else {
+                activity = "grouped with " + player.getUsername();
+            }
+
+            if (npc.finishedPath() && random.nextInt(4) == 0) {
+                npc.setPath(new Path(npc.getX(), npc.getY(), player.getX(), player.getY()));
+            }
+        }
+
+        private void assistPlayer(Player player, NPC target) {
+            if (!npc.getLocation().withinRange(target.getLocation(), partyMode.assistRange)) {
+                activity = "moving to assist on " + target.getDef().getName();
+                npc.setPath(new Path(npc.getX(), npc.getY(), target.getX(), target.getY()));
+                return;
+            }
+            activity = "assisting " + player.getUsername() + " on " + target.getDef().getName();
+            if (System.currentTimeMillis() < nextAssistAt) {
+                return;
+            }
+            nextAssistAt = System.currentTimeMillis() + partyMode.assistDelay + random.nextInt(1800);
+            int damage = partyDamage();
+            if (damage < 1) {
+                say("splash");
+                return;
+            }
+            target.setLastDamage(damage);
+            target.setHits(target.getHits() - damage);
+            player.informOfModifiedHits(target);
+            fights++;
+            gainXp(1);
+            if (random.nextInt(5) == 0) {
+                say(partyMode.combatLine);
+            }
+            if (target.getHits() <= 0) {
+                kills++;
+                target.killedBy(player);
+            }
+        }
+
+        private int partyDamage() {
+            int base = Math.max(1, level / partyMode.damageDivisor);
+            if (role == Role.WILDERNESS) {
+                base += 2;
+            } else if (role == Role.FIGHTER) {
+                base += 1;
+            }
+            return random.nextInt(Math.max(1, base + 1));
         }
 
         private void work() {
@@ -879,6 +1163,10 @@ public final class WorldBotManager {
             say("sold " + amount + " " + itemName(itemId));
             player.getSender().sendMessage("@cya@[WorldBots] @whi@Bought " + amount + " " + itemName(itemId) + " from " + name + " for " + price + " coins.");
             return true;
+        }
+
+        private boolean canTrade() {
+            return active && online && npc != null && !npc.isRemoved() && !inventory.isEmpty();
         }
 
         private Snapshot snapshot() {
@@ -1407,6 +1695,54 @@ public final class WorldBotManager {
         }
     }
 
+    private enum PartyMode {
+        NONE("solo", 0, 0, 6, "ok", "ok"),
+        BOSS("bossing", 8, 5000, 5, "ready for bossing", "on boss"),
+        COMBAT("combat", 7, 5600, 6, "I'll help fight", "helping"),
+        SKILLING("skilling", 5, 7000, 9, "I'll skill with you", "working"),
+        WILDERNESS("wilderness", 8, 4300, 5, "let's pk", "pile them"),
+        SOCIAL("social", 4, 8000, 12, "I'll tag along", "with you");
+
+        private final String label;
+        private final int assistRange;
+        private final int assistDelay;
+        private final int damageDivisor;
+        private final String inviteLine;
+        private final String combatLine;
+
+        PartyMode(String label, int assistRange, int assistDelay, int damageDivisor, String inviteLine, String combatLine) {
+            this.label = label;
+            this.assistRange = assistRange;
+            this.assistDelay = assistDelay;
+            this.damageDivisor = damageDivisor;
+            this.inviteLine = inviteLine;
+            this.combatLine = combatLine;
+        }
+
+        private static PartyMode fromName(String name) {
+            if (name == null) {
+                return null;
+            }
+            String normalized = name.toLowerCase();
+            if (normalized.equals("boss") || normalized.equals("bossing") || normalized.equals("pvm")) {
+                return BOSS;
+            }
+            if (normalized.equals("combat") || normalized.equals("fight") || normalized.equals("fighting")) {
+                return COMBAT;
+            }
+            if (normalized.equals("skill") || normalized.equals("skilling")) {
+                return SKILLING;
+            }
+            if (normalized.equals("wild") || normalized.equals("wilderness") || normalized.equals("pk")) {
+                return WILDERNESS;
+            }
+            if (normalized.equals("social") || normalized.equals("follow")) {
+                return SOCIAL;
+            }
+            return null;
+        }
+    }
+
     private enum Role {
         GATHERER("Gatherer", 18, new int[] {1, 4, 6, 7, 8}, new int[] {2}),
         FIGHTER("Fighter", 10, new int[] {1, 4, 6, 7, 8}, new int[] {2, 5}),
@@ -1479,6 +1815,23 @@ public final class WorldBotManager {
                 new BotArea("Gnome Stronghold", 680, 740, 500, 560),
                 new BotArea("Tutorial Island", 190, 250, 720, 770)
             };
+        }
+
+        private static Role fromGroupName(String name) {
+            if (name == null) {
+                return null;
+            }
+            String normalized = name.toLowerCase();
+            if (normalized.equals("skiller") || normalized.equals("skill") || normalized.equals("gatherer")) {
+                return GATHERER;
+            }
+            if (normalized.equals("fighter") || normalized.equals("combat") || normalized.equals("pvm")) {
+                return FIGHTER;
+            }
+            if (normalized.equals("pker") || normalized.equals("pk") || normalized.equals("wild") || normalized.equals("wilderness")) {
+                return WILDERNESS;
+            }
+            return null;
         }
     }
 
