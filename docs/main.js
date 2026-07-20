@@ -279,6 +279,8 @@ function loadLiveHighscores() {
     .catch(() => {
       if (!liveHighscoresLoaded) {
         liveHighscoresLoaded = false;
+        updateHighscoreSource();
+        updatePopulationFromHighscores();
       }
     });
 }
@@ -370,7 +372,7 @@ function findPlayer(query) {
     || highscorePlayers.find((player) => player.name.toLowerCase().includes(normalized));
 }
 
-function runLookup() {
+function runLookup(showEmpty) {
   const player = findPlayer(highscoreSearch.value);
   if (player) {
     showProfile(player);
@@ -378,7 +380,9 @@ function runLookup() {
     return;
   }
   highscoreProfile.classList.add("is-hidden");
-  highscoreEmpty.classList.remove("is-hidden");
+  if (showEmpty !== false) {
+    highscoreEmpty.classList.remove("is-hidden");
+  }
 }
 
 if (highscoreSearch) {
@@ -399,7 +403,7 @@ if (highscoreSearch) {
 }
 
 if (highscoreLookup) {
-  highscoreLookup.addEventListener("click", runLookup);
+  highscoreLookup.addEventListener("click", () => runLookup(true));
 }
 
 function bindHighscoreRows() {
@@ -429,7 +433,7 @@ highscoreFilterButtons.forEach((button) => {
 const initialPlayer = new URLSearchParams(window.location.hash.split("?")[1] || "").get("player");
 if (initialPlayer && highscoreSearch) {
   highscoreSearch.value = initialPlayer;
-  runLookup();
+  runLookup(false);
 }
 
 loadLiveHighscores();
