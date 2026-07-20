@@ -8,6 +8,7 @@ import org.nemotech.rsc.client.action.impl.SleepHandler;
 import org.nemotech.rsc.client.update.UpdateManager;
 import org.nemotech.rsc.core.EngineThread;
 import org.nemotech.rsc.external.EntityManager;
+import org.nemotech.rsc.io.HighscoresExporter;
 import org.nemotech.rsc.plugins.PluginManager;
 
 /**
@@ -48,6 +49,7 @@ public final class Main {
         new UpdateManager().init();
         // load captcha into memory
         ActionManager.get(SleepHandler.class).init();
+        HighscoresExporter.export();
     }
     
 }

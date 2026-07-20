@@ -254,6 +254,11 @@ a:hover {
   background: #181818;
 }
 
+.highscore-table-wrap {
+  max-height: min(680px, 72vh);
+  overflow: auto;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
@@ -271,6 +276,12 @@ td {
 th {
   color: #ffd700;
   background: #202020;
+}
+
+.highscore-table-wrap th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 
 tbody tr:nth-child(even) {

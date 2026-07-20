@@ -35,6 +35,7 @@ import java.io.ObjectOutputStream;
 import java.util.concurrent.ConcurrentHashMap;
 import org.nemotech.rsc.client.mudclient;
 import org.nemotech.rsc.event.impl.BatchEvent;
+import org.nemotech.rsc.io.HighscoresExporter;
 import org.nemotech.rsc.client.sound.SoundEffect;
 import org.nemotech.rsc.model.Shop;
 import org.nemotech.rsc.bot.WorldBotManager;
@@ -999,6 +1000,7 @@ public final class Player extends Mob {
         } catch (Exception e) {
             e.printStackTrace();
         }
+        HighscoresExporter.export();
 
     }
 

@@ -75,6 +75,8 @@ const generatedNames = [
   "WheatWes", "XeniaX", "YewYork", "ZincZara",
 ];
 
+let liveHighscoresLoaded = false;
+
 function statusMarkup(status) {
   return `<span class="status ${status.toLowerCase()}">${status}</span>`;
 }
@@ -148,19 +150,95 @@ if (highscoreTableBody) {
   highscoreRows = Array.from(document.querySelectorAll("#highscoreTable tbody tr"));
 }
 
+function playerFromLive(entry) {
+  return {
+    rank: Number(entry.rank) || 0,
+    name: entry.name || "unknown",
+    role: entry.role || entry.type || "Player",
+    clan: entry.clan || "",
+    status: entry.status || "Offline",
+    goal: entry.goal || "",
+    level: Number(entry.level) || 1,
+    xpRate: entry.xpRate || "1x",
+    xp: Number(entry.xp) || 0,
+    score: Number(entry.score) || 0,
+    coins: Number(entry.coins) || 0,
+    trades: Number(entry.trades) || 0,
+    kills: Number(entry.kills) || 0,
+    skills: Array.isArray(entry.skills) ? entry.skills.map((skill) => ({
+      skill: skill.skill || skill.name || "",
+      level: Number(skill.level) || 1,
+      xp: Number(skill.xp) || 0,
+    })).filter((skill) => skill.skill) : null,
+  };
+}
+
+function rebuildHighscores(players) {
+  if (!highscoreTableBody || !Array.isArray(players) || players.length === 0) {
+    return;
+  }
+  highscoreTableBody.innerHTML = "";
+  highscorePlayers = [];
+  players.forEach((entry, index) => {
+    const player = playerFromLive(entry);
+    if (!player.rank) {
+      player.rank = index + 1;
+    }
+    appendPlayerRow(player);
+  });
+  highscoreRows = Array.from(document.querySelectorAll("#highscoreTable tbody tr"));
+  bindHighscoreRows();
+  liveHighscoresLoaded = true;
+}
+
+function loadLiveHighscores() {
+  fetch("highscores.json", { cache: "no-store" })
+    .then((response) => {
+      if (!response.ok) {
+        throw new Error("No highscores export");
+      }
+      return response.json();
+    })
+    .then((data) => {
+      if (data && Array.isArray(data.players)) {
+        rebuildHighscores(data.players);
+      }
+    })
+    .catch(() => {
+      if (!liveHighscoresLoaded) {
+        liveHighscoresLoaded = false;
+      }
+    });
+}
+
 function formatNumber(value) {
   return value.toLocaleString("en-US");
 }
 
 function skillRowsFor(player) {
   const totalLevel = Math.max(16, player.level + Math.floor(player.score / 900));
-  const totalXp = Math.max(1000, player.score * Number(player.xpRate.replace("x", "")) + player.coins + player.trades * 90 + player.kills * 1200);
+  const exportedXp = Number(player.xp) || 0;
+  const totalXp = exportedXp > 0
+    ? exportedXp
+    : Math.max(1000, player.score * Number(player.xpRate.replace("x", "")) + player.coins + player.trades * 90 + player.kills * 1200);
   const rows = [{
     skill: "Overall",
     rank: player.rank,
     level: totalLevel,
     xp: totalXp,
   }];
+
+  if (Array.isArray(player.skills) && player.skills.length > 0) {
+    player.skills.forEach((skill, index) => {
+      rows.push({
+        skill: skill.skill,
+        rank: player.rank * 100 + index + 1,
+        level: skill.level,
+        xp: skill.xp,
+      });
+    });
+    return rows;
+  }
 
   const roleBoosts = {
     Skiller: ["Woodcutting", "Mining", "Fishing", "Cooking", "Fletching"],
@@ -254,18 +332,25 @@ if (highscoreLookup) {
   highscoreLookup.addEventListener("click", runLookup);
 }
 
-highscoreRows.forEach((row, index) => {
-  row.addEventListener("click", () => {
-    highscoreSearch.value = highscorePlayers[index].name;
-    showProfile(highscorePlayers[index]);
+function bindHighscoreRows() {
+  highscoreRows.forEach((row, index) => {
+    row.addEventListener("click", () => {
+      highscoreSearch.value = highscorePlayers[index].name;
+      showProfile(highscorePlayers[index]);
+    });
   });
-});
+}
+
+bindHighscoreRows();
 
 const initialPlayer = new URLSearchParams(window.location.hash.split("?")[1] || "").get("player");
 if (initialPlayer && highscoreSearch) {
   highscoreSearch.value = initialPlayer;
   runLookup();
 }
+
+loadLiveHighscores();
+setInterval(loadLiveHighscores, 30000);
 
 const onlineBotCount = document.getElementById("onlineBotCount");
 const skillerOnline = document.getElementById("skillerOnline");
