@@ -328,6 +328,18 @@ public class BotCommands extends Plugin implements CommandListener {
             return;
         }
 
+        if (subCommand.equals("activity") || subCommand.equals("feed") || subCommand.equals("events")) {
+            for (String line : manager.getActivityReport().split("\\n")) {
+                player.getSender().sendMessage("@cya@[WorldBots] @whi@" + line);
+            }
+            return;
+        }
+
+        if (subCommand.equals("hint") || subCommand.equals("helpme")) {
+            player.getSender().sendMessage("@cya@[WorldBots] @whi@" + manager.getHelperHint(player));
+            return;
+        }
+
         if (subCommand.equals("lookup") || subCommand.equals("find")) {
             if (args.length < 2) {
                 player.getSender().sendMessage("@cya@[WorldBots] @red@Usage: ::worldbots lookup <name>");
@@ -379,7 +391,7 @@ public class BotCommands extends Plugin implements CommandListener {
             return;
         }
 
-        player.getSender().sendMessage("@cya@[WorldBots] @whi@Usage: ::worldbots start [count], stop, status, nearby [radius], top, lookup <name>, trade, group, config, settings, save");
+        player.getSender().sendMessage("@cya@[WorldBots] @whi@Usage: ::worldbots start [count], stop, status, nearby [radius], top, activity, hint, lookup <name>, trade, group, config, settings, save");
     }
 
     private void handleWorldBotGroupCommand(String[] args, Player player, WorldBotManager manager) {

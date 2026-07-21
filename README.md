@@ -4,7 +4,7 @@
 
 A self-contained single-player RuneScape Classic experience for desktop and Android.
 
-**Current release:** `v2.7.5`  
+**Current release:** `v2.7.6`  
 **Desktop:** Java 17+  
 **Android:** APK included in GitHub releases  
 **License:** GPL v3
@@ -21,8 +21,8 @@ https://github.com/kennethyork/Single-RSC/releases
 
 Use:
 
-- `Single-RSC-v2.7.5.zip` for desktop
-- `Single-RSC-v2.7.5.apk` for Android
+- `Single-RSC-v2.7.6.zip` for desktop
+- `Single-RSC-v2.7.6.apk` for Android
 
 The release does not include a standalone `rsc.jar` download. The desktop zip already contains the jar and launch scripts.
 
@@ -138,7 +138,7 @@ Requirements:
 Steps:
 
 ```bash
-unzip Single-RSC-v2.7.5.zip
+unzip Single-RSC-v2.7.6.zip
 cd Single-RSC
 ./run.sh
 ```
@@ -164,7 +164,7 @@ Create a new user and log in. Create a user named `root` if you want admin privi
 Install:
 
 ```text
-Single-RSC-v2.7.5.apk
+Single-RSC-v2.7.6.apk
 ```
 
 Android includes the same gameplay updates as desktop, including world bots, Grand Exchange stock, and bot dialogue/settings.
@@ -375,7 +375,7 @@ No. It runs locally as a single-player game.
 No. They are local AI-controlled fake players designed to make the world feel more active.
 
 **Do desktop and Android have the same updates?**  
-Yes. The `v2.7.5` desktop zip and Android APK were both rebuilt from the same updated code.
+Yes. The `v2.7.6` desktop zip and Android APK were both rebuilt from the same updated code.
 
 **Where are saves stored?**  
 Player saves are stored locally under the game cache/player save directories.

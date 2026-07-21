@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -48,6 +49,10 @@ public final class WorldBotManager {
     private long lastStateSave;
     private String currentWorldEvent = "quiet market";
     private long nextWorldEventAt;
+    private final LinkedList<String> recentActivity = new LinkedList<>();
+    private final List<AutoGroup> autoGroups = new ArrayList<>();
+    private int nextAutoGroupId = 1;
+    private long nextAutoGroupCheckAt;
 
     private WorldBotManager() {}
 
@@ -70,6 +75,7 @@ public final class WorldBotManager {
         stopBots();
         running = true;
         int safeCount = Math.max(1, Math.min(count, config.maxCount));
+        autoGroups.clear();
         for (int i = 0; i < safeCount; i++) {
             bots.add(createBot(i));
         }
@@ -99,6 +105,7 @@ public final class WorldBotManager {
                 World.getWorld().unregisterNpc(bot.npc);
             }
         }
+        autoGroups.clear();
         bots.clear();
         running = false;
     }
@@ -132,6 +139,40 @@ public final class WorldBotManager {
                     .append(" deaths ").append(bot.deaths);
         }
         return report.toString();
+    }
+
+    public synchronized String getActivityReport() {
+        StringBuilder report = new StringBuilder("Recent world activity");
+        if (recentActivity.isEmpty()) {
+            report.append("\nquiet");
+            return report.toString();
+        }
+        for (String line : recentActivity) {
+            report.append("\n").append(line);
+        }
+        return report.toString();
+    }
+
+    public synchronized String getHelperHint(Player player) {
+        String areaName = "this area";
+        WorldBot nearest = nearestAvailableBot(player, 48, null, null);
+        if (nearest != null) {
+            areaName = nearest.area.name;
+            nearest.say("I can give a hint");
+        }
+        if (player.getLocation().inWilderness()) {
+            return "Wilderness hint: bring food, watch skullers, and use grouped bots in wild mode before pushing deeper.";
+        }
+        if (player.getCombatLevel() < 30) {
+            return "Progress hint near " + areaName + ": train combat with a fighter group, buy food from bots, then try harder quest fights.";
+        }
+        if (currentWorldEvent.contains("food")) {
+            return "Market hint: food demand is high, so fishing and cooking supplies should sell well.";
+        }
+        if (currentWorldEvent.contains("boss")) {
+            return "Group hint: use ::worldbots group nearby 3 then ::worldbots group mode boss before a hard fight.";
+        }
+        return "World hint near " + areaName + ": check ::worldbots activity, trade with nearby bots, and group fighters for hard NPCs.";
     }
 
     public synchronized String getNearbyReport(Player player, int radius) {
@@ -303,8 +344,10 @@ public final class WorldBotManager {
     private void inviteToParty(Player player, WorldBot bot, PartyMode mode) {
         bot.partyOwner = player.getUsername();
         bot.partyMode = mode;
+        bot.groupTrips++;
         bot.activity = "grouping with " + player.getUsername() + " (" + mode.label + ")";
         bot.say(mode.inviteLine);
+        recordActivity(bot.name + " joined " + player.getUsername() + "'s group for " + mode.label);
     }
 
     private int distance(WorldBot bot, Player player) {
@@ -560,6 +603,7 @@ public final class WorldBotManager {
         bot.deaths++;
         bot.active = false;
         bot.say(bot.personality.deathLine(random, bot.coins()));
+        recordActivity(player.getUsername() + " killed " + bot.name + " in " + bot.area.name);
         bot.dropInventory(player);
         scheduleRespawn(bot);
     }
@@ -589,6 +633,7 @@ public final class WorldBotManager {
             return;
         }
         updateWorldEvent();
+        updateAutoGroups();
         for (WorldBot bot : bots) {
             bot.tick();
         }
@@ -627,10 +672,60 @@ public final class WorldBotManager {
             "food shortage at the exchange",
             "wilderness patrol forming",
             "ore and log prices moving",
-            "clans watching Edgeville"
+            "clans watching Edgeville",
+            "boss group forming",
+            "Karamja fishing crowd",
+            "Seers yew rush",
+            "rune gear buyers at Varrock"
         };
         currentWorldEvent = events[random.nextInt(events.length)];
+        recordActivity("World event: " + currentWorldEvent);
         nextWorldEventAt = now + 180000L + random.nextInt(240000);
+    }
+
+    private void updateAutoGroups() {
+        long now = System.currentTimeMillis();
+        for (int i = autoGroups.size() - 1; i >= 0; i--) {
+            AutoGroup group = autoGroups.get(i);
+            if (now >= group.expiresAt || group.onlineMembers() < 2) {
+                group.disband("trip ended");
+                autoGroups.remove(i);
+            }
+        }
+        if (now < nextAutoGroupCheckAt || autoGroups.size() >= 5) {
+            return;
+        }
+        nextAutoGroupCheckAt = now + 90000L + random.nextInt(120000);
+        maybeCreateAutoGroup();
+    }
+
+    private void maybeCreateAutoGroup() {
+        if (bots.size() < 8 || random.nextInt(3) == 0) {
+            return;
+        }
+        AutoGroupGoal goal = AutoGroupGoal.random(random, currentWorldEvent);
+        List<WorldBot> candidates = new ArrayList<>();
+        for (WorldBot bot : bots) {
+            if (!bot.active || !bot.online || bot.npc == null || bot.npc.isRemoved() || bot.partyOwner != null || bot.autoGroup != null) {
+                continue;
+            }
+            if (!goal.accepts(bot.role)) {
+                continue;
+            }
+            candidates.add(bot);
+        }
+        Collections.shuffle(candidates, random);
+        int size = Math.min(candidates.size(), goal.minSize + random.nextInt(goal.maxSize - goal.minSize + 1));
+        if (size < goal.minSize) {
+            return;
+        }
+        List<WorldBot> members = new ArrayList<>();
+        for (int i = 0; i < size; i++) {
+            members.add(candidates.get(i));
+        }
+        AutoGroup group = new AutoGroup(nextAutoGroupId++, goal, members);
+        autoGroups.add(group);
+        group.start();
     }
 
     private void loadConfig() {
@@ -718,6 +813,9 @@ public final class WorldBotManager {
                 bot.itemsBanked = parseInt(properties.getProperty(prefix + "banked"), bot.itemsBanked);
                 bot.trades = parseInt(properties.getProperty(prefix + "trades"), bot.trades);
                 bot.marketVolume = parseInt(properties.getProperty(prefix + "market_volume"), bot.marketVolume);
+                bot.groupTrips = parseInt(properties.getProperty(prefix + "group_trips"), bot.groupTrips);
+                bot.playerTrades = parseInt(properties.getProperty(prefix + "player_trades"), bot.playerTrades);
+                bot.playerKills = parseInt(properties.getProperty(prefix + "player_kills"), bot.playerKills);
                 bot.online = Boolean.parseBoolean(properties.getProperty(prefix + "online", String.valueOf(bot.online)));
                 bot.goal = Goal.fromName(properties.getProperty(prefix + "goal"), bot.goal);
                 bot.inventory.clear();
@@ -735,6 +833,14 @@ public final class WorldBotManager {
                     World.getWorld().unregisterNpc(bot.npc);
                 }
             }
+            recentActivity.clear();
+            for (int i = 0; i < 12; i++) {
+                String activityLine = properties.getProperty("activity." + i);
+                if (activityLine != null && !activityLine.trim().isEmpty()) {
+                    recentActivity.add(activityLine);
+                }
+            }
+            currentWorldEvent = properties.getProperty("world.event", currentWorldEvent);
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -759,9 +865,29 @@ public final class WorldBotManager {
             properties.setProperty(prefix + "banked", String.valueOf(bot.itemsBanked));
             properties.setProperty(prefix + "trades", String.valueOf(bot.trades));
             properties.setProperty(prefix + "market_volume", String.valueOf(bot.marketVolume));
+            properties.setProperty(prefix + "group_trips", String.valueOf(bot.groupTrips));
+            properties.setProperty(prefix + "player_trades", String.valueOf(bot.playerTrades));
+            properties.setProperty(prefix + "player_kills", String.valueOf(bot.playerKills));
             properties.setProperty(prefix + "online", String.valueOf(bot.online));
             properties.setProperty(prefix + "goal", bot.goal.name());
             properties.setProperty(prefix + "inventory", bot.inventoryString());
+        }
+        properties.setProperty("world.event", currentWorldEvent);
+        int activityIndex = 0;
+        for (String activityLine : recentActivity) {
+            properties.setProperty("activity." + activityIndex, activityLine);
+            activityIndex++;
+        }
+        properties.setProperty("groups.count", String.valueOf(autoGroups.size()));
+        for (int i = 0; i < autoGroups.size(); i++) {
+            AutoGroup group = autoGroups.get(i);
+            String prefix = "group." + i + ".";
+            properties.setProperty(prefix + "id", String.valueOf(group.id));
+            properties.setProperty(prefix + "goal", group.goal.label);
+            properties.setProperty(prefix + "leader", group.leader.name);
+            properties.setProperty(prefix + "area", group.area.name);
+            properties.setProperty(prefix + "members", group.memberNames());
+            properties.setProperty(prefix + "size", String.valueOf(group.onlineMembers()));
         }
         try {
             File file = new File(STATE_FILE);
@@ -784,6 +910,16 @@ public final class WorldBotManager {
             return Integer.parseInt(value);
         } catch (Exception e) {
             return fallback;
+        }
+    }
+
+    private void recordActivity(String line) {
+        if (line == null || line.trim().isEmpty()) {
+            return;
+        }
+        recentActivity.addFirst(line);
+        while (recentActivity.size() > 12) {
+            recentActivity.removeLast();
         }
     }
 
@@ -816,10 +952,14 @@ public final class WorldBotManager {
         private int itemsBanked;
         private int trades;
         private int marketVolume;
+        private int groupTrips;
+        private int playerTrades;
+        private int playerKills;
         private boolean online = true;
         private long nextSessionChangeAt;
         private String partyOwner;
         private PartyMode partyMode = PartyMode.NONE;
+        private AutoGroup autoGroup;
         private long nextAssistAt;
         private String activity;
         private Goal goal;
@@ -865,6 +1005,11 @@ public final class WorldBotManager {
 
             if (partyOwner != null && partyMode != PartyMode.NONE) {
                 groupTick();
+                return;
+            }
+
+            if (autoGroup != null) {
+                autoGroupTick();
                 return;
             }
 
@@ -939,12 +1084,60 @@ public final class WorldBotManager {
             return partyOwner != null && player != null && partyOwner.equalsIgnoreCase(player.getUsername());
         }
 
+        private void autoGroupTick() {
+            if (autoGroup == null || !autoGroup.active || autoGroup.leader == null) {
+                autoGroup = null;
+                return;
+            }
+            if (this == autoGroup.leader) {
+                activity = "leading " + autoGroup.goal.label + " at " + autoGroup.area.name;
+                if (!inside(autoGroup.area)) {
+                    npc.setPath(new Path(npc.getX(), npc.getY(), autoGroup.area.randomX(random), autoGroup.area.randomY(random)));
+                    return;
+                }
+                if (System.currentTimeMillis() >= nextWorkAt) {
+                    work();
+                    nextWorkAt = System.currentTimeMillis() + 6000 + random.nextInt(9000);
+                }
+                if (npc.finishedPath() && random.nextInt(4) == 0) {
+                    npc.setPath(new Path(npc.getX(), npc.getY(), autoGroup.area.randomX(random), autoGroup.area.randomY(random)));
+                }
+                return;
+            }
+            if (autoGroup.leader.npc == null || autoGroup.leader.npc.isRemoved() || !autoGroup.leader.online) {
+                autoGroup = null;
+                return;
+            }
+            if (!npc.getLocation().withinRange(autoGroup.leader.npc.getLocation(), 6)) {
+                activity = "following " + autoGroup.leader.name + " for " + autoGroup.goal.label;
+                npc.setPath(new Path(npc.getX(), npc.getY(), autoGroup.leader.npc.getX(), autoGroup.leader.npc.getY()));
+                return;
+            }
+            activity = "group " + autoGroup.goal.label + " with " + autoGroup.leader.name;
+            if (System.currentTimeMillis() >= nextWorkAt) {
+                work();
+                tradeWithExchange();
+                nextWorkAt = System.currentTimeMillis() + 7000 + random.nextInt(10000);
+            }
+            if (random.nextInt(18) == 0) {
+                say(autoGroup.goal.chatLine);
+            }
+        }
+
+        private boolean inside(BotArea targetArea) {
+            return targetArea != null && npc.getX() >= targetArea.minX && npc.getX() <= targetArea.maxX
+                    && npc.getY() >= targetArea.minY && npc.getY() <= targetArea.maxY;
+        }
+
         private void groupTick() {
             Player player = World.getWorld().getPlayer();
             if (player == null || !player.isLoggedIn() || !isGroupedWith(player)) {
                 partyOwner = null;
                 partyMode = PartyMode.NONE;
                 activity = "looking for a group";
+                return;
+            }
+            if (handleGroupSurvival(player)) {
                 return;
             }
             if (!npc.getLocation().withinRange(player.getLocation(), 12)) {
@@ -974,6 +1167,28 @@ public final class WorldBotManager {
             }
         }
 
+        private boolean handleGroupSurvival(Player player) {
+            int maxHits = Math.max(1, npc.getDef().getHitpoints());
+            if (npc.getHits() > maxHits / 3) {
+                return false;
+            }
+            if (hasItem(373)) {
+                removeInventory(373, 1);
+                npc.setHits(Math.min(maxHits, npc.getHits() + 12));
+                activity = "eating food while grouped with " + player.getUsername();
+                say("food low");
+                WorldBotManager.this.recordActivity(name + " ate food during a group trip");
+                return false;
+            }
+            if (partyMode == PartyMode.BOSS || partyMode == PartyMode.WILDERNESS) {
+                activity = "retreating from group fight";
+                say("need food, backing out");
+                npc.setPath(new Path(npc.getX(), npc.getY(), area.randomX(random), area.randomY(random)));
+                return true;
+            }
+            return false;
+        }
+
         private void assistPlayer(Player player, NPC target) {
             if (!npc.getLocation().withinRange(target.getLocation(), partyMode.assistRange)) {
                 activity = "moving to assist on " + target.getDef().getName();
@@ -1000,6 +1215,8 @@ public final class WorldBotManager {
             }
             if (target.getHits() <= 0) {
                 kills++;
+                playerKills++;
+                WorldBotManager.this.recordActivity(name + " helped " + player.getUsername() + " kill " + target.getDef().getName());
                 target.killedBy(player);
             }
         }
@@ -1019,6 +1236,9 @@ public final class WorldBotManager {
                 addInventory(carriedItem, 1 + random.nextInt(4));
                 gainXp(2);
                 activity = "collecting " + carriedItemName + " in " + area.name;
+                if (random.nextInt(20) == 0) {
+                    say("banking " + carriedItemName + " soon");
+                }
             } else if (role == Role.FIGHTER) {
                 addInventory(carriedItem, 1 + random.nextInt(3));
                 gainXp(4);
@@ -1044,6 +1264,7 @@ public final class WorldBotManager {
                 addInventory(373, 1);
                 activity = "buying food from the exchange";
                 trades++;
+                WorldBotManager.this.recordActivity(name + " bought food from the exchange");
                 say("buying food");
             }
             if (role == Role.WILDERNESS && GrandExchange.countId(81) > 0 && random.nextInt(20) == 0
@@ -1051,6 +1272,7 @@ public final class WorldBotManager {
                 addInventory(81, 1);
                 activity = "upgrading gear from the exchange";
                 trades++;
+                WorldBotManager.this.recordActivity(name + " bought gear from the exchange");
                 say("upgrading gear");
             }
         }
@@ -1153,6 +1375,7 @@ public final class WorldBotManager {
             player.getSender().sendInventory();
             addInventory(COINS, price);
             trades++;
+            playerTrades++;
             marketVolume += price;
             int remaining = offer.getValue() - amount;
             if (remaining > 0) {
@@ -1161,6 +1384,7 @@ public final class WorldBotManager {
                 inventory.remove(itemId);
             }
             say("sold " + amount + " " + itemName(itemId));
+            WorldBotManager.this.recordActivity(name + " traded " + amount + " " + itemName(itemId) + " to " + player.getUsername());
             player.getSender().sendMessage("@cya@[WorldBots] @whi@Bought " + amount + " " + itemName(itemId) + " from " + name + " for " + price + " coins.");
             return true;
         }
@@ -1658,6 +1882,136 @@ public final class WorldBotManager {
             return org.nemotech.rsc.external.EntityManager.getItem(itemId).getName();
         } catch (Exception e) {
             return "item " + itemId;
+        }
+    }
+
+    private final class AutoGroup {
+        private final int id;
+        private final AutoGroupGoal goal;
+        private final List<WorldBot> members;
+        private final WorldBot leader;
+        private final BotArea area;
+        private final long expiresAt;
+        private boolean active = true;
+
+        private AutoGroup(int id, AutoGroupGoal goal, List<WorldBot> members) {
+            this.id = id;
+            this.goal = goal;
+            this.members = members;
+            this.leader = members.get(0);
+            this.area = goal.area(random);
+            this.expiresAt = System.currentTimeMillis() + (8 + random.nextInt(12)) * MINUTE_MS;
+        }
+
+        private void start() {
+            for (WorldBot member : members) {
+                member.autoGroup = this;
+                member.groupTrips++;
+                member.activity = (member == leader ? "leading " : "joining ") + goal.label + " at " + area.name;
+                member.say(member == leader ? goal.leaderLine : goal.memberLine);
+            }
+            recordActivity(leader.name + " formed a " + goal.label + " group at " + area.name + " (" + members.size() + " bots)");
+        }
+
+        private void disband(String reason) {
+            active = false;
+            for (WorldBot member : members) {
+                if (member.autoGroup == this) {
+                    member.autoGroup = null;
+                    member.activity = reason;
+                }
+            }
+            recordActivity(leader.name + "'s " + goal.label + " group disbanded: " + reason);
+        }
+
+        private int onlineMembers() {
+            int count = 0;
+            for (WorldBot member : members) {
+                if (member.active && member.online && member.autoGroup == this) {
+                    count++;
+                }
+            }
+            return count;
+        }
+
+        private String memberNames() {
+            StringBuilder names = new StringBuilder();
+            for (WorldBot member : members) {
+                if (names.length() > 0) {
+                    names.append(", ");
+                }
+                names.append(member.name);
+            }
+            return names.toString();
+        }
+    }
+
+    private enum AutoGroupGoal {
+        BOSS("bossing", 3, 5, "need food for boss", "ready for boss", "boss group"),
+        PK("wilderness pk trip", 2, 4, "pk trip forming", "skull up?", "pk run"),
+        SKILL("skilling trip", 3, 6, "skilling group", "bank after full inv", "skilling"),
+        MARKET("market run", 2, 5, "checking prices", "selling at exchange", "market");
+
+        private final String label;
+        private final int minSize;
+        private final int maxSize;
+        private final String leaderLine;
+        private final String memberLine;
+        private final String chatLine;
+
+        AutoGroupGoal(String label, int minSize, int maxSize, String leaderLine, String memberLine, String chatLine) {
+            this.label = label;
+            this.minSize = minSize;
+            this.maxSize = maxSize;
+            this.leaderLine = leaderLine;
+            this.memberLine = memberLine;
+            this.chatLine = chatLine;
+        }
+
+        private boolean accepts(Role role) {
+            if (this == PK) {
+                return role == Role.WILDERNESS || role == Role.FIGHTER;
+            }
+            if (this == SKILL) {
+                return role == Role.GATHERER;
+            }
+            if (this == BOSS) {
+                return role == Role.FIGHTER || role == Role.WILDERNESS;
+            }
+            return true;
+        }
+
+        private BotArea area(Random random) {
+            if (this == PK) {
+                return Role.WILDERNESS.randomArea(random);
+            }
+            if (this == SKILL) {
+                return Role.GATHERER.randomArea(random);
+            }
+            if (this == MARKET) {
+                BotArea[] areas = { new BotArea("Varrock market", 120, 160, 500, 540), new BotArea("Falador bank", 300, 330, 540, 565), new BotArea("Seers bank", 500, 535, 450, 475) };
+                return areas[random.nextInt(areas.length)];
+            }
+            return Role.FIGHTER.randomArea(random);
+        }
+
+        private static AutoGroupGoal random(Random random, String event) {
+            if (event != null) {
+                if (event.contains("boss")) {
+                    return BOSS;
+                }
+                if (event.contains("wilderness") || event.contains("Edgeville")) {
+                    return PK;
+                }
+                if (event.contains("market") || event.contains("buyers") || event.contains("food")) {
+                    return MARKET;
+                }
+                if (event.contains("yew") || event.contains("fishing") || event.contains("skilling")) {
+                    return SKILL;
+                }
+            }
+            AutoGroupGoal[] goals = values();
+            return goals[random.nextInt(goals.length)];
         }
     }
 

@@ -18,6 +18,12 @@ const onlineBotCount = document.getElementById("onlineBotCount");
 const skillerOnline = document.getElementById("skillerOnline");
 const fighterOnline = document.getElementById("fighterOnline");
 const wildOnline = document.getElementById("wildOnline");
+const worldActivityList = document.getElementById("worldActivityList");
+const marketCoins = document.getElementById("marketCoins");
+const marketTrades = document.getElementById("marketTrades");
+const marketGroups = document.getElementById("marketGroups");
+const marketKills = document.getElementById("marketKills");
+const activeGroupsList = document.getElementById("activeGroupsList");
 
 const skills = [
   "Overall",
@@ -134,6 +140,58 @@ function updatePopulationFromHighscores() {
   }
 }
 
+function updateWorldActivity(activity) {
+  if (!worldActivityList) {
+    return;
+  }
+  const lines = Array.isArray(activity) && activity.length > 0
+    ? activity
+    : highscorePlayers
+      .filter((player) => player.type === "World bot")
+      .slice(0, 5)
+      .map((player) => `${player.name} is ${player.goal} (${player.status})`);
+  worldActivityList.innerHTML = lines.slice(0, 8).map((line) => `<li>${line}</li>`).join("");
+}
+
+function updateMarketSummary(market) {
+  const fallback = {
+    coinsInBotInventories: highscorePlayers.reduce((sum, player) => sum + (player.type === "World bot" ? player.coins : 0), 0),
+    botTrades: highscorePlayers.reduce((sum, player) => sum + (player.type === "World bot" ? player.trades : 0), 0),
+    groupTrips: highscorePlayers.reduce((sum, player) => sum + (player.groupTrips || 0), 0),
+    assistedKills: highscorePlayers.reduce((sum, player) => sum + (player.playerKills || 0), 0),
+  };
+  const source = market || fallback;
+  if (marketCoins) {
+    marketCoins.textContent = formatNumber(Number(source.coinsInBotInventories) || 0);
+  }
+  if (marketTrades) {
+    marketTrades.textContent = formatNumber(Number(source.botTrades) || 0);
+  }
+  if (marketGroups) {
+    marketGroups.textContent = formatNumber(Number(source.groupTrips) || 0);
+  }
+  if (marketKills) {
+    marketKills.textContent = formatNumber(Number(source.assistedKills) || 0);
+  }
+}
+
+function updateActiveGroups(groups) {
+  if (!activeGroupsList) {
+    return;
+  }
+  if (!Array.isArray(groups) || groups.length === 0) {
+    activeGroupsList.innerHTML = "<li>No bot groups formed yet.</li>";
+    return;
+  }
+  activeGroupsList.innerHTML = groups.slice(0, 6).map((group) => {
+    const size = Number(group.size) || 0;
+    const leader = group.leader || "unknown";
+    const goal = group.goal || "group";
+    const area = group.area || "world";
+    return `<li>${leader} leading ${size} for ${goal} at ${area}</li>`;
+  }).join("");
+}
+
 function applyHighscoreFilters() {
   const query = highscoreSearch ? highscoreSearch.value.trim().toLowerCase() : "";
   highscorePlayers.forEach((player) => {
@@ -234,6 +292,9 @@ function playerFromLive(entry) {
     coins: Number(entry.coins) || 0,
     trades: Number(entry.trades) || 0,
     kills: Number(entry.kills) || 0,
+    groupTrips: Number(entry.groupTrips) || 0,
+    playerTrades: Number(entry.playerTrades) || 0,
+    playerKills: Number(entry.playerKills) || 0,
     skills: Array.isArray(entry.skills) ? entry.skills.map((skill) => ({
       skill: skill.skill || skill.name || "",
       level: Number(skill.level) || 1,
@@ -242,7 +303,7 @@ function playerFromLive(entry) {
   };
 }
 
-function rebuildHighscores(players, generatedAt) {
+function rebuildHighscores(players, generatedAt, activity, market, groups) {
   if (!highscoreTableBody || !Array.isArray(players) || players.length === 0) {
     return;
   }
@@ -260,6 +321,9 @@ function rebuildHighscores(players, generatedAt) {
   applyHighscoreFilters();
   updateHighscoreSource(generatedAt);
   updatePopulationFromHighscores();
+  updateWorldActivity(activity);
+  updateMarketSummary(market);
+  updateActiveGroups(groups);
   liveHighscoresLoaded = true;
 }
 
@@ -273,7 +337,7 @@ function loadLiveHighscores() {
     })
     .then((data) => {
       if (data && Array.isArray(data.players)) {
-        rebuildHighscores(data.players, data.generatedAt);
+        rebuildHighscores(data.players, data.generatedAt, data.activity, data.market, data.groups);
       }
     })
     .catch(() => {
@@ -281,6 +345,9 @@ function loadLiveHighscores() {
         liveHighscoresLoaded = false;
         updateHighscoreSource();
         updatePopulationFromHighscores();
+        updateWorldActivity();
+        updateMarketSummary();
+        updateActiveGroups();
       }
     });
 }
@@ -419,6 +486,9 @@ bindHighscoreRows();
 applyHighscoreFilters();
 updateHighscoreSource();
 updatePopulationFromHighscores();
+updateWorldActivity();
+updateMarketSummary();
+updateActiveGroups();
 
 highscoreFilterButtons.forEach((button) => {
   button.addEventListener("click", () => {

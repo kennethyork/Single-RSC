@@ -19,12 +19,12 @@
       <div class="container">
         <p>No servers. No setup. No internet required. Just pure solo RuneScape Classic gameplay &mdash; preserved and reimagined.</p>
         <div class="download-buttons">
-          <a href="https://github.com/kennethyork/Single-RSC/releases/tag/v2.7.5" class="cta">Desktop Download (v2.7.5)</a>
-          <a href="https://github.com/kennethyork/Single-RSC/releases/tag/v2.7.5" class="cta cta-mobile">Mobile Download (v2.7.5)</a>
+          <a href="https://github.com/kennethyork/Single-RSC/releases/tag/v2.7.6" class="cta">Desktop Download (v2.7.6)</a>
+          <a href="https://github.com/kennethyork/Single-RSC/releases/tag/v2.7.6" class="cta cta-mobile">Mobile Download (v2.7.6)</a>
         </div>
         <div class="badges">
-          <img src="https://img.shields.io/github/downloads/kennethyork/Single-RSC/latest/Single-RSC-v2.7.5.zip?label=Desktop%20Downloads" alt="Desktop Downloads" />
-          <img src="https://img.shields.io/github/downloads/kennethyork/Single-RSC/latest/Single-RSC-v2.7.5.apk?label=Mobile%20Downloads&color=green" alt="Mobile Downloads" />
+          <img src="https://img.shields.io/github/downloads/kennethyork/Single-RSC/latest/Single-RSC-v2.7.6.zip?label=Desktop%20Downloads" alt="Desktop Downloads" />
+          <img src="https://img.shields.io/github/downloads/kennethyork/Single-RSC/latest/Single-RSC-v2.7.6.apk?label=Mobile%20Downloads&color=green" alt="Mobile Downloads" />
         </div>
       </div>
     </section>
@@ -63,7 +63,7 @@
       <li>Admin account: create user named <code>root</code> for all admin commands</li>
     </ul>
 
-    <h3>Desktop (v2.7.5)</h3>
+    <h3>Desktop (v2.7.6)</h3>
     <ul>
       <li>Java 17+ required</li>
       <li>Launch via <code>run.sh</code> (Linux/macOS) or <code>run.bat</code> (Windows)</li>
@@ -71,7 +71,7 @@
       <li>Build from source with included compile command</li>
     </ul>
 
-    <h3>Mobile (v2.7.5)</h3>
+    <h3>Mobile (v2.7.6)</h3>
     <ul>
       <li>Android 7.0+ (API 24) &mdash; ~6 MB</li>
       <li>Tap = left click, Long press = right click</li>
@@ -88,6 +88,7 @@
       <li><strong>Bot lookup:</strong> Use <code>::worldbots lookup &lt;name&gt;</code> to inspect a world bot profile</li>
       <li><strong>World-bot grouping:</strong> Use <code>::worldbots group nearby</code>, <code>role fighter</code>, <code>mode boss</code>, and <code>dismiss</code> to build a party</li>
       <li><strong>World-bot trading:</strong> Use <code>::worldbots trade</code>, <code>trade &lt;name&gt;</code>, or <code>group trade</code> to buy supplies from nearby bots</li>
+      <li><strong>Living-world feed:</strong> Use <code>::worldbots activity</code> and <code>::worldbots hint</code> for recent bot events and contextual help</li>
       <li><strong>World bot highscores:</strong> Use <code>::worldbots top</code> for score, coins, trades, kills, deaths, and banked items</li>
       <li><strong>Auto-switch at 99:</strong> Bots automatically switch to next bot when skill reaches 99</li>
       <li><strong>Teleport Home:</strong> Bots teleport back when exceeding 50 tiles from home</li>
@@ -125,6 +126,29 @@
         <span>Wilderness <strong id="wildOnline">--</strong></span>
       </div>
       <p>Read from your exported local bot state. Run the game to refresh login and logout status.</p>
+    </div>
+    <div class="world-live-grid">
+      <section class="world-live-panel" aria-live="polite">
+        <h3>Recent World Activity</h3>
+        <ul id="worldActivityList">
+          <li>Waiting for local activity...</li>
+        </ul>
+      </section>
+      <section class="world-live-panel" aria-live="polite">
+        <h3>Economy & Groups</h3>
+        <dl class="market-summary">
+          <div><dt>Bot coins</dt><dd id="marketCoins">--</dd></div>
+          <div><dt>Bot trades</dt><dd id="marketTrades">--</dd></div>
+          <div><dt>Group trips</dt><dd id="marketGroups">--</dd></div>
+          <div><dt>Assisted kills</dt><dd id="marketKills">--</dd></div>
+        </dl>
+      </section>
+      <section class="world-live-panel" aria-live="polite">
+        <h3>Active Bot Groups</h3>
+        <ul id="activeGroupsList">
+          <li>No bot groups formed yet.</li>
+        </ul>
+      </section>
     </div>
     <div class="highscore-tools">
       <input id="highscoreSearch" type="search" placeholder="Look up a bot name, clan, role, or goal" aria-label="Search highscores">
@@ -220,8 +244,11 @@
 
     <h2 id="changelog">Changelog</h2>
     <details open>
-      <summary>v2.7.5</summary>
+      <summary>v2.7.6</summary>
       <ul>
+        <li>Add autonomous bot-created groups for bossing, wilderness PK trips, skilling trips, and market runs</li>
+        <li>Add living-world activity, market, and active-group panels to the website</li>
+        <li>Add world-bot activity feed, helper hints, memory counters, group survival, and richer economy reactions</li>
         <li>Add autonomous world bots across many regions with lookup, nearby reports, and highscores</li>
         <li>Add world-bot grouping for combat, bossing, skilling, wilderness, and social follow modes</li>
         <li>Add transactional Grand Exchange pricing, stock, and market-volume reports</li>
@@ -265,7 +292,7 @@
 
         <h3>Desktop</h3>
         <ol>
-          <li>Download <code>Single-RSC-v2.7.5.zip</code> from <a href="https://github.com/kennethyork/Single-RSC/releases/tag/v2.7.5">GitHub releases</a></li>
+          <li>Download <code>Single-RSC-v2.7.6.zip</code> from <a href="https://github.com/kennethyork/Single-RSC/releases/tag/v2.7.6">GitHub releases</a></li>
           <li>Extract the zip file</li>
           <li>Ensure Java 17+ is installed: <code>java -version</code></li>
           <li>Run <code>run.sh</code> (Linux/macOS) or <code>run.bat</code> (Windows)</li>
@@ -273,7 +300,7 @@
 
         <h3>Mobile</h3>
         <ol>
-          <li>Download <code>Single-RSC-v2.7.5.apk</code> from <a href="https://github.com/kennethyork/Single-RSC/releases/tag/v2.7.5">GitHub releases</a></li>
+          <li>Download <code>Single-RSC-v2.7.6.apk</code> from <a href="https://github.com/kennethyork/Single-RSC/releases/tag/v2.7.6">GitHub releases</a></li>
           <li>Enable "Install from unknown sources" in Settings</li>
           <li>Open the APK file to install</li>
           <li>Launch the app from your app drawer</li>

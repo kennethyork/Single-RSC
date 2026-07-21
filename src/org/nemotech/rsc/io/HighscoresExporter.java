@@ -30,8 +30,9 @@ public final class HighscoresExporter {
     public static synchronized void export() {
         try {
             List<Entry> entries = new ArrayList<>();
+            Properties worldBotState = readProperties(Constants.CACHE_DIRECTORY + "worldbots_state.properties");
             readPlayerSaves(entries);
-            readWorldBotState(entries);
+            readWorldBotState(entries, worldBotState);
             entries.sort(new Comparator<Entry>() {
                 @Override
                 public int compare(Entry first, Entry second) {
@@ -48,7 +49,7 @@ public final class HighscoresExporter {
                 parent.mkdirs();
             }
             try (FileWriter writer = new FileWriter(out)) {
-                writer.write(toJson(entries));
+                writer.write(toJson(entries, worldBotState));
             }
         } catch (Exception e) {
             System.err.println("[Highscores] Could not export highscores: " + e.getMessage());
@@ -91,15 +92,21 @@ public final class HighscoresExporter {
         }
     }
 
-    private static void readWorldBotState(List<Entry> entries) {
-        File file = new File(Constants.CACHE_DIRECTORY + "worldbots_state.properties");
-        if (!file.exists()) {
-            return;
-        }
+    private static Properties readProperties(String path) {
+        File file = new File(path);
         Properties properties = new Properties();
+        if (!file.exists()) {
+            return properties;
+        }
         try (FileInputStream in = new FileInputStream(file)) {
             properties.load(in);
-        } catch (Exception e) {
+        } catch (Exception ignored) {
+        }
+        return properties;
+    }
+
+    private static void readWorldBotState(List<Entry> entries, Properties properties) {
+        if (properties == null || properties.isEmpty()) {
             return;
         }
 
@@ -117,6 +124,9 @@ public final class HighscoresExporter {
             int fights = parseInt(properties.getProperty(prefix + "fights"), 0);
             int banked = parseInt(properties.getProperty(prefix + "banked"), 0);
             int trades = parseInt(properties.getProperty(prefix + "trades"), 0);
+            int groupTrips = parseInt(properties.getProperty(prefix + "group_trips"), 0);
+            int playerTrades = parseInt(properties.getProperty(prefix + "player_trades"), 0);
+            int playerKills = parseInt(properties.getProperty(prefix + "player_kills"), 0);
             boolean online = Boolean.parseBoolean(properties.getProperty(prefix + "online", "true"));
 
             Entry entry = new Entry();
@@ -132,6 +142,9 @@ public final class HighscoresExporter {
             entry.coins = coinsFromInventory(properties.getProperty(prefix + "inventory"));
             entry.trades = trades;
             entry.kills = kills;
+            entry.groupTrips = groupTrips;
+            entry.playerTrades = playerTrades;
+            entry.playerKills = playerKills;
             entry.score = kills * 1000 + fights * 50 + level * 100 + entry.xp / 10 + banked * 5 + trades * 25 + entry.coins / 25 - deaths * 250;
             entries.add(entry);
         }
@@ -225,7 +238,7 @@ public final class HighscoresExporter {
         }
     }
 
-    private static String toJson(List<Entry> entries) {
+    private static String toJson(List<Entry> entries, Properties worldBotState) {
         StringBuilder json = new StringBuilder();
         json.append("{\"generatedAt\":").append(System.currentTimeMillis()).append(",\"players\":[");
         for (int i = 0; i < entries.size(); i++) {
@@ -247,7 +260,10 @@ public final class HighscoresExporter {
                     .append("\"score\":").append(entry.score).append(',')
                     .append("\"coins\":").append(entry.coins).append(',')
                     .append("\"trades\":").append(entry.trades).append(',')
-                    .append("\"kills\":").append(entry.kills);
+                    .append("\"kills\":").append(entry.kills).append(',')
+                    .append("\"groupTrips\":").append(entry.groupTrips).append(',')
+                    .append("\"playerTrades\":").append(entry.playerTrades).append(',')
+                    .append("\"playerKills\":").append(entry.playerKills);
             if (entry.skills != null && !entry.skills.isEmpty()) {
                 json.append(",\"skills\":[");
                 for (int j = 0; j < entry.skills.size(); j++) {
@@ -266,7 +282,88 @@ public final class HighscoresExporter {
             json
                     .append('}');
         }
-        json.append("]}");
+        json.append("],\"activity\":").append(activityJson(worldBotState))
+                .append(",\"market\":").append(marketJson(worldBotState))
+                .append(",\"groups\":").append(groupsJson(worldBotState))
+                .append('}');
+        return json.toString();
+    }
+
+    private static String activityJson(Properties properties) {
+        StringBuilder json = new StringBuilder("[");
+        boolean first = true;
+        String event = properties == null ? null : properties.getProperty("world.event");
+        if (event != null && !event.trim().isEmpty()) {
+            json.append("\"").append(escape("Current event: " + event)).append("\"");
+            first = false;
+        }
+        if (properties != null) {
+            for (int i = 0; i < 12; i++) {
+                String line = properties.getProperty("activity." + i);
+                if (line == null || line.trim().isEmpty()) {
+                    continue;
+                }
+                if (!first) {
+                    json.append(',');
+                }
+                json.append("\"").append(escape(line)).append("\"");
+                first = false;
+            }
+        }
+        json.append(']');
+        return json.toString();
+    }
+
+    private static String marketJson(Properties properties) {
+        int online = 0;
+        int totalCoins = 0;
+        int totalTrades = 0;
+        int groupTrips = 0;
+        int playerTrades = 0;
+        int playerKills = 0;
+        if (properties != null) {
+            for (int i = 0; i < 200; i++) {
+                String prefix = "bot." + i + ".";
+                if (properties.getProperty(prefix + "name") == null) {
+                    continue;
+                }
+                if (Boolean.parseBoolean(properties.getProperty(prefix + "online", "true"))) {
+                    online++;
+                }
+                totalCoins += coinsFromInventory(properties.getProperty(prefix + "inventory"));
+                totalTrades += parseInt(properties.getProperty(prefix + "trades"), 0);
+                groupTrips += parseInt(properties.getProperty(prefix + "group_trips"), 0);
+                playerTrades += parseInt(properties.getProperty(prefix + "player_trades"), 0);
+                playerKills += parseInt(properties.getProperty(prefix + "player_kills"), 0);
+            }
+        }
+        return "{\"onlineBots\":" + online
+                + ",\"coinsInBotInventories\":" + totalCoins
+                + ",\"botTrades\":" + totalTrades
+                + ",\"groupTrips\":" + groupTrips
+                + ",\"playerTrades\":" + playerTrades
+                + ",\"assistedKills\":" + playerKills
+                + "}";
+    }
+
+    private static String groupsJson(Properties properties) {
+        StringBuilder json = new StringBuilder("[");
+        int count = properties == null ? 0 : parseInt(properties.getProperty("groups.count"), 0);
+        for (int i = 0; i < count; i++) {
+            String prefix = "group." + i + ".";
+            if (i > 0) {
+                json.append(',');
+            }
+            json.append('{')
+                    .append("\"id\":").append(parseInt(properties.getProperty(prefix + "id"), i + 1)).append(',')
+                    .append("\"goal\":\"").append(escape(properties.getProperty(prefix + "goal", "group"))).append("\",")
+                    .append("\"leader\":\"").append(escape(properties.getProperty(prefix + "leader", ""))).append("\",")
+                    .append("\"area\":\"").append(escape(properties.getProperty(prefix + "area", ""))).append("\",")
+                    .append("\"members\":\"").append(escape(properties.getProperty(prefix + "members", ""))).append("\",")
+                    .append("\"size\":").append(parseInt(properties.getProperty(prefix + "size"), 0))
+                    .append('}');
+        }
+        json.append(']');
         return json.toString();
     }
 
@@ -292,6 +389,9 @@ public final class HighscoresExporter {
         private int coins;
         private int trades;
         private int kills;
+        private int groupTrips;
+        private int playerTrades;
+        private int playerKills;
         private List<SkillEntry> skills;
     }
 
