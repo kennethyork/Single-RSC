@@ -129,6 +129,24 @@ Bots can buy from and sell into this shared stock, so the economy gets populated
 
 ---
 
+## Website Highscores
+
+The website can read your private live highscore export directly from your computer, like Single RS 2012. The game creates and refreshes:
+
+```text
+cache/highscores-export.json
+```
+
+On the website, choose **Connect live highscores** and approve that file once. Supported desktop browsers remember the permission and reload current stats, online status, and world-bot activity every 30 seconds. The file is read locally and is never uploaded. Use **Choose highscore export** as a manual fallback in browsers without persistent file access.
+
+Force an immediate save and refresh in game with:
+
+```text
+::exporthighscores
+```
+
+---
+
 ## Quick Start: Desktop
 
 Requirements:
@@ -187,6 +205,7 @@ These bots control your own character for skilling/combat automation.
 | `::everything` | Start full skill progression |
 | `::allbots` | Alias for `::everything` |
 | `::stopbot` | Stop all player bots |
+| `::exporthighscores` | Refresh the private website highscore export |
 
 Quick skill commands:
 

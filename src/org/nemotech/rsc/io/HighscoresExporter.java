@@ -4,18 +4,27 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileWriter;
 import java.io.ObjectInputStream;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Properties;
+import java.util.Set;
 
 import org.nemotech.rsc.Constants;
+import org.nemotech.rsc.model.World;
+import org.nemotech.rsc.model.player.Player;
 import org.nemotech.rsc.model.player.SaveFile;
 import org.nemotech.rsc.util.Formulae;
 
 public final class HighscoresExporter {
 
-    private static final String OUTPUT_FILE = "docs/highscores.json";
+    private static final String PRIVATE_OUTPUT_FILE = Constants.CACHE_DIRECTORY + "highscores-export.json";
+    private static final String WEBSITE_FALLBACK_FILE = "docs/highscores.json";
     private static final String[] SKILL_NAMES = {
             "Attack", "Defense", "Strength", "Hits", "Ranged", "Prayer", "Magic", "Cooking", "Woodcutting",
             "Fletching", "Fishing", "Firemaking", "Crafting", "Smithing", "Mining", "Herblaw", "Agility", "Thieving"
@@ -31,32 +40,81 @@ public final class HighscoresExporter {
         try {
             List<Entry> entries = new ArrayList<>();
             Properties worldBotState = readProperties(Constants.CACHE_DIRECTORY + "worldbots_state.properties");
-            readPlayerSaves(entries);
+            Set<String> onlineNames = onlinePlayerNames();
+            readPlayerSaves(entries, onlineNames);
             readWorldBotState(entries, worldBotState);
-            entries.sort(new Comparator<Entry>() {
-                @Override
-                public int compare(Entry first, Entry second) {
-                    return second.score - first.score;
-                }
-            });
-            for (int i = 0; i < entries.size(); i++) {
-                entries.get(i).rank = i + 1;
-            }
-
-            File out = new File(OUTPUT_FILE);
-            File parent = out.getParentFile();
-            if (parent != null) {
-                parent.mkdirs();
-            }
-            try (FileWriter writer = new FileWriter(out)) {
-                writer.write(toJson(entries, worldBotState));
-            }
+            rankEntries(entries);
+            String json = toJson(entries, worldBotState, onlineNames);
+            writeAtomically(PRIVATE_OUTPUT_FILE, json);
+            // Retained for people serving the bundled docs directory locally.
+            writeAtomically(WEBSITE_FALLBACK_FILE, json);
         } catch (Exception e) {
             System.err.println("[Highscores] Could not export highscores: " + e.getMessage());
         }
     }
 
-    private static void readPlayerSaves(List<Entry> entries) {
+    private static void writeAtomically(String path, String json) throws Exception {
+        File out = new File(path);
+        File parent = out.getParentFile();
+        if (parent != null) {
+            parent.mkdirs();
+        }
+        File temporary = new File(parent == null ? new File(".") : parent, out.getName() + ".tmp");
+        try (FileWriter writer = new FileWriter(temporary)) {
+            writer.write(json);
+        }
+        try {
+            Files.move(temporary.toPath(), out.toPath(), StandardCopyOption.REPLACE_EXISTING,
+                    StandardCopyOption.ATOMIC_MOVE);
+        } catch (AtomicMoveNotSupportedException e) {
+            Files.move(temporary.toPath(), out.toPath(), StandardCopyOption.REPLACE_EXISTING);
+        }
+    }
+
+    private static void rankEntries(List<Entry> entries) {
+        List<Entry> players = new ArrayList<>();
+        List<Entry> bots = new ArrayList<>();
+        for (Entry entry : entries) {
+            (entry.worldBot ? bots : players).add(entry);
+        }
+
+        players.sort(Comparator.comparingInt((Entry entry) -> entry.level).reversed()
+                .thenComparing(Comparator.comparingLong((Entry entry) -> entry.xp).reversed())
+                .thenComparing(entry -> entry.name, String.CASE_INSENSITIVE_ORDER));
+        bots.sort(Comparator.comparingLong((Entry entry) -> entry.score).reversed()
+                .thenComparing(entry -> entry.name, String.CASE_INSENSITIVE_ORDER));
+        assignRanks(players);
+        assignRanks(bots);
+        entries.clear();
+        entries.addAll(players);
+        entries.addAll(bots);
+    }
+
+    private static void assignRanks(List<Entry> entries) {
+        for (int i = 0; i < entries.size(); i++) {
+            entries.get(i).rank = i + 1;
+        }
+    }
+
+    private static Set<String> onlinePlayerNames() {
+        Set<String> names = new HashSet<>();
+        try {
+            World world = World.getLoadedWorld();
+            if (world == null) {
+                return names;
+            }
+            for (Player player : world.getPlayers()) {
+                if (player != null && player.isLoggedIn() && player.getUsername() != null) {
+                    names.add(player.getUsername().trim().toLowerCase(Locale.ROOT));
+                }
+            }
+        } catch (Exception ignored) {
+            // The standalone exporter can run before the game world is available.
+        }
+        return names;
+    }
+
+    private static void readPlayerSaves(List<Entry> entries, Set<String> onlineNames) {
         File dir = new File(Constants.CACHE_DIRECTORY + "players");
         File[] files = dir.listFiles();
         if (files == null) {
@@ -73,9 +131,11 @@ public final class HighscoresExporter {
                 Entry entry = new Entry();
                 entry.name = username;
                 entry.type = save.hardcore ? "Hardcore player" : "Player";
+                entry.worldBot = false;
                 entry.role = entry.type;
                 entry.clan = "Your characters";
-                entry.status = "Offline";
+                entry.status = onlineNames.contains(username.trim().toLowerCase(Locale.ROOT))
+                        ? "Online" : "Offline";
                 entry.goal = save.hardcoreDead ? "hardcore dead" : "saved character";
                 entry.xpRate = Math.max(1, save.xpRate) + "x";
                 entry.level = totalLevel(save.expStats);
@@ -128,24 +188,29 @@ public final class HighscoresExporter {
             int playerTrades = parseInt(properties.getProperty(prefix + "player_trades"), 0);
             int playerKills = parseInt(properties.getProperty(prefix + "player_kills"), 0);
             boolean online = Boolean.parseBoolean(properties.getProperty(prefix + "online", "true"));
+            int[] skillXp = parseIntArray(properties.getProperty(prefix + "skills"), SKILL_NAMES.length);
 
             Entry entry = new Entry();
             entry.name = name;
             entry.type = "World bot";
+            entry.worldBot = true;
             entry.role = roleLabel(properties.getProperty(prefix + "role"));
             entry.clan = "World bots";
             entry.status = online ? "Online" : "Offline";
             entry.goal = goalLabel(properties.getProperty(prefix + "goal"));
-            entry.level = level;
+            entry.combatLevel = level;
+            entry.level = hasProgress(skillXp) ? totalLevel(skillXp) : level;
             entry.xpRate = Math.max(1, xpRate) + "x";
-            entry.xp = xp * Math.max(1, xpRate);
+            entry.xp = hasProgress(skillXp) ? totalXp(skillXp) : (long) xp * Math.max(1, xpRate);
+            entry.skills = hasProgress(skillXp) ? skillEntries(skillXp) : null;
             entry.coins = coinsFromInventory(properties.getProperty(prefix + "inventory"));
             entry.trades = trades;
             entry.kills = kills;
             entry.groupTrips = groupTrips;
             entry.playerTrades = playerTrades;
             entry.playerKills = playerKills;
-            entry.score = kills * 1000 + fights * 50 + level * 100 + entry.xp / 10 + banked * 5 + trades * 25 + entry.coins / 25 - deaths * 250;
+            entry.score = (long) kills * 1000 + (long) fights * 50 + (long) level * 100 + entry.xp / 10
+                    + (long) banked * 5 + (long) trades * 25 + entry.coins / 25 - (long) deaths * 250;
             entries.add(entry);
         }
     }
@@ -161,11 +226,11 @@ public final class HighscoresExporter {
         return total;
     }
 
-    private static int totalXp(int[] expStats) {
+    private static long totalXp(int[] expStats) {
         if (expStats == null) {
             return 0;
         }
-        int total = 0;
+        long total = 0;
         for (int xp : expStats) {
             total += Math.max(0, xp);
         }
@@ -188,8 +253,8 @@ public final class HighscoresExporter {
         return skills;
     }
 
-    private static int bankScore(SaveFile save) {
-        int score = 0;
+    private static long bankScore(SaveFile save) {
+        long score = 0;
         if (save.bankAmounts != null) {
             for (int amount : save.bankAmounts) {
                 score += Math.max(0, amount);
@@ -238,9 +303,39 @@ public final class HighscoresExporter {
         }
     }
 
-    private static String toJson(List<Entry> entries, Properties worldBotState) {
+    private static int[] parseIntArray(String value, int size) {
+        int[] values = new int[size];
+        if (value == null || value.trim().isEmpty()) {
+            return values;
+        }
+        String[] parts = value.split(",");
+        for (int i = 0; i < parts.length && i < values.length; i++) {
+            values[i] = Math.max(0, parseInt(parts[i], 0));
+        }
+        return values;
+    }
+
+    private static boolean hasProgress(int[] values) {
+        if (values == null) return false;
+        for (int value : values) {
+            if (value > 0) return true;
+        }
+        return false;
+    }
+
+    private static String toJson(List<Entry> entries, Properties worldBotState, Set<String> onlineNames) {
         StringBuilder json = new StringBuilder();
-        json.append("{\"generatedAt\":").append(System.currentTimeMillis()).append(",\"players\":[");
+        json.append("{\"formatVersion\":1,\"generatedAt\":").append(System.currentTimeMillis())
+                .append(",\"activePlayers\":[");
+        boolean firstOnline = true;
+        for (String name : onlineNames) {
+            if (!firstOnline) {
+                json.append(',');
+            }
+            json.append('"').append(escape(name)).append('"');
+            firstOnline = false;
+        }
+        json.append("],\"players\":[");
         for (int i = 0; i < entries.size(); i++) {
             Entry entry = entries.get(i);
             if (i > 0) {
@@ -255,6 +350,7 @@ public final class HighscoresExporter {
                     .append("\"status\":\"").append(escape(entry.status)).append("\",")
                     .append("\"goal\":\"").append(escape(entry.goal)).append("\",")
                     .append("\"level\":").append(entry.level).append(',')
+                    .append("\"combatLevel\":").append(entry.combatLevel).append(',')
                     .append("\"xpRate\":\"").append(escape(entry.xpRate)).append("\",")
                     .append("\"xp\":").append(entry.xp).append(',')
                     .append("\"score\":").append(entry.score).append(',')
@@ -371,11 +467,31 @@ public final class HighscoresExporter {
         if (value == null) {
             return "";
         }
-        return value.replace("\\", "\\\\").replace("\"", "\\\"");
+        StringBuilder escaped = new StringBuilder(value.length() + 8);
+        for (int i = 0; i < value.length(); i++) {
+            char character = value.charAt(i);
+            switch (character) {
+                case '\"': escaped.append("\\\""); break;
+                case '\\': escaped.append("\\\\"); break;
+                case '\b': escaped.append("\\b"); break;
+                case '\f': escaped.append("\\f"); break;
+                case '\n': escaped.append("\\n"); break;
+                case '\r': escaped.append("\\r"); break;
+                case '\t': escaped.append("\\t"); break;
+                default:
+                    if (character < 0x20) {
+                        escaped.append(String.format("\\u%04x", (int) character));
+                    } else {
+                        escaped.append(character);
+                    }
+            }
+        }
+        return escaped.toString();
     }
 
     private static final class Entry {
         private int rank;
+        private boolean worldBot;
         private String name;
         private String type;
         private String role;
@@ -383,9 +499,10 @@ public final class HighscoresExporter {
         private String status;
         private String goal;
         private int level;
+        private int combatLevel;
         private String xpRate;
-        private int xp;
-        private int score;
+        private long xp;
+        private long score;
         private int coins;
         private int trades;
         private int kills;

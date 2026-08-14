@@ -112,14 +112,58 @@ a:hover {
   gap: 0.5rem;
 }
 
-.highscore-filters {
+.highscore-connection {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 1rem 0;
+  padding: 1rem;
+  border: 1px solid #5b4b16;
+  background: #201d12;
+}
+
+.highscore-connection p {
+  margin: 0.35rem 0 0;
+  color: #cfcfcf;
+}
+
+.highscore-connection-actions {
   display: flex;
   flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.highscore-connection button {
+  padding: 0.65rem 0.9rem;
+  border: 1px solid #5b4b16;
+  border-radius: 4px;
+  background: #ffd700;
+  color: #111;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.highscore-connection button.secondary-button {
+  border-color: #555;
+  background: #292929;
+  color: #f4f4f4;
+}
+
+.highscore-filters {
+  display: flex;
+  align-items: center;
   gap: 0.5rem;
   margin-bottom: 0.75rem;
 }
 
-.highscore-filters button {
+.highscore-filters label {
+  color: #cfcfcf;
+  font-weight: 700;
+}
+
+.highscore-filters select {
   padding: 0.55rem 0.8rem;
   border: 1px solid #3d3d3d;
   background: #202020;
@@ -129,10 +173,26 @@ a:hover {
   cursor: pointer;
 }
 
-.highscore-filters button.is-active {
-  border-color: #5b4b16;
-  background: #ffd700;
-  color: #111;
+.highscore-board-title {
+  margin: 1rem 0 0.5rem;
+  color: #ffd700;
+}
+
+.highscore-player-name {
+  color: #fff;
+  font-weight: 700;
+}
+
+#highscoreTable tbody tr[tabindex],
+#profileSkills tbody tr {
+  cursor: pointer;
+}
+
+#highscoreTable tbody tr[tabindex]:hover,
+#highscoreTable tbody tr[tabindex]:focus,
+#profileSkills tbody tr:hover {
+  background: #302b18;
+  outline: none;
 }
 
 .highscore-source {
@@ -244,6 +304,15 @@ a:hover {
   .world-live-grid {
     grid-template-columns: 1fr;
   }
+
+  .highscore-connection {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .highscore-connection-actions {
+    justify-content: flex-start;
+  }
 }
 
 .highscore-tools input {
@@ -349,6 +418,10 @@ a:hover {
 .highscore-table-wrap {
   max-height: min(680px, 72vh);
   overflow: auto;
+}
+
+#highscoreTable {
+  min-width: 560px;
 }
 
 table {

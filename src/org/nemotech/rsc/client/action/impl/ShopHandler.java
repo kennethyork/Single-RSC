@@ -152,7 +152,7 @@ public class ShopHandler implements ActionHandler {
     }
 
     private void refreshGrandExchangeStock() {
-        for (int itemIndex = 0; itemIndex < 40; itemIndex++) {
+        for (int itemIndex = 0; itemIndex < mc.shopItem.length; itemIndex++) {
             mc.shopItem[itemIndex] = -1;
             mc.shopItemCount[itemIndex] = 0;
             mc.shopItemBuyPrice[itemIndex] = 0;
@@ -162,7 +162,7 @@ public class ShopHandler implements ActionHandler {
         int slot = 0;
         List<InvItem> stock = GrandExchange.getStockSnapshot();
         for (InvItem item : stock) {
-            if (slot >= 40) {
+            if (slot >= GrandExchange.MAX_LISTINGS || slot >= mc.shopItem.length) {
                 break;
             }
             mc.shopItem[slot] = item.getID();
@@ -172,7 +172,8 @@ public class ShopHandler implements ActionHandler {
             slot++;
         }
 
-        for (int inventoryIndex = 0; inventoryIndex < mc.inventoryItemsCount && slot < 40; inventoryIndex++) {
+        for (int inventoryIndex = 0; inventoryIndex < mc.inventoryItemsCount
+                && slot < GrandExchange.MAX_LISTINGS && slot < mc.shopItem.length; inventoryIndex++) {
             int itemId = mc.inventoryItemId[inventoryIndex] & 0x7fff;
             if (itemId == 10 || GrandExchange.sellPrice(itemId, 1) <= 0 || containsGrandExchangeItem(itemId)) {
                 continue;
@@ -185,7 +186,7 @@ public class ShopHandler implements ActionHandler {
         }
 
         mc.shopName = "Grand Exchange";
-        if (mc.shopSelectedItemIndex >= 0 && mc.shopSelectedItemIndex < 40
+        if (mc.shopSelectedItemIndex >= 0 && mc.shopSelectedItemIndex < mc.shopItem.length
                 && mc.shopItem[mc.shopSelectedItemIndex] != mc.shopSelectedItemType) {
             mc.shopSelectedItemIndex = -1;
             mc.shopSelectedItemType = -2;
@@ -193,7 +194,7 @@ public class ShopHandler implements ActionHandler {
     }
 
     private boolean containsGrandExchangeItem(int itemId) {
-        for (int i = 0; i < 40; i++) {
+        for (int i = 0; i < mc.shopItem.length; i++) {
             if (mc.shopItem[i] == itemId) {
                 return true;
             }

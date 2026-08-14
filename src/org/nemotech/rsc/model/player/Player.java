@@ -975,6 +975,7 @@ public final class Player extends Mob {
 
         setLoggedIn(true);
         setBusy(false);
+        HighscoresExporter.export();
     }
 
     public void save() {

@@ -1,9 +1,11 @@
 const highscoreSearch = document.getElementById("highscoreSearch");
 const highscoreLookup = document.getElementById("highscoreLookup");
-const highscoreFilterButtons = Array.from(document.querySelectorAll("[data-highscore-filter]"));
+const highscoreCategory = document.getElementById("highscoreCategory");
 const highscoreSource = document.getElementById("highscoreSource");
-const highscoreTableBody = document.querySelector("#highscoreTable tbody");
-let highscoreRows = Array.from(document.querySelectorAll("#highscoreTable tbody tr"));
+const highscoreBoardTitle = document.getElementById("highscoreBoardTitle");
+const highscoreTable = document.getElementById("highscoreTable");
+const highscoreTableHead = highscoreTable ? highscoreTable.querySelector("thead tr") : null;
+const highscoreTableBody = highscoreTable ? highscoreTable.querySelector("tbody") : null;
 const highscoreProfile = document.getElementById("highscoreProfile");
 const highscoreEmpty = document.getElementById("highscoreEmpty");
 const profileTitle = document.getElementById("profileTitle");
@@ -24,487 +26,479 @@ const marketTrades = document.getElementById("marketTrades");
 const marketGroups = document.getElementById("marketGroups");
 const marketKills = document.getElementById("marketKills");
 const activeGroupsList = document.getElementById("activeGroupsList");
+const connectHighscores = document.getElementById("connectHighscores");
+const chooseHighscores = document.getElementById("chooseHighscores");
+const highscoreFileInput = document.getElementById("highscoreFileInput");
 
-const skills = [
-  "Overall",
-  "Fighting",
-  "Ranged",
-  "Prayer",
-  "Magic",
-  "Cooking",
-  "Woodcutting",
-  "Fletching",
-  "Fishing",
-  "Firemaking",
-  "Crafting",
-  "Smithing",
-  "Mining",
-  "Herblaw",
-  "Agility",
-  "Thieving",
+const SKILLS = [
+  "Attack", "Defense", "Strength", "Hits", "Ranged", "Prayer", "Magic", "Cooking", "Woodcutting",
+  "Fletching", "Fishing", "Firemaking", "Crafting", "Smithing", "Mining", "Herblaw", "Agility", "Thieving",
 ];
+const CATEGORIES = ["Overall", ...SKILLS, "World bots"];
 
-let highscorePlayers = highscoreRows.map((row) => {
-  const cells = Array.from(row.children).map((cell) => cell.textContent.trim());
-  return {
-    rank: Number(cells[0].replace(/,/g, "")),
-    name: cells[1],
-    role: cells[2],
-    clan: cells[3],
-    type: cells[3] === "Your characters" ? "Player" : "World bot",
-    status: cells[4],
-    goal: cells[5],
-    level: Number(cells[6].replace(/,/g, "")),
-    xpRate: cells[7],
-    score: Number(cells[8].replace(/,/g, "")),
-    coins: Number(cells[9].replace(/,/g, "")),
-    trades: Number(cells[10].replace(/,/g, "")),
-    kills: Number(cells[11].replace(/,/g, "")),
-    row,
-  };
-});
-
-const generatedNames = [
-  "AlKharidAli", "AshRunner", "AuburyAlt", "BarbBrian", "BlackArmBob", "BlueWizard", "BronzeBelle", "CabbageCam",
-  "CamelotCole", "CastleCarl", "CaveCrawler", "ChaosCat", "CookedCod", "CopperCora", "CowhideCal", "DarkWizard",
-  "DraynorDrew", "DuelDaisy", "DwarfDale", "EastVarrock", "EdgeEmma", "EntranaEli", "FaladorFinn", "FireRune",
-  "FishingFred", "ForestFletch", "GoblinGary", "GoldGrace", "GreenDragon", "GuardGlen", "GuthixGail", "HerbHarry",
-  "IceMountain", "IronIvy", "KaramjaKai", "KnightNora", "LavaMaze", "LeatherLee", "LongbowLou", "LumbyLia",
-  "MagicMilo", "MapleMona", "MithMack", "MonkMara", "MossMarty", "Mudskipper", "NatureNed", "NorthArdy",
-  "OakOscar", "OreOlive", "PaladinPam", "PrayerPaul", "RangeRalph", "RatRicky", "RedBeard", "RuneRuby",
-  "SaradominSid", "ScimitarSue", "SeersSally", "ShantaySid", "SilverSue", "SkullSam", "SmithSonia", "SouthGate",
-  "SpiderStan", "SteelStacy", "SwordSeth", "ThieveTheo", "TinTara", "TroutTina", "VarrockVal", "WestArdy",
-  "WhiteKnight", "WillowWade", "WizardWes", "YewYara", "ZamorakZed", "AgilityAna", "ArrowArt", "BankBeth",
-  "BeerBarry", "BigBones", "BrassKey", "CakeClara", "CoalCasey", "CraftCleo", "DeathDune", "EdgeElla",
-  "FeatherFox", "FletchFern", "GhostGreg", "HillHank", "JailJimmy", "KiteKara", "LobsterLiz", "MineMolly",
-  "NeedleNia", "PickPete", "RawTuna", "RingRosa", "ShrimpShay", "SilkSasha", "SmeltSean", "SpinFlax",
-  "StaffTess", "TannerTom", "UncutUma", "VialVera", "WildWill", "WineWalt", "WolfWynn", "ZaffZane",
-  "ArcherAmy", "BattleBen", "CatherCarl", "DruidDana", "EssenceEd", "FalconFia", "GnomeGina", "HunterHal",
-  "IslandIan", "JollyJade", "KebabKen", "LesserLeo", "MarketMae", "NettleNash", "OgreOwen", "PiratePip",
-  "QuartzQuin", "RangerRen", "SailorSky", "TavernTim", "UndeadUna", "VannakaVic", "WanderWren", "XbowXan",
-  "YanilleYin", "ZealZoe", "AmberAsh", "BriarBo", "CinderCy", "DaggerDee", "ElmEvan", "FurnaceFay",
-  "GraniteGil", "HarpoonHex", "IvoryIke", "JadeJon", "KeeperKay", "LanternLex", "MarbleMay", "NobleNix",
-  "OnyxOllie", "PebblePaz", "QuestQuill", "RopeRae", "SapphireSol", "TempleTia", "UrnUri", "ValeVik",
-  "WheatWes", "XeniaX", "YewYork", "ZincZara",
-];
-
+let highscorePlayers = [];
+let generatedAt = 0;
 let liveHighscoresLoaded = false;
-let currentHighscoreFilter = "players";
+let selectedPlayerName = null;
+let liveFileHandle = null;
+let highscoreDataSource = "bundled";
+let connectedFileName = "";
 
-function statusMarkup(status) {
-  return `<span class="status ${status.toLowerCase()}">${status}</span>`;
-}
-
-function isPlayerCharacter(player) {
-  return player.type !== "World bot" && player.clan === "Your characters";
-}
-
-function rowMatchesCurrentFilter(player) {
-  if (currentHighscoreFilter === "all") {
-    return true;
-  }
-  if (currentHighscoreFilter === "bots") {
-    return player.type === "World bot";
-  }
-  return isPlayerCharacter(player);
-}
-
-function updateHighscoreSource(generatedAt) {
-  if (!highscoreSource) {
-    return;
-  }
-  const playerCount = highscorePlayers.filter(isPlayerCharacter).length;
-  const botCount = highscorePlayers.filter((player) => player.type === "World bot").length;
-  const timestamp = generatedAt ? new Date(generatedAt).toLocaleString() : "local fallback";
-  highscoreSource.textContent = `Showing exported data: ${playerCount} saved characters, ${botCount} world bots. Last export: ${timestamp}.`;
-}
-
-function updatePopulationFromHighscores() {
-  if (!onlineBotCount) {
-    return;
-  }
-  const onlineBots = highscorePlayers.filter((player) => player.type === "World bot" && player.status === "Online");
-  const skillers = onlineBots.filter((player) => player.role === "Skiller").length;
-  const fighters = onlineBots.filter((player) => player.role === "Monster hunter").length;
-  const wilderness = onlineBots.filter((player) => player.role === "PKer").length;
-
-  onlineBotCount.textContent = onlineBots.length;
-  if (skillerOnline) {
-    skillerOnline.textContent = skillers;
-  }
-  if (fighterOnline) {
-    fighterOnline.textContent = fighters;
-  }
-  if (wildOnline) {
-    wildOnline.textContent = wilderness;
-  }
-}
-
-function updateWorldActivity(activity) {
-  if (!worldActivityList) {
-    return;
-  }
-  const lines = Array.isArray(activity) && activity.length > 0
-    ? activity
-    : highscorePlayers
-      .filter((player) => player.type === "World bot")
-      .slice(0, 5)
-      .map((player) => `${player.name} is ${player.goal} (${player.status})`);
-  worldActivityList.innerHTML = lines.slice(0, 8).map((line) => `<li>${line}</li>`).join("");
-}
-
-function updateMarketSummary(market) {
-  const fallback = {
-    coinsInBotInventories: highscorePlayers.reduce((sum, player) => sum + (player.type === "World bot" ? player.coins : 0), 0),
-    botTrades: highscorePlayers.reduce((sum, player) => sum + (player.type === "World bot" ? player.trades : 0), 0),
-    groupTrips: highscorePlayers.reduce((sum, player) => sum + (player.groupTrips || 0), 0),
-    assistedKills: highscorePlayers.reduce((sum, player) => sum + (player.playerKills || 0), 0),
-  };
-  const source = market || fallback;
-  if (marketCoins) {
-    marketCoins.textContent = formatNumber(Number(source.coinsInBotInventories) || 0);
-  }
-  if (marketTrades) {
-    marketTrades.textContent = formatNumber(Number(source.botTrades) || 0);
-  }
-  if (marketGroups) {
-    marketGroups.textContent = formatNumber(Number(source.groupTrips) || 0);
-  }
-  if (marketKills) {
-    marketKills.textContent = formatNumber(Number(source.assistedKills) || 0);
-  }
-}
-
-function updateActiveGroups(groups) {
-  if (!activeGroupsList) {
-    return;
-  }
-  if (!Array.isArray(groups) || groups.length === 0) {
-    activeGroupsList.innerHTML = "<li>No bot groups formed yet.</li>";
-    return;
-  }
-  activeGroupsList.innerHTML = groups.slice(0, 6).map((group) => {
-    const size = Number(group.size) || 0;
-    const leader = group.leader || "unknown";
-    const goal = group.goal || "group";
-    const area = group.area || "world";
-    return `<li>${leader} leading ${size} for ${goal} at ${area}</li>`;
-  }).join("");
-}
-
-function applyHighscoreFilters() {
-  const query = highscoreSearch ? highscoreSearch.value.trim().toLowerCase() : "";
-  highscorePlayers.forEach((player) => {
-    if (!player.row) {
-      return;
-    }
-    const text = player.row.textContent.toLowerCase();
-    player.row.classList.toggle("is-hidden", !rowMatchesCurrentFilter(player) || (query && !text.includes(query)));
-  });
-}
-
-function makeGeneratedPlayer(rank) {
-  const roles = ["Skiller", "Monster hunter", "PKer"];
-  const clans = ["Bank crew", "Blue moon", "Red capes", "Wild guard", "Iron bank", "Oak table"];
-  const goals = ["skilling", "build bank", "upgrade gear", "pk trip"];
-  const role = roles[rank % roles.length];
-  const status = rank % 4 === 0 ? "Offline" : "Online";
-  return {
-    rank,
-    name: generatedNames[(rank - 31) % generatedNames.length],
-    type: "World bot",
-    role,
-    clan: clans[rank % clans.length],
-    status,
-    goal: role === "PKer" ? "pk trip" : goals[rank % goals.length],
-    level: Math.max(3, 62 - Math.floor(rank / 4) + (rank % 7)),
-    xpRate: [1, 1, 2, 3, 5][rank % 5] + "x",
-    score: Math.max(250, 2050 - rank * 7 + (rank % 9) * 18),
-    coins: Math.max(150, 5100 - rank * 13 + (rank % 11) * 120),
-    trades: Math.max(0, 22 - Math.floor(rank / 10) + (rank % 3)),
-    kills: role === "PKer" ? Math.max(0, 9 - Math.floor(rank / 20)) : rank % 17 === 0 ? 1 : 0,
-  };
-}
-
-function appendPlayerRow(player) {
-  const row = document.createElement("tr");
-  player.type = player.type || (player.clan === "Your characters" ? player.role : "World bot");
-  row.innerHTML = `
-    <td>${player.rank}</td>
-    <td>${player.name}</td>
-    <td>${player.role}</td>
-    <td>${player.clan}</td>
-    <td>${statusMarkup(player.status)}</td>
-    <td>${player.goal}</td>
-    <td>${player.level}</td>
-    <td>${player.xpRate}</td>
-    <td>${formatNumber(player.score)}</td>
-    <td>${formatNumber(player.coins)}</td>
-    <td>${formatNumber(player.trades)}</td>
-    <td>${formatNumber(player.kills)}</td>
-  `;
-  highscoreTableBody.appendChild(row);
-  player.row = row;
-  highscorePlayers.push(player);
-  applyHighscoreFilters();
-}
-
-if (highscoreTableBody) {
-  [
-    { name: "kenyyhy", status: "Online", level: 42, score: 3200, coins: 9200, trades: 8, kills: 0, xpRate: "1x" },
-    { name: "kenyy", status: "Offline", level: 37, score: 2850, coins: 7800, trades: 6, kills: 0, xpRate: "1x" },
-    { name: "kenyyhu", status: "Offline", level: 31, score: 2400, coins: 6400, trades: 5, kills: 0, xpRate: "1x" },
-    { name: "almostdead", status: "Offline", level: 28, score: 2100, coins: 5100, trades: 4, kills: 1, xpRate: "1x" },
-    { name: "almostead", status: "Offline", level: 24, score: 1850, coins: 4300, trades: 3, kills: 0, xpRate: "1x" },
-    { name: "almosdead", status: "Offline", level: 21, score: 1600, coins: 3600, trades: 2, kills: 0, xpRate: "1x" },
-    { name: "hcalmostdead", status: "Offline", level: 18, score: 1400, coins: 2900, trades: 1, kills: 0, xpRate: "1x" },
-    { name: "kenyyhy]", status: "Offline", level: 12, score: 950, coins: 1700, trades: 0, kills: 0, xpRate: "1x" },
-  ].forEach((character) => {
-    appendPlayerRow({
-      rank: highscorePlayers.length + 1,
-      type: "Player",
-      role: character.name.startsWith("hc") ? "Hardcore player" : "Player",
-      clan: "Your characters",
-      goal: character.status === "Online" ? "currently playing" : "saved character",
-      ...character,
-    });
-  });
-
-  for (let rank = highscorePlayers.length + 1; rank <= 200; rank += 1) {
-    appendPlayerRow(makeGeneratedPlayer(rank));
-  }
-  highscoreRows = Array.from(document.querySelectorAll("#highscoreTable tbody tr"));
-}
-
-function playerFromLive(entry) {
-  return {
-    rank: Number(entry.rank) || 0,
-    name: entry.name || "unknown",
-    type: entry.type || "Player",
-    role: entry.role || entry.type || "Player",
-    clan: entry.clan || "",
-    status: entry.status || "Offline",
-    goal: entry.goal || "",
-    level: Number(entry.level) || 1,
-    xpRate: entry.xpRate || "1x",
-    xp: Number(entry.xp) || 0,
-    score: Number(entry.score) || 0,
-    coins: Number(entry.coins) || 0,
-    trades: Number(entry.trades) || 0,
-    kills: Number(entry.kills) || 0,
-    groupTrips: Number(entry.groupTrips) || 0,
-    playerTrades: Number(entry.playerTrades) || 0,
-    playerKills: Number(entry.playerKills) || 0,
-    skills: Array.isArray(entry.skills) ? entry.skills.map((skill) => ({
-      skill: skill.skill || skill.name || "",
-      level: Number(skill.level) || 1,
-      xp: Number(skill.xp) || 0,
-    })).filter((skill) => skill.skill) : null,
-  };
-}
-
-function rebuildHighscores(players, generatedAt, activity, market, groups) {
-  if (!highscoreTableBody || !Array.isArray(players) || players.length === 0) {
-    return;
-  }
-  highscoreTableBody.innerHTML = "";
-  highscorePlayers = [];
-  players.forEach((entry, index) => {
-    const player = playerFromLive(entry);
-    if (!player.rank) {
-      player.rank = index + 1;
-    }
-    appendPlayerRow(player);
-  });
-  highscoreRows = Array.from(document.querySelectorAll("#highscoreTable tbody tr"));
-  bindHighscoreRows();
-  applyHighscoreFilters();
-  updateHighscoreSource(generatedAt);
-  updatePopulationFromHighscores();
-  updateWorldActivity(activity);
-  updateMarketSummary(market);
-  updateActiveGroups(groups);
-  liveHighscoresLoaded = true;
-}
-
-function loadLiveHighscores() {
-  fetch("highscores.json", { cache: "no-store" })
-    .then((response) => {
-      if (!response.ok) {
-        throw new Error("No highscores export");
-      }
-      return response.json();
-    })
-    .then((data) => {
-      if (data && Array.isArray(data.players)) {
-        rebuildHighscores(data.players, data.generatedAt, data.activity, data.market, data.groups);
-      }
-    })
-    .catch(() => {
-      if (!liveHighscoresLoaded) {
-        liveHighscoresLoaded = false;
-        updateHighscoreSource();
-        updatePopulationFromHighscores();
-        updateWorldActivity();
-        updateMarketSummary();
-        updateActiveGroups();
-      }
-    });
+function number(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function formatNumber(value) {
-  return value.toLocaleString("en-US");
+  return number(value).toLocaleString("en-US");
 }
 
-function skillRowsFor(player) {
-  const totalLevel = Math.max(16, player.level + Math.floor(player.score / 900));
-  const exportedXp = Number(player.xp) || 0;
-  const totalXp = exportedXp > 0
-    ? exportedXp
-    : Math.max(1000, player.score * Number(player.xpRate.replace("x", "")) + player.coins + player.trades * 90 + player.kills * 1200);
-  const rows = [{
-    skill: "Overall",
-    rank: player.rank,
-    level: totalLevel,
-    xp: totalXp,
-  }];
+function playerFromExport(entry) {
+  return {
+    rank: number(entry.rank),
+    name: String(entry.name || "unknown"),
+    type: String(entry.type || "Player"),
+    role: String(entry.role || entry.type || "Player"),
+    clan: String(entry.clan || ""),
+    status: String(entry.status || "Offline"),
+    goal: String(entry.goal || ""),
+    level: number(entry.level),
+    combatLevel: number(entry.combatLevel || entry.level),
+    xpRate: String(entry.xpRate || "1x"),
+    xp: number(entry.xp),
+    score: number(entry.score),
+    coins: number(entry.coins),
+    trades: number(entry.trades),
+    kills: number(entry.kills),
+    groupTrips: number(entry.groupTrips),
+    playerTrades: number(entry.playerTrades),
+    playerKills: number(entry.playerKills),
+    skills: Array.isArray(entry.skills) ? entry.skills.map((skill) => ({
+      skill: String(skill.skill || skill.name || ""),
+      level: number(skill.level),
+      xp: number(skill.xp),
+    })).filter((skill) => SKILLS.includes(skill.skill)) : [],
+  };
+}
 
-  if (Array.isArray(player.skills) && player.skills.length > 0) {
-    player.skills.forEach((skill, index) => {
-      rows.push({
-        skill: skill.skill,
-        rank: player.rank * 100 + index + 1,
-        level: skill.level,
-        xp: skill.xp,
-      });
-    });
-    return rows;
+function savedCharacters() {
+  return highscorePlayers.filter((player) => player.type !== "World bot" && player.skills.length > 0);
+}
+
+function worldBots() {
+  return highscorePlayers.filter((player) => player.type === "World bot");
+}
+
+function skillFor(player, category) {
+  return player.skills.find((skill) => skill.skill === category) || { skill: category, level: 1, xp: 0 };
+}
+
+function compareNames(first, second) {
+  return first.name.localeCompare(second.name, undefined, { sensitivity: "base" });
+}
+
+function rankedRows(category) {
+  if (category === "World bots") {
+    return worldBots()
+      .slice()
+      .sort((first, second) => second.score - first.score || compareNames(first, second))
+      .map((player, index) => ({ player, rank: index + 1, level: player.combatLevel, xp: player.xp }));
   }
 
-  const roleBoosts = {
-    Skiller: ["Woodcutting", "Mining", "Fishing", "Cooking", "Fletching"],
-    PKer: ["Fighting", "Ranged", "Prayer", "Magic", "Hits"],
-    "Monster hunter": ["Fighting", "Prayer", "Magic", "Ranged", "Mining"],
-  };
-  const boosted = roleBoosts[player.role] || [];
-
-  skills.slice(1).forEach((skill, index) => {
-    const boost = boosted.includes(skill) ? 9 : 0;
-    const level = Math.max(1, Math.min(99, Math.floor(player.level / 3) + boost + (index % 5)));
-    const xp = level <= 1 ? 0 : Math.max(0, Math.floor((level * level * level * 12) + player.score * (index + 1) / 5));
-    rows.push({
-      skill,
-      rank: player.rank * 100 + index * 37 + 1,
-      level,
-      xp,
-    });
+  const rows = savedCharacters().map((player) => {
+    const result = category === "Overall"
+      ? { level: player.level, xp: player.xp }
+      : skillFor(player, category);
+    return { player, level: result.level, xp: result.xp };
   });
-
-  return rows;
+  rows.sort((first, second) => second.level - first.level || second.xp - first.xp || compareNames(first.player, second.player));
+  return rows.map((row, index) => ({ ...row, rank: index + 1 }));
 }
 
-function showProfile(player) {
-  if (!player || !highscoreProfile) {
+function addCell(row, text, className) {
+  const cell = document.createElement("td");
+  cell.textContent = text;
+  if (className) {
+    cell.className = className;
+  }
+  row.appendChild(cell);
+  return cell;
+}
+
+function setTableHead(labels) {
+  if (!highscoreTableHead) {
+    return;
+  }
+  highscoreTableHead.replaceChildren(...labels.map((label) => {
+    const header = document.createElement("th");
+    header.textContent = label;
+    return header;
+  }));
+}
+
+function renderHighscoreBoard() {
+  if (!highscoreTableBody || !highscoreCategory) {
+    return;
+  }
+  const category = highscoreCategory.value || "Overall";
+  const rows = rankedRows(category);
+  highscoreBoardTitle.textContent = category === "World bots" ? "World bot leaderboard" : `${category} Hiscores`;
+  setTableHead(category === "World bots"
+    ? ["Rank", "Player", "Role", "Level", "Score", "Status"]
+    : ["Rank", "Player", "Level", "XP", "Status"]);
+  highscoreTableBody.replaceChildren();
+
+  if (rows.length === 0) {
+    const row = document.createElement("tr");
+    addCell(row, category === "World bots" ? "No world bots have been exported yet." : "No saved characters have been exported yet.");
+    row.firstElementChild.colSpan = category === "World bots" ? 6 : 5;
+    highscoreTableBody.appendChild(row);
     return;
   }
 
-  const rows = skillRowsFor(player);
-  const overall = rows[0];
-  profileTitle.textContent = `Skill Hiscores for ${player.name}`;
-  profileMeta.innerHTML = `${player.role} | ${player.clan} | <span class="status ${player.status.toLowerCase()}">${player.status}</span> | Goal: ${player.goal} | XP rate: ${player.xpRate}`;
-  profilePermalink.href = `#highscores?player=${encodeURIComponent(player.name)}`;
-  profileRank.textContent = formatNumber(overall.rank);
-  profileLevel.textContent = formatNumber(overall.level);
-  profileXp.textContent = formatNumber(overall.xp);
-  profileScore.textContent = formatNumber(player.score);
-  profileSkillsBody.innerHTML = rows.map((row) => `
-    <tr>
-      <td>${row.skill}</td>
-      <td>${formatNumber(row.rank)}</td>
-      <td>${formatNumber(row.level)}</td>
-      <td>${formatNumber(row.xp)}</td>
-    </tr>
-  `).join("");
+  rows.forEach(({ player, rank, level, xp }) => {
+    const row = document.createElement("tr");
+    row.dataset.player = player.name;
+    addCell(row, formatNumber(rank));
+    addCell(row, player.name, "highscore-player-name");
+    if (category === "World bots") {
+      addCell(row, player.role);
+      addCell(row, formatNumber(level));
+      addCell(row, formatNumber(player.score));
+      const statusCell = addCell(row, "");
+      const status = document.createElement("span");
+      status.className = `status ${player.status.toLowerCase() === "online" ? "online" : "offline"}`;
+      status.textContent = player.status;
+      statusCell.appendChild(status);
+    } else {
+      addCell(row, formatNumber(level));
+      addCell(row, formatNumber(xp));
+      const statusCell = addCell(row, "");
+      const status = document.createElement("span");
+      status.className = `status ${player.status.toLowerCase() === "online" ? "online" : "offline"}`;
+      status.textContent = player.status;
+      statusCell.appendChild(status);
+      row.tabIndex = 0;
+      row.title = `View ${player.name}'s hiscores`;
+      row.addEventListener("click", () => showProfile(player));
+      row.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          showProfile(player);
+        }
+      });
+    }
+    highscoreTableBody.appendChild(row);
+  });
+}
 
+function profileRowsFor(player) {
+  return ["Overall", ...SKILLS].map((category) => {
+    const ranked = rankedRows(category);
+    const result = ranked.find((row) => row.player.name.toLowerCase() === player.name.toLowerCase());
+    return {
+      skill: category,
+      rank: result ? result.rank : 0,
+      level: category === "Overall" ? player.level : skillFor(player, category).level,
+      xp: category === "Overall" ? player.xp : skillFor(player, category).xp,
+    };
+  });
+}
+
+function showProfile(player) {
+  if (!player || !highscoreProfile || player.type === "World bot") {
+    return;
+  }
+  const rows = profileRowsFor(player);
+  selectedPlayerName = player.name;
+  profileTitle.textContent = `Skill Hiscores for ${player.name}`;
+  profileMeta.textContent = `${player.role} | ${player.status} | XP rate: ${player.xpRate}`;
+  profilePermalink.href = `#highscores?player=${encodeURIComponent(player.name)}`;
+  profileRank.textContent = formatNumber(rows[0].rank);
+  profileLevel.textContent = formatNumber(player.level);
+  profileXp.textContent = formatNumber(player.xp);
+  profileScore.textContent = player.xpRate;
+  profileSkillsBody.replaceChildren(...rows.map((result) => {
+    const row = document.createElement("tr");
+    addCell(row, result.skill);
+    addCell(row, result.rank ? formatNumber(result.rank) : "Unranked");
+    addCell(row, formatNumber(result.level));
+    addCell(row, formatNumber(result.xp));
+    row.addEventListener("click", () => {
+      highscoreCategory.value = result.skill;
+      renderHighscoreBoard();
+    });
+    return row;
+  }));
   highscoreProfile.classList.remove("is-hidden");
   highscoreEmpty.classList.add("is-hidden");
 }
 
-function findPlayer(query) {
+function findCharacter(query) {
   const normalized = query.trim().toLowerCase();
   if (!normalized) {
     return null;
   }
-  return highscorePlayers.find((player) => player.name.toLowerCase() === normalized)
-    || highscorePlayers.find((player) => player.name.toLowerCase().includes(normalized));
+  return savedCharacters().find((player) => player.name.toLowerCase() === normalized) || null;
 }
 
-function runLookup(showEmpty) {
-  const player = findPlayer(highscoreSearch.value);
-  if (player) {
-    showProfile(player);
-    player.row.scrollIntoView({ block: "nearest" });
+function runLookup(showEmpty = true) {
+  if (!highscoreSearch) {
     return;
   }
-  highscoreProfile.classList.add("is-hidden");
-  if (showEmpty !== false) {
-    highscoreEmpty.classList.remove("is-hidden");
+  const player = findCharacter(highscoreSearch.value);
+  if (player) {
+    showProfile(player);
+    return;
   }
+  selectedPlayerName = null;
+  highscoreProfile.classList.add("is-hidden");
+  highscoreEmpty.classList.toggle("is-hidden", !showEmpty);
+}
+
+function updateHighscoreSource() {
+  if (!highscoreSource) {
+    return;
+  }
+  if (!liveHighscoresLoaded) {
+    highscoreSource.textContent = "The local hiscores export could not be loaded. Start the game and serve the docs folder over HTTP.";
+    return;
+  }
+  const timestamp = generatedAt ? new Date(generatedAt).toLocaleString() : "unknown";
+  const source = highscoreDataSource === "live"
+    ? `Connected live to ${connectedFileName}`
+    : highscoreDataSource === "manual"
+      ? `Loaded once from ${connectedFileName}`
+      : "Showing the bundled snapshot";
+  highscoreSource.textContent = `${source}. ${savedCharacters().length} saved characters and ${worldBots().length} world bots. Last updated: ${timestamp}.`;
+}
+
+function updatePopulationFromHighscores() {
+  const online = worldBots().filter((player) => player.status.toLowerCase() === "online");
+  if (onlineBotCount) onlineBotCount.textContent = online.length;
+  if (skillerOnline) skillerOnline.textContent = online.filter((player) => player.role === "Skiller").length;
+  if (fighterOnline) fighterOnline.textContent = online.filter((player) => player.role === "Monster hunter").length;
+  if (wildOnline) wildOnline.textContent = online.filter((player) => player.role === "PKer").length;
+}
+
+function replaceList(list, values, fallback) {
+  if (!list) return;
+  const lines = values.length ? values : [fallback];
+  list.replaceChildren(...lines.map((line) => {
+    const item = document.createElement("li");
+    item.textContent = line;
+    return item;
+  }));
+}
+
+function updateWorldPanels(activity, market, groups) {
+  const activityFallback = worldBots().slice(0, 5).map((player) => `${player.name} is ${player.goal} (${player.status})`);
+  replaceList(worldActivityList, Array.isArray(activity) ? activity.slice(0, 8).map(String) : activityFallback, "No recent world activity.");
+  const summary = market || {};
+  if (marketCoins) marketCoins.textContent = formatNumber(summary.coinsInBotInventories);
+  if (marketTrades) marketTrades.textContent = formatNumber(summary.botTrades);
+  if (marketGroups) marketGroups.textContent = formatNumber(summary.groupTrips);
+  if (marketKills) marketKills.textContent = formatNumber(summary.assistedKills);
+  const groupLines = Array.isArray(groups) ? groups.slice(0, 6).map((group) =>
+    `${group.leader || "Unknown"} leading ${number(group.size)} for ${group.goal || "a group trip"} at ${group.area || "the world"}`) : [];
+  replaceList(activeGroupsList, groupLines, "No bot groups formed yet.");
+}
+
+function applyExport(data, source = "bundled", fileName = "") {
+  if (!data || !Array.isArray(data.players)) {
+    throw new Error("This is not a Single-RSC highscore export.");
+  }
+  highscorePlayers = Array.isArray(data.players) ? data.players.map(playerFromExport) : [];
+  generatedAt = number(data.generatedAt);
+  if (Array.isArray(data.activePlayers)) {
+    const active = new Set(data.activePlayers.map((name) => String(name).trim().toLowerCase()));
+    highscorePlayers.forEach((player) => {
+      if (player.type !== "World bot") {
+        player.status = active.has(player.name.trim().toLowerCase()) ? "Online" : "Offline";
+      }
+    });
+  }
+  highscoreDataSource = source;
+  connectedFileName = fileName;
+  liveHighscoresLoaded = true;
+  renderHighscoreBoard();
+  updateHighscoreSource();
+  updatePopulationFromHighscores();
+  updateWorldPanels(data.activity, data.market, data.groups);
+  if (selectedPlayerName) {
+    const selected = findCharacter(selectedPlayerName);
+    if (selected) showProfile(selected);
+  }
+  const linkedPlayer = new URLSearchParams(window.location.hash.split("?")[1] || "").get("player");
+  if (linkedPlayer && !selectedPlayerName && highscoreSearch) {
+    highscoreSearch.value = linkedPlayer;
+    runLookup(false);
+  }
+}
+
+function loadBundledHighscores() {
+  fetch("highscores.json", { cache: "no-store" })
+    .then((response) => {
+      if (!response.ok) throw new Error(`Hiscores export returned ${response.status}`);
+      return response.json();
+    })
+    .then((data) => applyExport(data, "bundled"))
+    .catch(() => {
+      if (!liveHighscoresLoaded) {
+        updateHighscoreSource();
+        updatePopulationFromHighscores();
+        updateWorldPanels([], {}, []);
+      }
+    });
+}
+
+const FILE_HANDLE_DB = "single-rsc-highscores";
+const FILE_HANDLE_STORE = "handles";
+
+function openHandleDatabase() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(FILE_HANDLE_DB, 1);
+    request.onupgradeneeded = () => request.result.createObjectStore(FILE_HANDLE_STORE);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function storedFileHandle() {
+  const database = await openHandleDatabase();
+  return new Promise((resolve, reject) => {
+    const request = database.transaction(FILE_HANDLE_STORE, "readonly")
+      .objectStore(FILE_HANDLE_STORE).get("live-export");
+    request.onsuccess = () => resolve(request.result || null);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function rememberFileHandle(handle) {
+  const database = await openHandleDatabase();
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction(FILE_HANDLE_STORE, "readwrite");
+    transaction.objectStore(FILE_HANDLE_STORE).put(handle, "live-export");
+    transaction.oncomplete = resolve;
+    transaction.onerror = () => reject(transaction.error);
+  });
+}
+
+async function readLiveFile(handle) {
+  const file = await handle.getFile();
+  const data = JSON.parse(await file.text());
+  applyExport(data, "live", file.name);
+  if (connectHighscores) connectHighscores.textContent = "Live highscores connected";
+}
+
+async function connectLiveFile() {
+  try {
+    let handle = liveFileHandle;
+    if (handle) {
+      const permission = await handle.queryPermission({ mode: "read" });
+      if (permission !== "granted" && await handle.requestPermission({ mode: "read" }) !== "granted") {
+        return;
+      }
+    } else if (window.showOpenFilePicker) {
+      [handle] = await window.showOpenFilePicker({
+        multiple: false,
+        types: [{ description: "Single-RSC highscore export", accept: { "application/json": [".json"] } }],
+      });
+    } else {
+      highscoreFileInput.click();
+      return;
+    }
+    liveFileHandle = handle;
+    await rememberFileHandle(handle);
+    await readLiveFile(handle);
+  } catch (error) {
+    if (error && error.name !== "AbortError") {
+      highscoreSource.textContent = `Could not connect the export: ${error.message}`;
+    }
+  }
+}
+
+async function restoreLiveFile() {
+  try {
+    if (!window.showOpenFilePicker) return false;
+    const handle = await storedFileHandle();
+    if (!handle) return false;
+    liveFileHandle = handle;
+    if (await handle.queryPermission({ mode: "read" }) === "granted") {
+      await readLiveFile(handle);
+      return true;
+    }
+    if (connectHighscores) connectHighscores.textContent = "Reconnect live highscores";
+  } catch (ignored) {
+  }
+  return false;
+}
+
+async function initializeHighscores() {
+  if (!await restoreLiveFile()) {
+    loadBundledHighscores();
+  }
+}
+
+async function refreshHighscores() {
+  if (liveFileHandle) {
+    try {
+      if (await liveFileHandle.queryPermission({ mode: "read" }) === "granted") {
+        await readLiveFile(liveFileHandle);
+        return;
+      }
+    } catch (ignored) {
+    }
+  }
+  if (highscoreDataSource === "bundled") loadBundledHighscores();
+}
+
+if (highscoreCategory) {
+  highscoreCategory.replaceChildren(...CATEGORIES.map((category) => {
+    const option = document.createElement("option");
+    option.value = category;
+    option.textContent = category;
+    return option;
+  }));
+  highscoreCategory.addEventListener("change", renderHighscoreBoard);
 }
 
 if (highscoreSearch) {
   highscoreSearch.addEventListener("input", () => {
-    const query = highscoreSearch.value.trim().toLowerCase();
-    applyHighscoreFilters();
-    if (!query) {
+    highscoreEmpty.classList.add("is-hidden");
+    if (!highscoreSearch.value.trim()) {
+      selectedPlayerName = null;
       highscoreProfile.classList.add("is-hidden");
-      highscoreEmpty.classList.add("is-hidden");
     }
   });
-
   highscoreSearch.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") {
-      runLookup();
+    if (event.key === "Enter") runLookup();
+  });
+}
+if (highscoreLookup) highscoreLookup.addEventListener("click", () => runLookup());
+if (connectHighscores) connectHighscores.addEventListener("click", connectLiveFile);
+if (chooseHighscores) chooseHighscores.addEventListener("click", () => highscoreFileInput.click());
+if (highscoreFileInput) {
+  highscoreFileInput.addEventListener("change", async () => {
+    const file = highscoreFileInput.files && highscoreFileInput.files[0];
+    if (!file) return;
+    try {
+      applyExport(JSON.parse(await file.text()), "manual", file.name);
+    } catch (error) {
+      highscoreSource.textContent = `Could not read that export: ${error.message}`;
+    } finally {
+      highscoreFileInput.value = "";
     }
   });
 }
-
-if (highscoreLookup) {
-  highscoreLookup.addEventListener("click", () => runLookup(true));
-}
-
-function bindHighscoreRows() {
-  highscoreRows.forEach((row, index) => {
-    row.addEventListener("click", () => {
-      highscoreSearch.value = highscorePlayers[index].name;
-      showProfile(highscorePlayers[index]);
-    });
-  });
-}
-
-bindHighscoreRows();
-applyHighscoreFilters();
-updateHighscoreSource();
-updatePopulationFromHighscores();
-updateWorldActivity();
-updateMarketSummary();
-updateActiveGroups();
-
-highscoreFilterButtons.forEach((button) => {
-  button.addEventListener("click", () => {
-    currentHighscoreFilter = button.dataset.highscoreFilter || "players";
-    highscoreFilterButtons.forEach((other) => {
-      other.classList.toggle("is-active", other === button);
-    });
-    applyHighscoreFilters();
-  });
+window.addEventListener("hashchange", () => {
+  const player = new URLSearchParams(window.location.hash.split("?")[1] || "").get("player");
+  if (player && highscoreSearch) {
+    highscoreSearch.value = player;
+    runLookup(false);
+  }
 });
 
-const initialPlayer = new URLSearchParams(window.location.hash.split("?")[1] || "").get("player");
-if (initialPlayer && highscoreSearch) {
-  highscoreSearch.value = initialPlayer;
-  runLookup(false);
-}
-
-loadLiveHighscores();
-setInterval(loadLiveHighscores, 30000);
+renderHighscoreBoard();
+initializeHighscores();
+setInterval(refreshHighscores, 30000);

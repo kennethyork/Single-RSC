@@ -18,6 +18,7 @@ import org.nemotech.rsc.event.DelayedEvent;
 import org.nemotech.rsc.model.GrandExchange;
 import org.nemotech.rsc.model.Item;
 import org.nemotech.rsc.model.Mob;
+import org.nemotech.rsc.model.MenuHandler;
 import org.nemotech.rsc.model.NPC;
 import org.nemotech.rsc.model.Point;
 import org.nemotech.rsc.model.World;
@@ -25,6 +26,7 @@ import org.nemotech.rsc.model.landscape.Path;
 import org.nemotech.rsc.model.player.InvItem;
 import org.nemotech.rsc.model.player.Player;
 import org.nemotech.rsc.io.HighscoresExporter;
+import org.nemotech.rsc.util.Formulae;
 
 public final class WorldBotManager {
 
@@ -35,6 +37,28 @@ public final class WorldBotManager {
     private static final int COINS = 10;
     private static final int DEFAULT_BOT_COUNT = 200;
     private static final int DEFAULT_MAX_BOT_COUNT = 200;
+    private static final String[] SKILL_NAMES = {
+            "Attack", "Defense", "Strength", "Hits", "Ranged", "Prayer", "Magic", "Cooking", "Woodcutting",
+            "Fletching", "Fishing", "Firemaking", "Crafting", "Smithing", "Mining", "Herblaw", "Agility", "Thieving"
+    };
+    private static final int ATTACK = 0;
+    private static final int DEFENSE = 1;
+    private static final int STRENGTH = 2;
+    private static final int HITS = 3;
+    private static final int RANGED = 4;
+    private static final int PRAYER = 5;
+    private static final int MAGIC = 6;
+    private static final int COOKING = 7;
+    private static final int WOODCUTTING = 8;
+    private static final int FLETCHING = 9;
+    private static final int FISHING = 10;
+    private static final int FIREMAKING = 11;
+    private static final int CRAFTING = 12;
+    private static final int SMITHING = 13;
+    private static final int MINING = 14;
+    private static final int HERBLAW = 15;
+    private static final int AGILITY = 16;
+    private static final int THIEVING = 17;
     private static final long MINUTE_MS = 60 * 1000L;
     private static final String CONFIG_FILE = Constants.CACHE_DIRECTORY + "worldbots.properties";
     private static final String STATE_FILE = Constants.CACHE_DIRECTORY + "worldbots_state.properties";
@@ -389,26 +413,68 @@ public final class WorldBotManager {
         String needle = query.toLowerCase();
         for (WorldBot bot : bots) {
             if (bot.name.toLowerCase().contains(needle)) {
-                return bot.name
-                        + "\nrole=" + bot.role.label
-                        + "\nclan=" + bot.personality.clan
-                        + "\nrival=" + bot.personality.rivalClan
-                        + "\nlevel=" + bot.level
-                        + "\nxp_rate=" + bot.xpRate + "x"
-                        + "\nxp=" + bot.xp
-                        + "\neffective_xp=" + bot.effectiveXp()
-                        + "\ngoal=" + bot.goal.label
-                        + "\nactivity=" + bot.activity
-                        + "\ncoins=" + bot.coins()
-                        + "\ntrades=" + bot.trades
-                        + "\nmarket_volume=" + bot.marketVolume
-                        + "\nfights=" + bot.fights
-                        + "\nkills=" + bot.kills
-                        + "\ndeaths=" + bot.deaths
-                        + "\nscore=" + bot.score();
+                return bot.profileReport();
             }
         }
         return "No world bot found matching: " + query;
+    }
+
+    public synchronized String setBotSkillGoal(String query, String skillName, int targetLevel) {
+        WorldBot bot = findBotByName(query);
+        if (bot == null) return "No world bot found matching: " + query;
+        int skill = skillIndex(skillName);
+        if (skill < 0) return "Unknown RSC skill: " + skillName;
+        if (targetLevel < 1 || targetLevel > 99) return "Target level must be between 1 and 99.";
+        int safeLevel = Math.max(1, Math.min(99, targetLevel));
+        bot.directedSkill = skill;
+        bot.directedLevel = safeLevel;
+        bot.activity = "assigned " + SKILL_NAMES[skill] + " level " + safeLevel;
+        bot.say("new goal: " + SKILL_NAMES[skill] + " " + safeLevel);
+        recordActivity(bot.name + " was assigned a " + SKILL_NAMES[skill] + " level " + safeLevel + " goal");
+        return bot.name + " will train " + SKILL_NAMES[skill] + " from " + bot.skillLevel(skill) + " to " + safeLevel + ".";
+    }
+
+    public synchronized String clearBotGoal(String query) {
+        WorldBot bot = findBotByName(query);
+        if (bot == null) return "No world bot found matching: " + query;
+        bot.directedSkill = -1;
+        bot.directedLevel = 0;
+        return "Cleared " + bot.name + "'s directed skill goal.";
+    }
+
+    public synchronized String visitBot(Player player, String query) {
+        WorldBot bot = findBotByName(query);
+        if (bot == null || !bot.active || !bot.online || bot.npc == null || bot.npc.isRemoved()) {
+            return "No online world bot found matching: " + query;
+        }
+        player.teleport(bot.npc.getX(), bot.npc.getY(), true);
+        return "Travelled to " + bot.name + " at " + bot.area.name + ".";
+    }
+
+    private WorldBot findBotByName(String query) {
+        if (query == null || query.trim().isEmpty()) return null;
+        String needle = query.trim().toLowerCase();
+        for (WorldBot bot : bots) {
+            if (bot.name.equalsIgnoreCase(needle)) return bot;
+        }
+        for (WorldBot bot : bots) {
+            if (bot.name.toLowerCase().contains(needle)) return bot;
+        }
+        return null;
+    }
+
+    private int skillIndex(String name) {
+        if (name == null) return -1;
+        String normalized = name.trim().toLowerCase();
+        for (int i = 0; i < SKILL_NAMES.length; i++) {
+            if (SKILL_NAMES[i].toLowerCase().equals(normalized)) return i;
+        }
+        if (normalized.equals("defence")) return DEFENSE;
+        if (normalized.equals("hp") || normalized.equals("hitpoints")) return HITS;
+        if (normalized.equals("woodcut") || normalized.equals("wc")) return WOODCUTTING;
+        if (normalized.equals("range")) return RANGED;
+        if (normalized.equals("herblore")) return HERBLAW;
+        return -1;
     }
 
     public synchronized String getConfigReport() {
@@ -485,7 +551,8 @@ public final class WorldBotManager {
             player.getSender().sendMessage("@cya@[WorldBots] @red@No trading bot nearby.");
             return false;
         }
-        return nearest.tradeWith(player);
+        openMarketplace(player, nearest);
+        return true;
     }
 
     public synchronized boolean tradeWithNamedBot(Player player, String query) {
@@ -509,7 +576,8 @@ public final class WorldBotManager {
             player.getSender().sendMessage("@cya@[WorldBots] @red@" + match.name + " is too far away to trade.");
             return false;
         }
-        return match.tradeWith(player);
+        openMarketplace(player, match);
+        return true;
     }
 
     public synchronized boolean tradeWithGroupedBot(Player player) {
@@ -529,7 +597,8 @@ public final class WorldBotManager {
             player.getSender().sendMessage("@cya@[WorldBots] @red@No grouped trading bot nearby.");
             return false;
         }
-        return nearest.tradeWith(player);
+        openMarketplace(player, nearest);
+        return true;
     }
 
     public synchronized boolean tradeWithBotNpc(Player player, NPC npc) {
@@ -541,8 +610,167 @@ public final class WorldBotManager {
             player.getSender().sendMessage("@cya@[WorldBots] @whi@" + bot.name + " has nothing useful to sell.");
             return true;
         }
-        bot.tradeWith(player);
+        openMarketplace(player, bot);
         return true;
+    }
+
+    private void openMarketplace(final Player player, final WorldBot bot) {
+        String[] options = { "Buy from " + bot.name, "Sell to " + bot.name, "Inspect " + bot.name, "Cancel" };
+        player.setMenuHandler(new MenuHandler(options) {
+            @Override
+            public void handleReply(int option, String reply) {
+                owner.resetMenuHandler();
+                synchronized (WorldBotManager.this) {
+                    if (!bot.canTrade() || !bot.npc.getLocation().withinRange(owner.getLocation(), 12)) {
+                        owner.getSender().sendMessage("@cya@[Marketplace] @red@" + bot.name + " is no longer available.");
+                        return;
+                    }
+                    if (option == 0) showBotSellOffers(owner, bot);
+                    else if (option == 1) showPlayerSellOffers(owner, bot);
+                    else if (option == 2) showBotInspection(owner, bot);
+                }
+            }
+        });
+        player.getSender().sendMenu(options);
+    }
+
+    private void showBotSellOffers(final Player player, final WorldBot bot) {
+        final List<Integer> itemIds = new ArrayList<>();
+        final List<String> labels = new ArrayList<>();
+        for (Map.Entry<Integer, Integer> entry : bot.inventory.entrySet()) {
+            if (entry.getKey() == COINS || entry.getValue() < 1) continue;
+            itemIds.add(entry.getKey());
+            labels.add(itemName(entry.getKey()) + " x" + entry.getValue() + " (" + GrandExchange.buyPrice(entry.getKey(), 1) + "gp ea)");
+            if (itemIds.size() >= 8) break;
+        }
+        if (itemIds.isEmpty()) {
+            player.getSender().sendMessage("@cya@[Marketplace] @whi@" + bot.name + " has nothing to sell.");
+            return;
+        }
+        labels.add("Cancel");
+        String[] options = labels.toArray(new String[0]);
+        player.setMenuHandler(new MenuHandler(options) {
+            @Override
+            public void handleReply(int option, String reply) {
+                owner.resetMenuHandler();
+                if (option >= 0 && option < itemIds.size()) showBotQuantityMenu(owner, bot, itemIds.get(option));
+            }
+        });
+        player.getSender().sendMenu(options);
+    }
+
+    private void showBotQuantityMenu(final Player player, final WorldBot bot, final int itemId) {
+        String[] options = { "One", "Five", "Ten", "All", "Cancel" };
+        player.setMenuHandler(new MenuHandler(options) {
+            @Override
+            public void handleReply(int option, String reply) {
+                owner.resetMenuHandler();
+                int available = bot.inventory.getOrDefault(itemId, 0);
+                int[] amounts = { 1, 5, 10, available };
+                if (option >= 0 && option < amounts.length) buyFromBot(owner, bot, itemId, Math.min(available, amounts[option]));
+            }
+        });
+        player.getSender().sendMenu(options);
+    }
+
+    private void buyFromBot(Player player, WorldBot bot, int itemId, int amount) {
+        if (amount < 1 || bot.inventory.getOrDefault(itemId, 0) < amount) {
+            player.getSender().sendMessage("@cya@[Marketplace] @red@That offer is no longer available.");
+            return;
+        }
+        int price = GrandExchange.buyPrice(itemId, amount);
+        InvItem item = new InvItem(itemId, amount);
+        if (player.getInventory().countId(COINS) < price || !player.getInventory().canHold(item)) {
+            player.getSender().sendMessage("@cya@[Marketplace] @red@You need " + price + " coins and enough inventory space.");
+            return;
+        }
+        player.getInventory().remove(COINS, price);
+        player.getInventory().add(item);
+        player.getSender().sendInventory();
+        bot.removeInventory(itemId, amount);
+        bot.addInventory(COINS, price);
+        bot.trades++;
+        bot.playerTrades++;
+        bot.playerReputation++;
+        bot.marketVolume += price;
+        bot.say("thanks for buying");
+        recordActivity(player.getUsername() + " bought " + amount + " " + itemName(itemId) + " from " + bot.name);
+        player.getSender().sendMessage("@cya@[Marketplace] @whi@Bought " + amount + " " + itemName(itemId) + " for " + price + " coins.");
+    }
+
+    private void showPlayerSellOffers(final Player player, final WorldBot bot) {
+        final List<Integer> itemIds = new ArrayList<>();
+        final List<String> labels = new ArrayList<>();
+        for (InvItem item : player.getInventory().getItems()) {
+            int itemId = item.getID();
+            if (itemId == COINS || GrandExchange.sellPrice(itemId, 1) < 1 || itemIds.contains(itemId)) continue;
+            int amount = player.getInventory().countId(itemId);
+            itemIds.add(itemId);
+            labels.add(itemName(itemId) + " x" + amount + " (" + GrandExchange.sellPrice(itemId, 1) + "gp ea)");
+            if (itemIds.size() >= 8) break;
+        }
+        if (itemIds.isEmpty()) {
+            player.getSender().sendMessage("@cya@[Marketplace] @whi@You have nothing " + bot.name + " will buy.");
+            return;
+        }
+        labels.add("Cancel");
+        String[] options = labels.toArray(new String[0]);
+        player.setMenuHandler(new MenuHandler(options) {
+            @Override
+            public void handleReply(int option, String reply) {
+                owner.resetMenuHandler();
+                if (option >= 0 && option < itemIds.size()) showPlayerQuantityMenu(owner, bot, itemIds.get(option));
+            }
+        });
+        player.getSender().sendMenu(options);
+    }
+
+    private void showPlayerQuantityMenu(final Player player, final WorldBot bot, final int itemId) {
+        String[] options = { "One", "Five", "Ten", "All", "Cancel" };
+        player.setMenuHandler(new MenuHandler(options) {
+            @Override
+            public void handleReply(int option, String reply) {
+                owner.resetMenuHandler();
+                int available = owner.getInventory().countId(itemId);
+                int[] amounts = { 1, 5, 10, available };
+                if (option >= 0 && option < amounts.length) sellToBot(owner, bot, itemId, Math.min(available, amounts[option]));
+            }
+        });
+        player.getSender().sendMenu(options);
+    }
+
+    private void sellToBot(Player player, WorldBot bot, int itemId, int amount) {
+        int price = GrandExchange.sellPrice(itemId, amount);
+        if (amount < 1 || player.getInventory().countId(itemId) < amount || price < 1 || bot.coins() < price) {
+            player.getSender().sendMessage("@cya@[Marketplace] @red@That trade cannot be completed.");
+            return;
+        }
+        if (bot.inventory.getOrDefault(COINS, 0) < price) {
+            int needed = price - bot.inventory.getOrDefault(COINS, 0);
+            if (!bot.removeFromBank(COINS, needed)) {
+                player.getSender().sendMessage("@cya@[Marketplace] @red@" + bot.name + " cannot afford that quantity.");
+                return;
+            }
+            bot.addInventory(COINS, needed);
+        }
+        if (player.getInventory().remove(itemId, amount) < 0) return;
+        player.getInventory().add(new InvItem(COINS, price));
+        player.getSender().sendInventory();
+        bot.removeInventory(COINS, price);
+        bot.addInventory(itemId, amount);
+        bot.trades++;
+        bot.playerTrades++;
+        bot.playerReputation++;
+        bot.marketVolume += price;
+        bot.say("good deal");
+        recordActivity(player.getUsername() + " sold " + amount + " " + itemName(itemId) + " to " + bot.name);
+        player.getSender().sendMessage("@cya@[Marketplace] @whi@Sold " + amount + " " + itemName(itemId) + " for " + price + " coins.");
+    }
+
+    private void showBotInspection(Player player, WorldBot bot) {
+        for (String line : bot.profileReport().split("\n")) {
+            player.getSender().sendMessage("@cya@[Inspect] @whi@" + line);
+        }
     }
 
     public synchronized List<Snapshot> getSnapshotsNear(Point point, int radius) {
@@ -818,17 +1046,21 @@ public final class WorldBotManager {
                 bot.playerKills = parseInt(properties.getProperty(prefix + "player_kills"), bot.playerKills);
                 bot.online = Boolean.parseBoolean(properties.getProperty(prefix + "online", String.valueOf(bot.online)));
                 bot.goal = Goal.fromName(properties.getProperty(prefix + "goal"), bot.goal);
-                bot.inventory.clear();
-                String inventory = properties.getProperty(prefix + "inventory", "");
-                if (!inventory.isEmpty()) {
-                    for (String pair : inventory.split(",")) {
-                        String[] parts = pair.split(":");
-                        if (parts.length == 2) {
-                            bot.inventory.put(parseInt(parts[0], 0), parseInt(parts[1], 0));
-                        }
-                    }
+                String savedSkills = properties.getProperty(prefix + "skills", "");
+                if (savedSkills.isEmpty()) {
+                    bot.initializeSkills(bot.level);
+                } else {
+                    parseIntArray(savedSkills, bot.skillXp);
                 }
-                bot.npc.setCombatLevel(bot.level);
+                bot.playerReputation = parseInt(properties.getProperty(prefix + "player_reputation"), bot.playerReputation);
+                bot.directedSkill = parseInt(properties.getProperty(prefix + "directed_skill"), -1);
+                bot.directedLevel = parseInt(properties.getProperty(prefix + "directed_level"), 0);
+                bot.inventory.clear();
+                parseItemMap(properties.getProperty(prefix + "inventory", ""), bot.inventory);
+                bot.bank.clear();
+                parseItemMap(properties.getProperty(prefix + "bank", ""), bot.bank);
+                parseIntArray(properties.getProperty(prefix + "equipment", ""), bot.equipmentItems);
+                bot.refreshDerivedStats();
                 if (!bot.online && bot.npc != null && !bot.npc.isRemoved()) {
                     World.getWorld().unregisterNpc(bot.npc);
                 }
@@ -871,6 +1103,12 @@ public final class WorldBotManager {
             properties.setProperty(prefix + "online", String.valueOf(bot.online));
             properties.setProperty(prefix + "goal", bot.goal.name());
             properties.setProperty(prefix + "inventory", bot.inventoryString());
+            properties.setProperty(prefix + "bank", bot.bankString());
+            properties.setProperty(prefix + "skills", intArrayString(bot.skillXp));
+            properties.setProperty(prefix + "equipment", intArrayString(bot.equipmentItems));
+            properties.setProperty(prefix + "player_reputation", String.valueOf(bot.playerReputation));
+            properties.setProperty(prefix + "directed_skill", String.valueOf(bot.directedSkill));
+            properties.setProperty(prefix + "directed_level", String.valueOf(bot.directedLevel));
         }
         properties.setProperty("world.event", currentWorldEvent);
         int activityIndex = 0;
@@ -913,6 +1151,34 @@ public final class WorldBotManager {
         }
     }
 
+    private void parseItemMap(String value, Map<Integer, Integer> destination) {
+        if (value == null || value.trim().isEmpty()) return;
+        for (String pair : value.split(",")) {
+            String[] parts = pair.split(":");
+            if (parts.length != 2) continue;
+            int itemId = parseInt(parts[0], -1);
+            int amount = parseInt(parts[1], 0);
+            if (itemId >= 0 && amount > 0) destination.put(itemId, amount);
+        }
+    }
+
+    private void parseIntArray(String value, int[] destination) {
+        if (value == null || value.trim().isEmpty()) return;
+        String[] parts = value.split(",");
+        for (int i = 0; i < parts.length && i < destination.length; i++) {
+            destination[i] = Math.max(0, parseInt(parts[i], destination[i]));
+        }
+    }
+
+    private String intArrayString(int[] values) {
+        StringBuilder result = new StringBuilder();
+        for (int value : values) {
+            if (result.length() > 0) result.append(',');
+            result.append(value);
+        }
+        return result.toString();
+    }
+
     private void recordActivity(String line) {
         if (line == null || line.trim().isEmpty()) {
             return;
@@ -938,6 +1204,9 @@ public final class WorldBotManager {
         private int carriedItem;
         private String carriedItemName = "nothing";
         private final Map<Integer, Integer> inventory = new LinkedHashMap<>();
+        private final Map<Integer, Integer> bank = new LinkedHashMap<>();
+        private final int[] skillXp = new int[SKILL_NAMES.length];
+        private final int[] equipmentItems = new int[4];
         private long nextWorkAt;
         private String lastMessage;
         private int messageSequence;
@@ -955,6 +1224,7 @@ public final class WorldBotManager {
         private int groupTrips;
         private int playerTrades;
         private int playerKills;
+        private int playerReputation;
         private boolean online = true;
         private long nextSessionChangeAt;
         private String partyOwner;
@@ -963,6 +1233,8 @@ public final class WorldBotManager {
         private long nextAssistAt;
         private String activity;
         private Goal goal;
+        private int directedSkill = -1;
+        private int directedLevel;
 
         private WorldBot(int index, Role role, NPC npc, BotArea area, Personality personality) {
             this.name = personality.name;
@@ -979,11 +1251,51 @@ public final class WorldBotManager {
             chooseCarriedItem(index);
             level = personality.startLevel;
             xpRate = xpRateFor(index, role);
+            initializeSkills(level);
+            initializeEquipment();
             addInventory(COINS, 500 + (level * 25) + random.nextInt(1500));
-            npc.setCombatLevel(level);
+            refreshDerivedStats();
             goal = Goal.forRole(role);
             activity = "starting in " + area.name;
             scheduleLogout();
+        }
+
+        private void initializeSkills(int startingLevel) {
+            skillXp[HITS] = Formulae.lvlToXp(10);
+            if (role == Role.GATHERER) {
+                int gatheringLevel = Math.max(1, startingLevel);
+                skillXp[WOODCUTTING] = Formulae.lvlToXp(gatheringLevel);
+                skillXp[FISHING] = Formulae.lvlToXp(Math.max(1, gatheringLevel - 2));
+                skillXp[MINING] = Formulae.lvlToXp(Math.max(1, gatheringLevel - 1));
+                skillXp[COOKING] = Formulae.lvlToXp(Math.max(1, gatheringLevel - 3));
+            } else {
+                int combat = Math.max(3, startingLevel);
+                skillXp[ATTACK] = Formulae.lvlToXp(Math.max(1, combat));
+                skillXp[DEFENSE] = Formulae.lvlToXp(Math.max(1, combat - 2));
+                skillXp[STRENGTH] = Formulae.lvlToXp(Math.max(1, combat + 1));
+                skillXp[HITS] = Formulae.lvlToXp(Math.max(10, combat));
+                skillXp[PRAYER] = Formulae.lvlToXp(Math.max(1, combat / 3));
+                if (role == Role.WILDERNESS) {
+                    skillXp[RANGED] = Formulae.lvlToXp(Math.max(1, combat - 4));
+                    skillXp[MAGIC] = Formulae.lvlToXp(Math.max(1, combat - 5));
+                }
+            }
+        }
+
+        private void initializeEquipment() {
+            if (role == Role.WILDERNESS) {
+                equipmentItems[0] = level >= 60 ? 93 : level >= 40 ? 92 : 90;
+                equipmentItems[1] = level >= 60 ? 401 : level >= 40 ? 120 : 118;
+                equipmentItems[2] = level >= 60 ? 402 : level >= 40 ? 123 : 121;
+                equipmentItems[3] = level >= 60 ? 404 : level >= 40 ? 131 : 129;
+            } else if (role == Role.FIGHTER) {
+                equipmentItems[0] = level >= 35 ? 91 : 89;
+                equipmentItems[1] = level >= 35 ? 119 : 8;
+                equipmentItems[2] = level >= 35 ? 122 : 9;
+                equipmentItems[3] = level >= 35 ? 130 : 2;
+            } else {
+                equipmentItems[0] = level >= 40 ? 203 : level >= 20 ? 88 : 12;
+            }
         }
 
         private void tick() {
@@ -1209,7 +1521,7 @@ public final class WorldBotManager {
             target.setHits(target.getHits() - damage);
             player.informOfModifiedHits(target);
             fights++;
-            gainXp(1);
+            trainCombat(12 + damage * 3);
             if (random.nextInt(5) == 0) {
                 say(partyMode.combatLine);
             }
@@ -1232,27 +1544,69 @@ public final class WorldBotManager {
         }
 
         private void work() {
+            if (directedSkill >= 0 && skillLevel(directedSkill) >= directedLevel) {
+                say(SKILL_NAMES[directedSkill] + " goal complete");
+                WorldBotManager.this.recordActivity(name + " reached level " + directedLevel + " " + SKILL_NAMES[directedSkill]);
+                directedSkill = -1;
+                directedLevel = 0;
+            }
+            if (directedSkill >= 0) {
+                workDirectedSkill();
+                return;
+            }
             if (role == Role.GATHERER) {
                 addInventory(carriedItem, 1 + random.nextInt(4));
-                gainXp(2);
+                gainSkillXp(skillForItem(carriedItem), 18 + random.nextInt(18));
                 activity = "collecting " + carriedItemName + " in " + area.name;
                 if (random.nextInt(20) == 0) {
                     say("banking " + carriedItemName + " soon");
                 }
             } else if (role == Role.FIGHTER) {
                 addInventory(carriedItem, 1 + random.nextInt(3));
-                gainXp(4);
+                trainCombat(28 + random.nextInt(30));
                 activity = "hunting drops in " + area.name;
                 if (random.nextInt(4) == 0) {
                     addInventory(COINS, 5 + random.nextInt(60));
                 }
             } else {
                 addInventory(carriedItem, 1 + random.nextInt(2));
-                gainXp(6);
+                trainCombat(38 + random.nextInt(38));
                 activity = "patrolling " + area.name;
                 if (random.nextInt(3) == 0) {
                     addInventory(COINS, 25 + random.nextInt(150));
                 }
+            }
+            if (random.nextInt(5) == 0) {
+                processProduction();
+            }
+        }
+
+        private void workDirectedSkill() {
+            int itemId = productForSkill(directedSkill);
+            if (itemId >= 0) {
+                addInventory(itemId, 1 + random.nextInt(3));
+                carriedItem = itemId;
+                carriedItemName = itemName(itemId);
+            }
+            gainSkillXp(directedSkill, 28 + random.nextInt(35));
+            activity = "training " + SKILL_NAMES[directedSkill] + " for level " + directedLevel;
+            if (random.nextInt(12) == 0) {
+                say(SKILL_NAMES[directedSkill] + " goal " + skillLevel(directedSkill) + "/" + directedLevel);
+            }
+        }
+
+        private void trainCombat(int amount) {
+            int style;
+            if (role == Role.WILDERNESS && random.nextInt(4) == 0) {
+                style = random.nextBoolean() ? RANGED : MAGIC;
+            } else {
+                int[] melee = { ATTACK, DEFENSE, STRENGTH };
+                style = melee[random.nextInt(melee.length)];
+            }
+            gainSkillXp(style, amount);
+            gainSkillXp(HITS, Math.max(1, amount / 3));
+            if (random.nextInt(8) == 0) {
+                gainSkillXp(PRAYER, Math.max(1, amount / 5));
             }
         }
 
@@ -1306,13 +1660,28 @@ public final class WorldBotManager {
 
         private void chooseCarriedItem(int index) {
             if (role == Role.GATHERER) {
-                int[] items = { 14, 150, 151, 155, 349, 372, 632, 633 };
+                int[] items = {
+                        14, 632, 633, 634, 635, 636,
+                        150, 202, 151, 155, 383, 152, 153, 154, 409,
+                        349, 351, 358, 356, 366, 372, 369, 545,
+                        147, 675, 381
+                };
                 carriedItem = items[index % items.length];
             } else if (role == Role.FIGHTER) {
-                int[] items = { 20, 413, 31, 38 };
+                int[] items = {
+                        20, 413, 604, 814, 147,
+                        31, 32, 33, 34, 35, 36, 38, 40, 41, 42, 46, 619,
+                        157, 158, 159, 160,
+                        66, 1, 67, 68, 117, 8, 118, 128, 2, 129
+                };
                 carriedItem = items[index % items.length];
             } else {
-                int[] items = { 10, 31, 33, 40, 412 };
+                int[] items = {
+                        31, 33, 38, 40, 41, 42, 619,
+                        11, 638, 640, 642, 644, 646,
+                        359, 357, 367, 373, 370, 546,
+                        89, 90, 91, 92, 93, 81
+                };
                 carriedItem = items[index % items.length];
             }
             carriedItemName = itemName(carriedItem);
@@ -1390,7 +1759,36 @@ public final class WorldBotManager {
         }
 
         private boolean canTrade() {
-            return active && online && npc != null && !npc.isRemoved() && !inventory.isEmpty();
+            return active && online && npc != null && !npc.isRemoved() && (!inventory.isEmpty() || !bank.isEmpty());
+        }
+
+        private String profileReport() {
+            StringBuilder report = new StringBuilder(name)
+                    .append(" - ").append(personality.title).append(" [").append(personality.clan).append("]")
+                    .append("\nCombat ").append(level).append(" | Total ").append(totalLevel()).append(" | XP ").append(totalXp())
+                    .append("\nGoal: ").append(directedSkill >= 0
+                            ? SKILL_NAMES[directedSkill] + " " + skillLevel(directedSkill) + "/" + directedLevel
+                            : goal.label)
+                    .append(" | ").append(activity)
+                    .append("\nCoins: ").append(coins()).append(" | Bank value: ").append(bankValue())
+                    .append(" | Trades: ").append(trades).append(" | Reputation: ").append(playerReputation)
+                    .append("\nEquipment: ");
+            boolean hasEquipment = false;
+            for (int itemId : equipmentItems) {
+                if (itemId <= 0) continue;
+                if (hasEquipment) report.append(", ");
+                report.append(itemName(itemId));
+                hasEquipment = true;
+            }
+            if (!hasEquipment) report.append("none");
+            for (int i = 0; i < SKILL_NAMES.length; i += 6) {
+                report.append('\n');
+                for (int j = i; j < i + 6 && j < SKILL_NAMES.length; j++) {
+                    if (j > i) report.append(" | ");
+                    report.append(SKILL_NAMES[j]).append(' ').append(skillLevel(j));
+                }
+            }
+            return report.toString();
         }
 
         private Snapshot snapshot() {
@@ -1449,8 +1847,16 @@ public final class WorldBotManager {
         }
 
         private String inventoryString() {
+            return itemMapString(inventory);
+        }
+
+        private String bankString() {
+            return itemMapString(bank);
+        }
+
+        private String itemMapString(Map<Integer, Integer> items) {
             StringBuilder builder = new StringBuilder();
-            for (Map.Entry<Integer, Integer> entry : inventory.entrySet()) {
+            for (Map.Entry<Integer, Integer> entry : items.entrySet()) {
                 if (builder.length() > 0) {
                     builder.append(",");
                 }
@@ -1466,13 +1872,16 @@ public final class WorldBotManager {
                 if (entry.getKey() == COINS) {
                     continue;
                 }
-                int paid = GrandExchange.sellSystem(entry.getKey(), entry.getValue());
+                int saved = Math.max(1, entry.getValue() / 4);
+                int offered = entry.getValue() - saved;
+                addToBank(entry.getKey(), saved);
+                int paid = offered > 0 ? GrandExchange.sellSystem(entry.getKey(), offered) : 0;
                 if (paid > 0) {
-                    deposited += entry.getValue();
+                    deposited += offered;
                     coins += paid;
                     marketVolume += paid;
-                    inventory.remove(entry.getKey());
                 }
+                inventory.remove(entry.getKey());
             }
             if (coins > 0) {
                 addInventory(COINS, coins);
@@ -1480,11 +1889,34 @@ public final class WorldBotManager {
             }
             itemsBanked += deposited;
             activity = "selling " + deposited + " items for " + coins + " coins";
+            processProduction();
             return deposited;
         }
 
+        private void addToBank(int itemId, int amount) {
+            if (amount > 0) {
+                bank.put(itemId, bank.getOrDefault(itemId, 0) + amount);
+            }
+        }
+
+        private boolean removeFromBank(int itemId, int amount) {
+            int current = bank.getOrDefault(itemId, 0);
+            if (amount < 1 || current < amount) return false;
+            if (current == amount) bank.remove(itemId);
+            else bank.put(itemId, current - amount);
+            return true;
+        }
+
+        private int bankValue() {
+            long value = 0;
+            for (Map.Entry<Integer, Integer> entry : bank.entrySet()) {
+                value += (long) GrandExchange.sellPrice(entry.getKey(), 1) * entry.getValue();
+            }
+            return (int) Math.min(Integer.MAX_VALUE, value);
+        }
+
         private int coins() {
-            return inventory.getOrDefault(COINS, 0);
+            return inventory.getOrDefault(COINS, 0) + bank.getOrDefault(COINS, 0);
         }
 
         private int score() {
@@ -1503,14 +1935,114 @@ public final class WorldBotManager {
             World.getWorld().registerItem(new Item(COINS, npc.getX(), npc.getY(), 25 + random.nextInt(100), owner));
         }
 
-        private void gainXp(int amount) {
-            xp += amount * xpRate;
-            int newLevel = Math.min(99, 3 + (xp / 100));
-            if (newLevel > level) {
-                level = newLevel;
-                npc.setCombatLevel(level);
-                say("level " + level);
+        private void gainSkillXp(int skill, int amount) {
+            if (skill < 0 || skill >= skillXp.length || amount < 1) {
+                return;
             }
+            int oldLevel = skillLevel(skill);
+            long gained = (long) amount * xpRate;
+            skillXp[skill] = (int) Math.min(Integer.MAX_VALUE, skillXp[skill] + gained);
+            int newLevel = skillLevel(skill);
+            refreshDerivedStats();
+            if (newLevel > oldLevel) {
+                say(SKILL_NAMES[skill] + " level " + newLevel);
+            }
+        }
+
+        private int skillLevel(int skill) {
+            return Formulae.experienceToLevel(Math.max(0, skillXp[skill]));
+        }
+
+        private int totalLevel() {
+            int total = 0;
+            for (int i = 0; i < skillXp.length; i++) {
+                total += skillLevel(i);
+            }
+            return total;
+        }
+
+        private int totalXp() {
+            long total = 0;
+            for (int value : skillXp) {
+                total += Math.max(0, value);
+            }
+            return (int) Math.min(Integer.MAX_VALUE, total);
+        }
+
+        private void refreshDerivedStats() {
+            int[] levels = new int[SKILL_NAMES.length];
+            for (int i = 0; i < levels.length; i++) {
+                levels[i] = skillLevel(i);
+            }
+            int previous = level;
+            level = Math.max(3, Formulae.getCombatlevel(levels));
+            xp = totalXp();
+            if (npc != null) {
+                npc.setCombatLevel(level);
+            }
+            if (level > previous && previous > 0) {
+                say("combat level " + level);
+            }
+        }
+
+        private void processProduction() {
+            int[][] recipes = {
+                    { 349, 350, COOKING }, { 358, 359, COOKING }, { 356, 357, COOKING },
+                    { 366, 367, COOKING }, { 372, 373, COOKING }, { 369, 370, COOKING }, { 545, 546, COOKING },
+                    { 632, 649, FLETCHING }, { 633, 651, FLETCHING }, { 634, 653, FLETCHING },
+                    { 635, 655, FLETCHING }, { 636, 657, FLETCHING },
+                    { 150, 169, SMITHING }, { 151, 170, SMITHING }, { 153, 173, SMITHING },
+                    { 154, 174, SMITHING }, { 409, 408, SMITHING },
+                    { 147, 148, CRAFTING }, { 675, 676, CRAFTING }
+            };
+            for (int[] recipe : recipes) {
+                if (bank.getOrDefault(recipe[0], 0) < 1) {
+                    continue;
+                }
+                removeFromBank(recipe[0], 1);
+                addToBank(recipe[1], 1);
+                gainSkillXp(recipe[2], 20 + random.nextInt(30));
+                activity = "making " + itemName(recipe[1]) + " from banked supplies";
+                if (bank.getOrDefault(recipe[1], 0) >= 5) {
+                    int amount = Math.min(5, bank.get(recipe[1]));
+                    int paid = GrandExchange.sellSystem(recipe[1], amount);
+                    if (paid > 0) {
+                        removeFromBank(recipe[1], amount);
+                        addToBank(COINS, paid);
+                        marketVolume += paid;
+                        trades++;
+                    }
+                }
+                return;
+            }
+        }
+
+        private int skillForItem(int itemId) {
+            if (itemId == 14 || itemId >= 632 && itemId <= 636) return WOODCUTTING;
+            if (itemId == 150 || itemId == 202 || itemId == 151 || itemId == 155 || itemId == 383
+                    || itemId == 152 || itemId == 153 || itemId == 154 || itemId == 409) return MINING;
+            if (itemId == 349 || itemId == 351 || itemId == 358 || itemId == 356 || itemId == 366
+                    || itemId == 372 || itemId == 369 || itemId == 545) return FISHING;
+            if (itemId == 147 || itemId == 675 || itemId == 381) return CRAFTING;
+            if (itemId == 20 || itemId == 413 || itemId == 604 || itemId == 814) return PRAYER;
+            if (itemId == 31 || itemId == 32 || itemId == 33 || itemId == 34 || itemId == 35
+                    || itemId == 36 || itemId == 38 || itemId == 40 || itemId == 41 || itemId == 42
+                    || itemId == 46 || itemId == 619) return MAGIC;
+            if (itemId == 11 || itemId == 638 || itemId == 640 || itemId == 642 || itemId == 644 || itemId == 646) return RANGED;
+            return role == Role.GATHERER ? CRAFTING : ATTACK;
+        }
+
+        private int productForSkill(int skill) {
+            int[][] products = {
+                    { ATTACK, 20 }, { DEFENSE, 20 }, { STRENGTH, 20 }, { HITS, 20 }, { RANGED, 638 },
+                    { PRAYER, 413 }, { MAGIC, 41 }, { COOKING, 373 }, { WOODCUTTING, 633 }, { FLETCHING, 651 },
+                    { FISHING, 372 }, { FIREMAKING, 14 }, { CRAFTING, 148 }, { SMITHING, 171 }, { MINING, 155 },
+                    { HERBLAW, 474 }, { AGILITY, 381 }, { THIEVING, 10 }
+            };
+            for (int[] product : products) {
+                if (product[0] == skill) return product[1];
+            }
+            return -1;
         }
 
         private int xpRateFor(int index, Role role) {
@@ -1665,6 +2197,9 @@ public final class WorldBotManager {
 
         private static Personality forBot(int index, Role role) {
             String name = NAMES[index % NAMES.length];
+            if (index >= NAMES.length) {
+                name += " " + (index / NAMES.length + 1);
+            }
             String[] clans = { "Red capes", "Blue moon", "Bank crew", "Wild guard" };
             String clan = clans[index % clans.length];
             String rival = clans[(index + 1) % clans.length];

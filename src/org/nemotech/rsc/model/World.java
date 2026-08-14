@@ -61,6 +61,11 @@ public class World {
         return worldInstance;
     }
 
+    /** Returns the current world without creating/loading one for utility exporters. */
+    public static synchronized World getLoadedWorld() {
+        return worldInstance;
+    }
+
     private DelayedEventHandler delayedEventHandler;
 
     private final EntityList<NPC> npcs = new EntityList<>(4000); 

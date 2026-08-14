@@ -57,6 +57,7 @@ public class BotCommands extends Plugin implements CommandListener {
             "smith", "smithing", "fletch", "fletching", "craft", "crafting",
             "herblaw", "everything", "allbots",
             "worldbots", "worldbot",
+            "exporthighscores", "exporthiscores",
             "ge", "exchange",
             "debugobjects", "listobjects",
             "stopbot", "botoff"
@@ -168,6 +169,12 @@ public class BotCommands extends Plugin implements CommandListener {
 
         if (command.equals("worldbots") || command.equals("worldbot")) {
             handleWorldBotCommand(args, player);
+            return;
+        }
+
+        if (command.equals("exporthighscores") || command.equals("exporthiscores")) {
+            player.save();
+            player.getSender().sendMessage("@cya@[Highscores] @gre@Live highscore export refreshed.");
             return;
         }
 
@@ -380,6 +387,42 @@ public class BotCommands extends Plugin implements CommandListener {
             return;
         }
 
+        if (subCommand.equals("goal") || subCommand.equals("train")) {
+            if (args.length < 4) {
+                player.getSender().sendMessage("@cya@[WorldBots] @red@Usage: ::worldbots goal <bot name> <skill> <level>");
+                return;
+            }
+            int targetLevel = parseCommandInt(args, args.length - 1, -1);
+            String skill = args[args.length - 2];
+            StringBuilder botName = new StringBuilder(args[1]);
+            for (int i = 2; i < args.length - 2; i++) botName.append(' ').append(args[i]);
+            player.getSender().sendMessage("@cya@[WorldBots] @whi@"
+                    + manager.setBotSkillGoal(botName.toString(), skill, targetLevel));
+            return;
+        }
+
+        if (subCommand.equals("cleargoal")) {
+            if (args.length < 2) {
+                player.getSender().sendMessage("@cya@[WorldBots] @red@Usage: ::worldbots cleargoal <bot name>");
+                return;
+            }
+            StringBuilder botName = new StringBuilder(args[1]);
+            for (int i = 2; i < args.length; i++) botName.append(' ').append(args[i]);
+            player.getSender().sendMessage("@cya@[WorldBots] @whi@" + manager.clearBotGoal(botName.toString()));
+            return;
+        }
+
+        if (subCommand.equals("visit") || subCommand.equals("spectate")) {
+            if (args.length < 2) {
+                player.getSender().sendMessage("@cya@[WorldBots] @red@Usage: ::worldbots visit <bot name>");
+                return;
+            }
+            StringBuilder botName = new StringBuilder(args[1]);
+            for (int i = 2; i < args.length; i++) botName.append(' ').append(args[i]);
+            player.getSender().sendMessage("@cya@[WorldBots] @whi@" + manager.visitBot(player, botName.toString()));
+            return;
+        }
+
         if (subCommand.equals("group") || subCommand.equals("party") || subCommand.equals("team")) {
             handleWorldBotGroupCommand(args, player, manager);
             return;
@@ -391,7 +434,7 @@ public class BotCommands extends Plugin implements CommandListener {
             return;
         }
 
-        player.getSender().sendMessage("@cya@[WorldBots] @whi@Usage: ::worldbots start [count], stop, status, nearby [radius], top, activity, hint, lookup <name>, trade, group, config, settings, save");
+        player.getSender().sendMessage("@cya@[WorldBots] @whi@Usage: ::worldbots start [count], stop, status, nearby [radius], top, activity, hint, lookup <name>, trade, goal <name> <skill> <level>, cleargoal <name>, visit <name>, group, config, settings, save");
     }
 
     private void handleWorldBotGroupCommand(String[] args, Player player, WorldBotManager manager) {

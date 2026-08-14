@@ -3603,7 +3603,7 @@ OUTER:		for (int animationIndex = 0; animationIndex < EntityManager.getAnimation
                 shopSelectedItemType = shopItem[slotIndex];
             }
 
-            if (shopSelectedItemIndex >= 0 && shopSelectedItemIndex < 40) {
+            if (shopSelectedItemIndex >= 0 && shopSelectedItemIndex < shopItem.length) {
                 int selectedItem = shopItem[shopSelectedItemIndex];
                 if (selectedItem != -1) {
                     if (!grandExchangeSellMode && shopItemCount[shopSelectedItemIndex] > 0 && mouseX >= 270 && mouseY >= 214 && mouseX <= 401 && mouseY <= 238) {
@@ -3647,7 +3647,7 @@ OUTER:		for (int animationIndex = 0; animationIndex < EntityManager.getAnimation
 
         surface.drawBoxAlpha(dialogX + 7, dialogY + 205, 394, 36, 0x1f1a14, 210);
         surface.drawBoxEdge(dialogX + 7, dialogY + 205, 394, 36, 0x6b6253);
-        if (shopSelectedItemIndex < 0 || shopSelectedItemIndex >= 40 || shopItem[shopSelectedItemIndex] == -1) {
+        if (shopSelectedItemIndex < 0 || shopSelectedItemIndex >= shopItem.length || shopItem[shopSelectedItemIndex] == -1) {
             surface.drawStringCenter(grandExchangeSellMode ? "Choose an item from your inventory to sell" : "Choose an available item to buy", dialogX + 204, dialogY + 228, 3, 0xffd36b);
             return;
         }
