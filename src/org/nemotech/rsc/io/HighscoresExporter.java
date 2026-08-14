@@ -24,7 +24,6 @@ import org.nemotech.rsc.util.Formulae;
 public final class HighscoresExporter {
 
     private static final String PRIVATE_OUTPUT_FILE = Constants.CACHE_DIRECTORY + "highscores-export.json";
-    private static final String WEBSITE_FALLBACK_FILE = "docs/highscores.json";
     private static final String[] SKILL_NAMES = {
             "Attack", "Defense", "Strength", "Hits", "Ranged", "Prayer", "Magic", "Cooking", "Woodcutting",
             "Fletching", "Fishing", "Firemaking", "Crafting", "Smithing", "Mining", "Herblaw", "Agility", "Thieving"
@@ -46,8 +45,6 @@ public final class HighscoresExporter {
             rankEntries(entries);
             String json = toJson(entries, worldBotState, onlineNames);
             writeAtomically(PRIVATE_OUTPUT_FILE, json);
-            // Retained for people serving the bundled docs directory locally.
-            writeAtomically(WEBSITE_FALLBACK_FILE, json);
         } catch (Exception e) {
             System.err.println("[Highscores] Could not export highscores: " + e.getMessage());
         }
