@@ -28,6 +28,7 @@ import org.nemotech.rsc.model.World;
 import org.nemotech.rsc.model.landscape.Path;
 import org.nemotech.rsc.model.player.InvItem;
 import org.nemotech.rsc.model.player.Player;
+import org.nemotech.rsc.model.player.states.CombatState;
 import org.nemotech.rsc.io.HighscoresExporter;
 import org.nemotech.rsc.util.Formulae;
 
@@ -1540,6 +1541,15 @@ public final class WorldBotManager {
         private int visibleBubbleItem = -1;
         private int visibleToolItem = -1;
         private long nextSkillingSiteChangeAt;
+        private WorldBot pvpOpponent;
+        private long nextPvpSearchAt;
+        private long pvpFightStartedAt;
+        private long pvpNextHitAt;
+        private long pvpLastHitAt;
+        private int pvpHits;
+        private int pvpLastDamage;
+        private boolean pvpAttackerTurn;
+        private boolean pvpChaser;
 
         private WorldBot(int index, Role role, NPC npc, BotArea area, Personality personality,
                 SkillingSite skillingSite) {
@@ -1641,6 +1651,10 @@ public final class WorldBotManager {
                 }
                 return;
             }
+            if (pvpOpponent != null) {
+                handleBotPvp();
+                return;
+            }
             if (npc.isRemoved() || npc.inCombat()) {
                 activity = "busy";
                 return;
@@ -1657,6 +1671,10 @@ public final class WorldBotManager {
             }
 
             if (role == Role.WILDERNESS && tryAttackPlayer()) {
+                return;
+            }
+
+            if (role == Role.WILDERNESS && tryAttackWorldBot()) {
                 return;
             }
 
@@ -1719,6 +1737,181 @@ public final class WorldBotManager {
             npc.startCombat(player);
             say(personality.attackLine(random, player.getCombatLevel(), level, coins()));
             return true;
+        }
+
+        private boolean tryAttackWorldBot() {
+            long now = System.currentTimeMillis();
+            if (now < nextPvpSearchAt) {
+                return false;
+            }
+            nextPvpSearchAt = now + 7000L + random.nextInt(12000);
+            if (config.aggression <= 0 || random.nextInt(Math.max(2, 7 - config.aggression)) != 0) {
+                return false;
+            }
+
+            WorldBot target = null;
+            int nearestDistance = Integer.MAX_VALUE;
+            int pursuitRange = 40;
+            for (WorldBot candidate : bots) {
+                if (candidate == this || candidate.role != Role.WILDERNESS || !candidate.active
+                        || !candidate.online || candidate.pvpOpponent != null || candidate.npc == null
+                        || candidate.npc.isRemoved() || candidate.npc.inCombat()
+                        || candidate.partyOwner != null || candidate.autoGroup != null
+                        || candidate.area == null || area == null || !area.name.equals(candidate.area.name)
+                        || personality.clan.equals(candidate.personality.clan)
+                        || Math.abs(level - candidate.level) > 30) {
+                    continue;
+                }
+                int distance = Math.abs(npc.getX() - candidate.npc.getX())
+                        + Math.abs(npc.getY() - candidate.npc.getY());
+                if (distance <= pursuitRange && distance < nearestDistance) {
+                    target = candidate;
+                    nearestDistance = distance;
+                }
+            }
+            if (target == null) {
+                return false;
+            }
+
+            pvpOpponent = target;
+            target.pvpOpponent = this;
+            pvpFightStartedAt = now;
+            target.pvpFightStartedAt = now;
+            pvpNextHitAt = now;
+            target.pvpNextHitAt = now;
+            pvpHits = pvpMaxHits();
+            target.pvpHits = target.pvpMaxHits();
+            pvpChaser = true;
+            target.pvpChaser = false;
+            fights++;
+            target.fights++;
+            activity = "hunting " + target.name + " in " + area.name;
+            target.activity = "being hunted by " + name + " in " + target.area.name;
+            npc.setPath(new Path(npc.getX(), npc.getY(), target.npc.getX(), target.npc.getY()));
+            target.npc.resetPath();
+            if (random.nextInt(3) == 0) {
+                say(personality.territoryLine(random));
+            }
+            return true;
+        }
+
+        private void handleBotPvp() {
+            WorldBot opponent = pvpOpponent;
+            if (opponent == null) {
+                return;
+            }
+            if (!active || !online || npc == null || npc.isRemoved() || !opponent.active
+                    || !opponent.online || opponent.npc == null || opponent.npc.isRemoved()
+                    || System.currentTimeMillis() - pvpFightStartedAt > 120000L) {
+                endBotPvp(opponent);
+                return;
+            }
+            if (playerServerIndex > opponent.playerServerIndex) {
+                return;
+            }
+
+            int distance = Math.abs(npc.getX() - opponent.npc.getX())
+                    + Math.abs(npc.getY() - opponent.npc.getY());
+            if (distance > 1) {
+                WorldBot chaser = pvpChaser ? this : opponent;
+                WorldBot target = pvpChaser ? opponent : this;
+                chaser.npc.setPath(new Path(chaser.npc.getX(), chaser.npc.getY(), target.npc.getX(), target.npc.getY()));
+                target.npc.resetPath();
+                chaser.activity = "chasing " + target.name + " in " + chaser.area.name;
+                target.activity = "waiting for " + chaser.name + " in " + target.area.name;
+                return;
+            }
+
+            beginBotCombatVisuals(opponent);
+            long now = System.currentTimeMillis();
+            if (now < pvpNextHitAt) {
+                return;
+            }
+            pvpNextHitAt = now + 1400L;
+            opponent.pvpNextHitAt = pvpNextHitAt;
+            WorldBot attacker = pvpAttackerTurn ? this : opponent;
+            WorldBot defender = pvpAttackerTurn ? opponent : this;
+            pvpAttackerTurn = !pvpAttackerTurn;
+
+            int accuracy = Math.max(25, Math.min(80, 55 + attacker.level - defender.level));
+            int maxHit = Math.max(3, 4 + attacker.level / 8);
+            int damage = random.nextInt(100) < accuracy ? random.nextInt(maxHit + 1) : 0;
+            defender.pvpHits = Math.max(0, defender.pvpHits - damage);
+            defender.pvpLastDamage = damage;
+            defender.pvpLastHitAt = now;
+            defender.npc.setLastDamage(damage);
+            attacker.trainCombat(10 + damage * 4);
+            attacker.activity = "fighting " + defender.name + " in " + attacker.area.name;
+            defender.activity = "fighting " + attacker.name + " in " + defender.area.name;
+            if (defender.pvpHits <= 0) {
+                finishBotPvp(attacker, defender);
+            }
+        }
+
+        private void beginBotCombatVisuals(WorldBot opponent) {
+            npc.resetPath();
+            opponent.npc.resetPath();
+            npc.setBusy(true);
+            opponent.npc.setBusy(true);
+            npc.setSprite(8);
+            opponent.npc.setSprite(9);
+            npc.setOpponent(opponent.npc);
+            opponent.npc.setOpponent(npc);
+            npc.setCombatTimer();
+            opponent.npc.setCombatTimer();
+        }
+
+        private void finishBotPvp(WorldBot winner, WorldBot loser) {
+            winner.kills++;
+            loser.deaths++;
+            loser.active = false;
+            int coinsLooted = Math.min(loser.coins(), 250 + random.nextInt(1751));
+            if (coinsLooted > 0) {
+                loser.removeInventory(COINS, coinsLooted);
+                winner.addInventory(COINS, coinsLooted);
+            }
+            winner.say("gf " + loser.name);
+            loser.say(loser.personality.deathLine(random, loser.coins()));
+            recordActivity(winner.name + " killed " + loser.name + " in " + loser.area.name);
+            winner.pvpOpponent = null;
+            winner.pvpHits = 0;
+            winner.pvpLastDamage = 0;
+            loser.pvpOpponent = null;
+            loser.pvpHits = 0;
+            loser.pvpLastDamage = 0;
+            if (winner.npc != null && !winner.npc.isRemoved()) {
+                winner.npc.resetCombat(CombatState.WON);
+            }
+            if (loser.npc != null && !loser.npc.isRemoved()) {
+                loser.npc.resetCombat(CombatState.LOST);
+            }
+            loser.npc.setHits(0);
+            World.getWorld().unregisterNpc(loser.npc);
+            scheduleRespawn(loser);
+        }
+
+        private void endBotPvp(WorldBot opponent) {
+            WorldBot firstOpponent = pvpOpponent;
+            pvpOpponent = null;
+            pvpHits = 0;
+            pvpLastDamage = 0;
+            if (npc != null && !npc.isRemoved()) {
+                npc.resetCombat(CombatState.WAITING);
+            }
+            if (opponent != null) {
+                opponent.pvpOpponent = null;
+                opponent.pvpHits = 0;
+                opponent.pvpLastDamage = 0;
+                if (opponent.npc != null && !opponent.npc.isRemoved()) {
+                    opponent.npc.resetCombat(CombatState.WAITING);
+                }
+            } else if (firstOpponent != null) {
+                firstOpponent.pvpOpponent = null;
+            }
+        }
+
+        private int pvpMaxHits() {
+            return Math.max(10, skillLevel(HITS));
         }
 
         private boolean isGroupedWith(Player player) {
@@ -2323,7 +2516,9 @@ public final class WorldBotManager {
             return new Snapshot(playerServerIndex, name, npc.getX(), npc.getY(), npc.getSprite(),
                     level, role == Role.WILDERNESS, equipment,
                     hairColour, topColour, bottomColour, skinColour,
-                    System.currentTimeMillis() < messageUntil ? lastMessage : null, messageSequence, bubbleItem);
+                    System.currentTimeMillis() < messageUntil ? lastMessage : null, messageSequence, bubbleItem,
+                    pvpOpponent == null ? -1 : pvpHits, pvpOpponent == null ? -1 : pvpMaxHits(),
+                    pvpLastDamage, pvpLastHitAt);
         }
 
         private void addInventory(int itemId, int amount) {
@@ -2735,8 +2930,9 @@ public final class WorldBotManager {
                 name += " " + (index / NAMES.length + 1);
             }
             String[] clans = { "Red capes", "Blue moon", "Bank crew", "Wild guard" };
-            String clan = clans[index % clans.length];
-            String rival = clans[(index + 1) % clans.length];
+            int clanIndex = Math.floorMod(index + index / 4, clans.length);
+            String clan = clans[clanIndex];
+            String rival = clans[(clanIndex + 1) % clans.length];
             if (role == Role.WILDERNESS) {
                 return new Personality(name, "PKer", 4 + (index % 2), 7, 8 + (index % 4), 45 + (index % 25), clan, rival);
             }
@@ -2930,16 +3126,21 @@ public final class WorldBotManager {
         public final String message;
         public final int messageSequence;
         public final int bubbleItem;
+        public final int healthCurrent;
+        public final int healthMax;
+        public final int lastDamage;
+        public final long lastHitAt;
 
         private Snapshot(int serverIndex, String name, int x, int y, int sprite, int combatLevel,
                 boolean skulled, int[] equipment, int hairColour, int topColour, int bottomColour, int skinColour) {
             this(serverIndex, name, x, y, sprite, combatLevel, skulled, equipment,
-                    hairColour, topColour, bottomColour, skinColour, null, 0, -1);
+                    hairColour, topColour, bottomColour, skinColour, null, 0, -1, -1, -1, 0, 0L);
         }
 
         private Snapshot(int serverIndex, String name, int x, int y, int sprite, int combatLevel,
                 boolean skulled, int[] equipment, int hairColour, int topColour, int bottomColour, int skinColour,
-                String message, int messageSequence, int bubbleItem) {
+                String message, int messageSequence, int bubbleItem, int healthCurrent, int healthMax,
+                int lastDamage, long lastHitAt) {
             this.serverIndex = serverIndex;
             this.name = name;
             this.x = x;
@@ -2955,6 +3156,10 @@ public final class WorldBotManager {
             this.message = message;
             this.messageSequence = messageSequence;
             this.bubbleItem = bubbleItem;
+            this.healthCurrent = healthCurrent;
+            this.healthMax = healthMax;
+            this.lastDamage = lastDamage;
+            this.lastHitAt = lastHitAt;
         }
     }
 

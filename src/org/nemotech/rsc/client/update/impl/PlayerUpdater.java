@@ -83,6 +83,15 @@ public class PlayerUpdater extends Updater {
                 character.bubbleItem = bot.bubbleItem;
                 character.bubbleTimeout = 30;
             }
+            if (bot.healthMax > 0) {
+                character.healthCurrent = bot.healthCurrent;
+                character.healthMax = bot.healthMax;
+                character.combatTimer = 50;
+                if (System.currentTimeMillis() - bot.lastHitAt < 1200L) {
+                    character.damageTaken = bot.lastDamage;
+                    character.combatTimer = 200;
+                }
+            }
         }
     }
     
