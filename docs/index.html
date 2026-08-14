@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>RSC Single Player</title>
-  <link rel="stylesheet" href="styles.css?v=20260814-2" />
+  <link rel="stylesheet" href="styles.css?v=20260814-3" />
 </head>
 <body>
   <header>
@@ -112,107 +112,42 @@
       <li><strong>Admin (root):</strong> <code>::item</code>, <code>::npc</code>, <code>::object</code>, <code>::set</code>, <code>::addbank</code>, <code>::quest</code>, <code>::find</code>, minimap right-click teleport</li>
     </ul>
 
-    <h2 id="highscores">Highscores</h2>
-    <p class="section-copy">Ranked from your private local export using the classic hiscores format. Connect the file once and the site refreshes it while you play; it is never uploaded.</p>
-    <div class="population-panel" aria-live="polite">
-      <div>
-        <span class="population-label">World Bots Online</span>
-        <strong id="onlineBotCount">--</strong>
-        <span class="population-total">/ 200</span>
+    <section id="highscores" class="highscores">
+      <h2>Local Highscores</h2>
+      <p>The game creates <code>cache/highscores-export.json</code> when you log in and refreshes it every 20 seconds. Connect that file once and this page remembers your rankings, search, and open profile across page refreshes. Your data is read only by this browser and is never uploaded.</p>
+      <div class="highscore-controls">
+        <button class="file-button" id="highscore-connect" type="button">Connect live highscores</button>
+        <label class="file-button" id="highscore-fallback" for="highscore-file">Choose highscore export</label>
+        <input id="highscore-file" type="file" accept="application/json,.json">
+        <label for="highscore-skill">Ranking</label>
+        <select id="highscore-skill" disabled><option value="overall">Overall</option></select>
+        <label for="highscore-search">Find player</label>
+        <input id="highscore-search" type="search" placeholder="Name or username" autocomplete="off" disabled>
       </div>
-      <div class="population-breakdown">
-        <span>Skillers <strong id="skillerOnline">--</strong></span>
-        <span>Fighters <strong id="fighterOnline">--</strong></span>
-        <span>Wilderness <strong id="wildOnline">--</strong></span>
-      </div>
-      <p>Read directly from your connected local export. The game refreshes login, logout, stats, and bot activity every 20 seconds.</p>
-    </div>
-    <div class="world-live-grid">
-      <section class="world-live-panel" aria-live="polite">
-        <h3>Recent World Activity</h3>
-        <ul id="worldActivityList">
-          <li>Waiting for local activity...</li>
-        </ul>
-      </section>
-      <section class="world-live-panel" aria-live="polite">
-        <h3>Economy & Groups</h3>
-        <dl class="market-summary">
-          <div><dt>Bot coins</dt><dd id="marketCoins">--</dd></div>
-          <div><dt>Bot trades</dt><dd id="marketTrades">--</dd></div>
-          <div><dt>Group trips</dt><dd id="marketGroups">--</dd></div>
-          <div><dt>Assisted kills</dt><dd id="marketKills">--</dd></div>
-        </dl>
-      </section>
-      <section class="world-live-panel" aria-live="polite">
-        <h3>Active Bot Groups</h3>
-        <ul id="activeGroupsList">
-          <li>No bot groups formed yet.</li>
-        </ul>
-      </section>
-    </div>
-    <div class="highscore-connection" aria-live="polite">
-      <div>
-        <strong>Private live highscores</strong>
-        <p>Choose <code>cache/highscores-export.json</code> from your Single-RSC folder.</p>
-      </div>
-      <div class="highscore-connection-actions">
-        <button id="connectHighscores" type="button">Connect live highscores</button>
-        <button id="chooseHighscores" type="button" class="secondary-button">Choose highscore export</button>
-        <input id="highscoreFileInput" type="file" accept="application/json,.json" hidden>
-      </div>
-    </div>
-    <div class="highscore-tools">
-      <input id="highscoreSearch" type="search" placeholder="Search for a character" aria-label="Search for a character">
-      <button id="highscoreLookup" type="button">Search</button>
-    </div>
-    <div class="highscore-filters">
-      <label for="highscoreCategory">Category</label>
-      <select id="highscoreCategory" aria-label="Hiscore category"></select>
-    </div>
-    <p id="highscoreSource" class="highscore-source">Loading local hiscores export...</p>
-    <div id="highscoreProfile" class="highscore-profile is-hidden" aria-live="polite">
-      <div class="profile-header">
-        <div>
-          <h3 id="profileTitle">Skill Hiscores</h3>
-          <p id="profileMeta"></p>
-        </div>
-        <a id="profilePermalink" href="#highscores">Profile link</a>
-      </div>
-      <div class="profile-summary">
-        <span>Overall Rank <strong id="profileRank">--</strong></span>
-        <span>Total Level <strong id="profileLevel">--</strong></span>
-        <span>Total XP <strong id="profileXp">--</strong></span>
-        <span>XP rate <strong id="profileScore">--</strong></span>
-      </div>
-      <div class="table-wrap profile-table-wrap">
-        <table id="profileSkills">
-          <thead>
-            <tr>
-              <th>Skill</th>
-              <th>Rank</th>
-              <th>Level</th>
-              <th>XP</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
+      <p id="highscore-summary" class="highscore-summary" role="status">Connect your local highscore file once to enable automatic updates.</p>
+      <p id="highscore-results" class="highscore-results" role="status"></p>
+      <div class="table-wrap highscore-table-wrap">
+        <table class="highscore-table">
+          <thead><tr><th>Rank</th><th>Player</th><th>Type</th><th>Level</th><th>XP</th></tr></thead>
+          <tbody id="highscore-body"><tr><td colspan="5" class="highscore-empty">Start the game, then connect cache/highscores-export.json.</td></tr></tbody>
         </table>
       </div>
-    </div>
-    <p id="highscoreEmpty" class="highscore-empty is-hidden">No matching character was found in the local hiscores.</p>
-    <h3 id="highscoreBoardTitle" class="highscore-board-title">Overall</h3>
-    <div class="table-wrap highscore-table-wrap">
-      <table id="highscoreTable">
-        <thead>
-          <tr>
-            <th>Rank</th>
-            <th>Player</th>
-            <th>Level</th>
-            <th>XP</th>
-          </tr>
-        </thead>
-        <tbody><tr><td colspan="4">Loading hiscores...</td></tr></tbody>
-      </table>
-    </div>
+      <section id="highscore-profile" class="highscore-profile" aria-labelledby="highscore-profile-name" hidden>
+        <div class="highscore-profile-heading">
+          <div>
+            <h3 id="highscore-profile-name"></h3>
+            <p id="highscore-profile-summary"></p>
+          </div>
+          <button id="highscore-profile-close" class="file-button" type="button">Close profile</button>
+        </div>
+        <div class="table-wrap">
+          <table class="highscore-table highscore-skill-table">
+            <thead><tr><th>Skill</th><th>Level</th><th>XP</th></tr></thead>
+            <tbody id="highscore-profile-skills"></tbody>
+          </table>
+        </div>
+      </section>
+    </section>
 
     <h2 id="changelog">Changelog</h2>
     <details open>
@@ -335,6 +270,6 @@
     </div>
   </footer>
 
-  <script src="main.js?v=20260814-2"></script>
+  <script src="main.js?v=20260814-3"></script>
 </body>
 </html>

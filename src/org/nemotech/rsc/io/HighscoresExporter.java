@@ -145,6 +145,7 @@ public final class HighscoresExporter {
                 entry.coins = 0;
                 entry.trades = 0;
                 entry.kills = 0;
+                entry.lastSavedAt = file.lastModified();
                 entries.add(entry);
             } catch (Exception ignored) {
                 // A partial or old save should not block the website export.
@@ -326,7 +327,12 @@ public final class HighscoresExporter {
     private static String toJson(List<Entry> entries, Properties worldBotState, Set<String> onlineNames) {
         StringBuilder json = new StringBuilder();
         json.append("{\"formatVersion\":1,\"generatedAt\":").append(System.currentTimeMillis())
-                .append(",\"activePlayers\":[");
+                .append(",\"skills\":[");
+        for (int i = 0; i < SKILL_NAMES.length; i++) {
+            if (i > 0) json.append(',');
+            json.append('"').append(escape(SKILL_NAMES[i])).append('"');
+        }
+        json.append("],\"activePlayers\":[");
         boolean firstOnline = true;
         for (String name : onlineNames) {
             if (!firstOnline) {
@@ -378,11 +384,76 @@ public final class HighscoresExporter {
             json
                     .append('}');
         }
-        json.append("],\"activity\":").append(activityJson(worldBotState))
+        json.append("],\"entries\":").append(entriesJson(entries, onlineNames))
+                .append(",\"activity\":").append(activityJson(worldBotState))
                 .append(",\"market\":").append(marketJson(worldBotState))
                 .append(",\"groups\":").append(groupsJson(worldBotState))
                 .append('}');
         return json.toString();
+    }
+
+    private static String entriesJson(List<Entry> entries, Set<String> onlineNames) {
+        List<Entry> visible = new ArrayList<>();
+        Entry newestSavedCharacter = null;
+        boolean hasActiveCharacter = false;
+        for (Entry entry : entries) {
+            if (entry.worldBot) {
+                visible.add(entry);
+                continue;
+            }
+            if (onlineNames.contains(entry.name.trim().toLowerCase(Locale.ROOT))) {
+                visible.add(entry);
+                hasActiveCharacter = true;
+            }
+            if (newestSavedCharacter == null || entry.lastSavedAt > newestSavedCharacter.lastSavedAt) {
+                newestSavedCharacter = entry;
+            }
+        }
+        if (!hasActiveCharacter && newestSavedCharacter != null) {
+            visible.add(newestSavedCharacter);
+        }
+
+        StringBuilder json = new StringBuilder("[");
+        for (int i = 0; i < visible.size(); i++) {
+            Entry entry = visible.get(i);
+            if (i > 0) json.append(',');
+            json.append('{')
+                    .append("\"displayName\":\"").append(escape(entry.name)).append("\",")
+                    .append("\"username\":\"").append(escape(entry.name)).append("\",")
+                    .append("\"bot\":").append(entry.worldBot).append(',')
+                    .append("\"combatLevel\":").append(entry.worldBot ? entry.combatLevel : combatLevel(entry)).append(',')
+                    .append("\"totalLevel\":").append(entry.level).append(',')
+                    .append("\"totalXp\":").append(entry.xp).append(',')
+                    .append("\"levels\":[");
+            appendSkillValues(json, entry, true);
+            json.append("],\"xp\":[");
+            appendSkillValues(json, entry, false);
+            json.append("]}");
+        }
+        return json.append(']').toString();
+    }
+
+    private static void appendSkillValues(StringBuilder json, Entry entry, boolean levels) {
+        for (int i = 0; i < SKILL_NAMES.length; i++) {
+            if (i > 0) json.append(',');
+            SkillEntry skill = entry.skills != null && i < entry.skills.size() ? entry.skills.get(i) : null;
+            json.append(skill == null ? (levels ? 1 : 0) : (levels ? skill.level : skill.xp));
+        }
+    }
+
+    private static int combatLevel(Entry entry) {
+        if (entry.skills == null || entry.skills.size() < 7) return 3;
+        int attack = entry.skills.get(0).level;
+        int defense = entry.skills.get(1).level;
+        int strength = entry.skills.get(2).level;
+        int hits = entry.skills.get(3).level;
+        int ranged = entry.skills.get(4).level;
+        int prayer = entry.skills.get(5).level;
+        int magic = entry.skills.get(6).level;
+        double base = 0.25 * (defense + hits + prayer / 2.0);
+        double offense = Math.max(0.325 * (attack + strength),
+                Math.max(0.325 * ranged * 1.5, 0.325 * magic * 1.5));
+        return Math.max(3, (int) Math.floor(base + offense));
     }
 
     private static String activityJson(Properties properties) {
@@ -509,6 +580,7 @@ public final class HighscoresExporter {
         private int groupTrips;
         private int playerTrades;
         private int playerKills;
+        private long lastSavedAt;
         private List<SkillEntry> skills;
     }
 
