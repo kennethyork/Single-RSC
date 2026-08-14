@@ -17,6 +17,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import org.nemotech.rsc.Constants;
 import org.nemotech.rsc.event.DelayedEvent;
 import org.nemotech.rsc.external.EntityManager;
+import org.nemotech.rsc.external.definition.NPCDropDef;
 import org.nemotech.rsc.external.definition.extra.ObjectMiningDef;
 import org.nemotech.rsc.model.Entity;
 import org.nemotech.rsc.model.GameObject;
@@ -1006,6 +1007,17 @@ public final class WorldBotManager {
         return null;
     }
 
+    public synchronized boolean inspectBot(Player player, int serverIndex) {
+        for (WorldBot bot : bots) {
+            if (bot.playerServerIndex == serverIndex && bot.active && bot.online
+                    && bot.npc != null && !bot.npc.isRemoved()) {
+                showBotInspection(player, bot);
+                return true;
+            }
+        }
+        return false;
+    }
+
     public synchronized void onPlayerAttackedBot(Player player, NPC npc) {
         WorldBot bot = findBot(npc);
         if (bot == null || !bot.active) {
@@ -1039,6 +1051,15 @@ public final class WorldBotManager {
             }
         }
         return null;
+    }
+
+    private boolean isMonsterTargeted(NPC npc) {
+        for (WorldBot bot : bots) {
+            if (bot.pvmTarget == npc) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void scheduleRespawn(final WorldBot bot) {
@@ -1555,6 +1576,14 @@ public final class WorldBotManager {
         private int pvpLastDamage;
         private boolean pvpAttackerTurn;
         private boolean pvpChaser;
+        private NPC pvmTarget;
+        private long nextPvmSearchAt;
+        private long pvmFightStartedAt;
+        private long pvmNextHitAt;
+        private long pvmLastHitAt;
+        private int pvmHits;
+        private int pvmLastDamage;
+        private boolean pvmAttackerTurn;
 
         private WorldBot(int index, Role role, NPC npc, BotArea area, Personality personality,
                 SkillingSite skillingSite) {
@@ -1660,6 +1689,10 @@ public final class WorldBotManager {
                 handleBotPvp();
                 return;
             }
+            if (pvmTarget != null) {
+                handleMonsterCombat();
+                return;
+            }
             if (npc.isRemoved() || npc.inCombat()) {
                 activity = "busy";
                 return;
@@ -1683,6 +1716,10 @@ public final class WorldBotManager {
                 return;
             }
 
+            if (role == Role.FIGHTER && tryAttackMonster()) {
+                return;
+            }
+
             updateGoal();
 
             if (System.currentTimeMillis() >= nextWorkAt) {
@@ -1692,12 +1729,22 @@ public final class WorldBotManager {
 
             WorldBotManager.this.tryAmbientChat(this);
 
-            tradeWithExchange();
-
-            if (role != Role.GATHERER && inventorySize() >= role.depositAt) {
+            if (role != Role.GATHERER && (bankingTrip || inventorySize() >= role.depositAt)) {
+                bankingTrip = true;
+                int[] bankTile = nearestBankTile();
+                if (distanceTo(bankTile[0], bankTile[1]) > 2) {
+                    activity = "walking to bank from " + area.name;
+                    npc.setPath(new Path(npc.getX(), npc.getY(), bankTile[0], bankTile[1]));
+                    return;
+                }
                 int banked = depositInventoryToExchange();
-                say("banking " + banked + " items");
+                bankingTrip = false;
+                tradeWithExchange();
+                say("banked " + banked + " items");
+                return;
             }
+
+            tradeWithExchange();
 
             if (npc.finishedPath() && random.nextInt(3) == 0) {
                 walkSomewhere();
@@ -1961,6 +2008,191 @@ public final class WorldBotManager {
             return Math.max(1, points);
         }
 
+        private boolean tryAttackMonster() {
+            long now = System.currentTimeMillis();
+            if (now < nextPvmSearchAt) {
+                return false;
+            }
+            nextPvmSearchAt = now + 5000L + random.nextInt(8000);
+            NPC nearest = null;
+            int nearestDistance = Integer.MAX_VALUE;
+            for (NPC candidate : npc.getViewArea().getNpcsInView()) {
+                if (candidate == null || candidate == npc || candidate.isRemoved() || candidate.isRespawning()
+                        || WorldBotManager.this.isWorldBotNpc(candidate) || !candidate.getDef().isAttackable()
+                        || WorldBotManager.this.isMonsterTargeted(candidate)
+                        || candidate.isBusy() || candidate.inCombat()
+                        || candidate.getCombatLevel() > level + 20) {
+                    continue;
+                }
+                int distance = distanceTo(candidate.getX(), candidate.getY());
+                if (distance <= 12 && distance < nearestDistance) {
+                    nearest = candidate;
+                    nearestDistance = distance;
+                }
+            }
+            if (nearest == null) {
+                return false;
+            }
+            pvmTarget = nearest;
+            pvmFightStartedAt = now;
+            pvmNextHitAt = now;
+            pvmHits = pvpMaxHits();
+            pvmAttackerTurn = true;
+            fights++;
+            activity = "hunting " + nearest.getDef().getName() + " in " + area.name;
+            npc.setPath(new Path(npc.getX(), npc.getY(), nearest.getX(), nearest.getY()));
+            nearest.resetPath();
+            return true;
+        }
+
+        private void handleMonsterCombat() {
+            NPC target = pvmTarget;
+            if (target == null) {
+                return;
+            }
+            if (!active || !online || npc == null || npc.isRemoved() || target.isRemoved()
+                    || target.isRespawning() || System.currentTimeMillis() - pvmFightStartedAt > 120000L) {
+                endMonsterCombat(target, CombatState.WAITING);
+                return;
+            }
+            if ((npc.inCombat() && npc.getOpponent() != target)
+                    || (target.inCombat() && target.getOpponent() != npc)) {
+                endMonsterCombat(target, CombatState.WAITING);
+                return;
+            }
+            if (distanceTo(target.getX(), target.getY()) > 1) {
+                npc.setPath(new Path(npc.getX(), npc.getY(), target.getX(), target.getY()));
+                target.resetPath();
+                activity = "chasing " + target.getDef().getName() + " in " + area.name;
+                return;
+            }
+
+            npc.resetPath();
+            target.resetPath();
+            npc.setBusy(true);
+            target.setBusy(true);
+            npc.setSprite(8);
+            target.setSprite(9);
+            npc.setOpponent(target);
+            target.setOpponent(npc);
+            npc.setCombatTimer();
+            target.setCombatTimer();
+
+            long now = System.currentTimeMillis();
+            if (now < pvmNextHitAt) {
+                return;
+            }
+            pvmNextHitAt = now + 1400L;
+            if (pvmAttackerTurn) {
+                int damage = rollAuthenticMeleeHit(target);
+                target.setLastDamage(damage);
+                target.setHits(Math.max(0, target.getHits() - damage));
+                notifyVisibleNpcHit(target);
+                trainCombat(10 + damage * 4);
+                if (target.getHits() <= 0) {
+                    finishMonsterKill(target);
+                    return;
+                }
+            } else {
+                int damage = rollMonsterHit(target);
+                pvmHits = Math.max(0, pvmHits - damage);
+                pvmLastDamage = damage;
+                pvmLastHitAt = now;
+                npc.setLastDamage(damage);
+                if (pvmHits <= 0) {
+                    finishMonsterDeath(target);
+                    return;
+                }
+            }
+            pvmAttackerTurn = !pvmAttackerTurn;
+            activity = "fighting " + target.getDef().getName() + " in " + area.name;
+        }
+
+        private int rollAuthenticMeleeHit(NPC defender) {
+            int attackRoll = skillLevel(ATTACK) + equipmentPoints(0) / 4 + 1;
+            int defenseRoll = defender.getDefense() + defender.getArmourPoints() / 4 + 1;
+            if (random.nextInt(101) + attackRoll - defenseRoll <= 50) {
+                return 0;
+            }
+            int maxHit = Math.max(1, Formulae.maxHit(skillLevel(STRENGTH),
+                    equipmentPoints(1), false, false, false, 1));
+            return random.nextInt(maxHit + 1);
+        }
+
+        private int rollMonsterHit(NPC attacker) {
+            int attackRoll = attacker.getAttack() + attacker.getWeaponAimPoints() / 3 + 1;
+            int defenseRoll = skillLevel(DEFENSE) + equipmentPoints(2) / 4
+                    + skillLevel(STRENGTH) / 4 + 1;
+            if (random.nextInt(101) + attackRoll - defenseRoll <= 40) {
+                return 0;
+            }
+            int maxHit = Math.max(1, Formulae.maxHit(attacker.getStrength(),
+                    attacker.getWeaponPowerPoints(), false, false, false, 1));
+            return random.nextInt(maxHit + 1);
+        }
+
+        private void notifyVisibleNpcHit(NPC target) {
+            Player player = World.getWorld().getPlayer();
+            if (player != null && player.isLoggedIn() && target.getLocation().withinRange(player.getLocation(), 16)) {
+                player.informOfModifiedHits(target);
+            }
+        }
+
+        private void finishMonsterKill(NPC target) {
+            kills++;
+            collectMonsterDrop(target);
+            recordActivity(name + " killed " + target.getDef().getName() + " in " + area.name);
+            endMonsterCombat(target, CombatState.WON);
+            target.killedBy(npc);
+        }
+
+        private void finishMonsterDeath(NPC target) {
+            deaths++;
+            active = false;
+            say("died to " + target.getDef().getName());
+            recordActivity(name + " died to " + target.getDef().getName() + " in " + area.name);
+            endMonsterCombat(target, CombatState.LOST);
+            World.getWorld().unregisterNpc(npc);
+            scheduleRespawn(this);
+        }
+
+        private void endMonsterCombat(NPC target, CombatState botState) {
+            pvmTarget = null;
+            pvmHits = 0;
+            pvmLastDamage = 0;
+            if (npc != null && !npc.isRemoved()) {
+                npc.resetCombat(botState);
+            }
+            if (target != null && !target.isRemoved() && !target.isRespawning()) {
+                target.resetCombat(botState == CombatState.WON ? CombatState.LOST : CombatState.WAITING);
+            }
+        }
+
+        private void collectMonsterDrop(NPC target) {
+            NPCDropDef[] drops = EntityManager.getNPCDropsForID(target.getID());
+            int totalWeight = 0;
+            for (NPCDropDef drop : drops) {
+                if (drop != null) totalWeight += Math.max(0, drop.getWeight());
+            }
+            if (totalWeight < 1) {
+                return;
+            }
+            int roll = random.nextInt(totalWeight);
+            int cursor = 0;
+            for (NPCDropDef drop : drops) {
+                if (drop == null) continue;
+                cursor += Math.max(0, drop.getWeight());
+                if (roll < cursor) {
+                    if (drop.getID() >= 0 && drop.getAmount() > 0) {
+                        addInventory(drop.getID(), drop.getAmount());
+                        carriedItem = drop.getID();
+                        carriedItemName = itemName(carriedItem);
+                    }
+                    return;
+                }
+            }
+        }
+
         private boolean isGroupedWith(Player player) {
             return partyOwner != null && player != null && partyOwner.equalsIgnoreCase(player.getUsername());
         }
@@ -2145,9 +2377,6 @@ public final class WorldBotManager {
                     addInventory(COINS, 25 + random.nextInt(150));
                 }
             }
-            if (random.nextInt(5) == 0) {
-                processProduction();
-            }
         }
 
         private void workVisibleGathering() {
@@ -2193,9 +2422,6 @@ public final class WorldBotManager {
                 activity = skillingSite.verb + " at " + skillingSite.name;
                 if (random.nextInt(20) == 0) {
                     say(skillingSite.chatLine);
-                }
-                if (random.nextInt(5) == 0) {
-                    processProduction();
                 }
             } else {
                 activity = "failing to " + skillingSite.verb + " at " + skillingSite.name;
@@ -2400,6 +2626,9 @@ public final class WorldBotManager {
             if (role == Role.GATHERER) {
                 return;
             }
+            if (!isNearBank()) {
+                return;
+            }
             if (GrandExchange.countId(373) > 0 && random.nextInt(10) == 0 && buyFromExchange(373, 1)) {
                 addInventory(373, 1);
                 activity = "buying food from the exchange";
@@ -2415,6 +2644,28 @@ public final class WorldBotManager {
                 WorldBotManager.this.recordActivity(name + " bought gear from the exchange");
                 say("upgrading gear");
             }
+        }
+
+        private boolean isNearBank() {
+            int[] bankTile = nearestBankTile();
+            return distanceTo(bankTile[0], bankTile[1]) <= 3;
+        }
+
+        private int[] nearestBankTile() {
+            int[][] banks = {
+                    { 149, 504 }, { 218, 635 }, { 282, 566 }, { 331, 551 },
+                    { 217, 449 }, { 500, 451 }, { 552, 613 }, { 87, 693 }
+            };
+            int[] nearest = banks[0];
+            int nearestDistance = Integer.MAX_VALUE;
+            for (int[] bank : banks) {
+                int distance = Math.abs(npc.getX() - bank[0]) + Math.abs(npc.getY() - bank[1]);
+                if (distance < nearestDistance) {
+                    nearest = bank;
+                    nearestDistance = distance;
+                }
+            }
+            return nearest;
         }
 
         private void updateGoal() {
@@ -2591,6 +2842,10 @@ public final class WorldBotManager {
                     .append(" | ").append(activity)
                     .append("\nCoins: ").append(coins()).append(" | Bank value: ").append(bankValue())
                     .append(" | Trades: ").append(trades).append(" | Reputation: ").append(playerReputation)
+                    .append("\nFights: ").append(fights).append(" | Kills: ").append(kills)
+                    .append(" | Deaths: ").append(deaths)
+                    .append("\nInventory: ").append(itemMapSummary(inventory, 5))
+                    .append("\nBank: ").append(itemMapSummary(bank, 5))
                     .append("\nEquipment: ");
             boolean hasEquipment = false;
             for (int itemId : equipmentItems) {
@@ -2610,6 +2865,20 @@ public final class WorldBotManager {
             return report.toString();
         }
 
+        private String itemMapSummary(Map<Integer, Integer> items, int limit) {
+            if (items.isEmpty()) return "empty";
+            StringBuilder summary = new StringBuilder();
+            int shown = 0;
+            for (Map.Entry<Integer, Integer> entry : items.entrySet()) {
+                if (entry.getValue() <= 0) continue;
+                if (shown > 0) summary.append(", ");
+                summary.append(itemName(entry.getKey())).append(" x").append(entry.getValue());
+                if (++shown >= limit) break;
+            }
+            if (items.size() > shown) summary.append(", ...");
+            return summary.length() == 0 ? "empty" : summary.toString();
+        }
+
         private Snapshot snapshot() {
             int[] equipment = appearanceSprites.clone();
             int bubbleItem = -1;
@@ -2625,12 +2894,16 @@ public final class WorldBotManager {
                 } catch (Exception ignored) {
                 }
             }
+            boolean inBotCombat = pvpOpponent != null || pvmTarget != null;
+            int combatHits = pvpOpponent != null ? pvpHits : pvmTarget != null ? pvmHits : -1;
+            int combatMaxHits = inBotCombat ? pvpMaxHits() : -1;
+            int combatDamage = pvpOpponent != null ? pvpLastDamage : pvmLastDamage;
+            long combatLastHitAt = pvpOpponent != null ? pvpLastHitAt : pvmLastHitAt;
             return new Snapshot(playerServerIndex, name, npc.getX(), npc.getY(), npc.getSprite(),
                     level, role == Role.WILDERNESS, equipment,
                     hairColour, topColour, bottomColour, skinColour,
                     System.currentTimeMillis() < messageUntil ? lastMessage : null, messageSequence, bubbleItem,
-                    pvpOpponent == null ? -1 : pvpHits, pvpOpponent == null ? -1 : pvpMaxHits(),
-                    pvpLastDamage, pvpLastHitAt);
+                    combatHits, combatMaxHits, combatDamage, combatLastHitAt);
         }
 
         private void addInventory(int itemId, int amount) {

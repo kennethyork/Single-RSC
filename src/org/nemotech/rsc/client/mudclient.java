@@ -5189,6 +5189,12 @@ OUTER:		for (int animationIndex = 0; animationIndex < EntityManager.getAnimation
                 showMessage("That player is no longer nearby", 3);
             }
         }
+        // WORLD BOT PLAYER STATS
+        if (mitemid == 2830) {
+            if (!WorldBotManager.getInstance().inspectBot(player, midx)) {
+                showMessage("That player is no longer nearby", 3);
+            }
+        }
         // CAST ON GROUND
         if (mitemid == 900) {
             walkToActionSource(localRegionX, localRegionY, mx, my, true);
@@ -5530,6 +5536,13 @@ OUTER:		for (int animationIndex = 0; animationIndex < EntityManager.getAnimation
                                 menuItemID[menuItemsCount] = 2820;
                                 menuSourceType[menuItemsCount] = players[idx].serverIndex;
                                 menuItemsCount++;
+                                if (WorldBotManager.getInstance().getNameForServerIndex(players[idx].serverIndex) != null) {
+                                    menuItemText1[menuItemsCount] = "Stats";
+                                    menuItemText2[menuItemsCount] = "@whi@" + players[idx].name + s;
+                                    menuItemID[menuItemsCount] = 2830;
+                                    menuSourceType[menuItemsCount] = players[idx].serverIndex;
+                                    menuItemsCount++;
+                                }
                             }
                             break;
                         case 2:
