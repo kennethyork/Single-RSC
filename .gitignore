@@ -1,3 +1,5 @@
 cache/players/*.dat
 cache/highscores-export.json
 docs/highscores.json
+cache/ollama-conversations.json
+cache/ollama-model.properties

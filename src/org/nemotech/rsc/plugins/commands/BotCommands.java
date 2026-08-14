@@ -57,6 +57,8 @@ public class BotCommands extends Plugin implements CommandListener {
             "smith", "smithing", "fletch", "fletching", "craft", "crafting",
             "herblaw", "everything", "allbots",
             "worldbots", "worldbot",
+            "ollamastatus", "botchatstatus", "ollamamodel", "botmodel",
+            "ollamaforget", "forgetbotchat", "botchat", "botpm", "botclan",
             "exporthighscores", "exporthiscores",
             "ge", "exchange",
             "debugobjects", "listobjects",
@@ -172,6 +174,37 @@ public class BotCommands extends Plugin implements CommandListener {
             return;
         }
 
+        if (command.equals("ollamastatus") || command.equals("botchatstatus")) {
+            WorldBotManager.getInstance().sendOllamaStatus(player);
+            return;
+        }
+
+        if (command.equals("ollamamodel") || command.equals("botmodel")) {
+            if (args.length == 0 || args[0].equalsIgnoreCase("list")) {
+                WorldBotManager.getInstance().sendOllamaModelHelp(player);
+            } else if (args[0].equalsIgnoreCase("reset")) {
+                WorldBotManager.getInstance().resetOllamaModel(player);
+            } else {
+                WorldBotManager.getInstance().selectOllamaModel(player, args[0]);
+            }
+            return;
+        }
+
+        if (command.equals("ollamaforget") || command.equals("forgetbotchat")) {
+            WorldBotManager.getInstance().forgetOllama(player);
+            return;
+        }
+
+        if (command.equals("botchat") || command.equals("botpm")) {
+            WorldBotManager.getInstance().privateBotChat(player, String.join(" ", args));
+            return;
+        }
+
+        if (command.equals("botclan")) {
+            WorldBotManager.getInstance().groupBotChat(player, String.join(" ", args));
+            return;
+        }
+
         if (command.equals("exporthighscores") || command.equals("exporthiscores")) {
             player.save();
             player.getSender().sendMessage("@cya@[Highscores] @gre@Live highscore export refreshed.");
@@ -276,6 +309,9 @@ public class BotCommands extends Plugin implements CommandListener {
         player.getSender().sendMessage("@whi@::craft, ::herblaw");
         player.getSender().sendMessage("@whi@::everything - Start all-skill progression");
         player.getSender().sendMessage("@whi@::worldbots status/start/stop - Autonomous world bots");
+        player.getSender().sendMessage("@whi@::botchat Name|message - Talk privately to a world bot");
+        player.getSender().sendMessage("@whi@::botclan message - Talk to a grouped world bot");
+        player.getSender().sendMessage("@whi@::ollamastatus / ::ollamamodel - Bot conversation AI");
         player.getSender().sendMessage("@whi@::ge list/deposit/withdraw - Shared exchange");
         player.getSender().sendMessage("@whi@::stopbot - Stop all bots");
     }

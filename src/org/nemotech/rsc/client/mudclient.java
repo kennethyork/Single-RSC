@@ -1642,6 +1642,7 @@ public class mudclient extends Shell {
                 localPlayer.messageTimeout = 150;
                 localPlayer.message = s;
                 showMessage(localPlayer.name + ": " + s, 2);
+                WorldBotManager.getInstance().onPlayerPublicChat(player, s);
             }
         }
         if (messageTabSelected == 0) {

@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Random;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 import org.nemotech.rsc.Constants;
 import org.nemotech.rsc.event.DelayedEvent;
@@ -77,6 +78,11 @@ public final class WorldBotManager {
     private final List<AutoGroup> autoGroups = new ArrayList<>();
     private int nextAutoGroupId = 1;
     private long nextAutoGroupCheckAt;
+    private final ConcurrentLinkedQueue<Runnable> chatDeliveries = new ConcurrentLinkedQueue<>();
+    private final Map<String, Long> chatCooldowns = new LinkedHashMap<>();
+    private long nextPopulationChatAt;
+    private long nextEventChatAt;
+    private long lastOllamaNoticeAt;
 
     private WorldBotManager() {}
 
@@ -89,6 +95,7 @@ public final class WorldBotManager {
 
     public synchronized void startDefaultBots() {
         loadConfig();
+        configureOllama();
         if (config.autoStart) {
             startBots(config.defaultCount);
         }
@@ -96,6 +103,7 @@ public final class WorldBotManager {
 
     public synchronized void startBots(int count) {
         loadConfig();
+        configureOllama();
         stopBots();
         running = true;
         int safeCount = Math.max(1, Math.min(count, config.maxCount));
@@ -463,6 +471,139 @@ public final class WorldBotManager {
         return null;
     }
 
+    private void configureOllama() {
+        OllamaBotChat.getInstance().configure(new OllamaBotChat.Settings(
+                config.ollamaEnabled, config.ollamaUrl, config.ollamaModel,
+                config.ollamaTimeoutSeconds, config.ollamaHistoryMessages,
+                config.ollamaPublicCooldownSeconds, config.ollamaClanCooldownSeconds,
+                config.ollamaAmbientCooldownSeconds, config.ollamaPersistHistory));
+    }
+
+    public synchronized void onPlayerPublicChat(final Player player, String message) {
+        if (player == null || !player.isLoggedIn() || message == null || message.trim().isEmpty()) return;
+        String lower = message.toLowerCase();
+        WorldBot target = null;
+        for (WorldBot bot : bots) {
+            if (bot.active && bot.online && bot.npc != null && !bot.npc.isRemoved()
+                    && bot.npc.getLocation().withinRange(player.getLocation(), 14)
+                    && lower.contains(bot.name.toLowerCase())) {
+                target = bot;
+                break;
+            }
+        }
+        if (target == null) target = nearestAvailableBot(player, 14, null, null);
+        if (target == null || !acquireChatCooldown("public:" + player.getUsername(),
+                config.ollamaPublicCooldownSeconds * 1000L)) return;
+        requestPlayerReply(target, player, "public", message, false);
+    }
+
+    public synchronized void privateBotChat(final Player player, String request) {
+        int separator = request == null ? -1 : request.indexOf('|');
+        if (separator < 1 || separator >= request.length() - 1) {
+            player.getSender().sendMessage("@cya@[BotChat] @whi@Usage: ::botchat <bot name>|<message>");
+            return;
+        }
+        WorldBot bot = findBotByName(request.substring(0, separator));
+        String message = request.substring(separator + 1).trim();
+        if (bot == null || !bot.active || !bot.online || message.isEmpty()) {
+            player.getSender().sendMessage("@cya@[BotChat] @red@That bot is not online, or the message is empty.");
+            return;
+        }
+        if (!acquireChatCooldown("private:" + player.getUsername(), config.ollamaPublicCooldownSeconds * 1000L)) {
+            player.getSender().sendMessage("@cya@[BotChat] @whi@Give the bot a moment to answer.");
+            return;
+        }
+        player.getSender().sendMessage("@cya@[Private] @whi@To " + bot.name + ": " + message);
+        requestPlayerReply(bot, player, "private", message, true);
+    }
+
+    public synchronized void groupBotChat(final Player player, String message) {
+        if (message == null || message.trim().isEmpty()) {
+            player.getSender().sendMessage("@cya@[BotChat] @whi@Usage: ::botclan <message>");
+            return;
+        }
+        WorldBot bot = null;
+        for (WorldBot candidate : bots) {
+            if (candidate.active && candidate.online && candidate.isGroupedWith(player)) {
+                bot = candidate;
+                break;
+            }
+        }
+        if (bot == null) {
+            player.getSender().sendMessage("@cya@[BotChat] @red@Invite bots with ::worldbots group first.");
+            return;
+        }
+        if (!acquireChatCooldown("clan:" + player.getUsername(), config.ollamaClanCooldownSeconds * 1000L)) return;
+        requestPlayerReply(bot, player, "clan", message, true);
+    }
+
+    private void requestPlayerReply(final WorldBot bot, final Player player, String channel,
+            String message, final boolean echoToChatBox) {
+        OllamaBotChat.getInstance().reply(bot.chatIdentity(), player.getUsername(), channel, message,
+                line -> enqueueChatDelivery(() -> {
+                    synchronized (WorldBotManager.this) {
+                        if (!player.isLoggedIn() || !bot.active || !bot.online) return;
+                        bot.showOllamaLine(line);
+                        if (echoToChatBox) {
+                            player.getSender().sendMessage("@cya@[" + ("clan".equals(channel) ? "Clan" : "Private")
+                                    + "] @whi@" + bot.name + ": " + line);
+                        }
+                    }
+                }), () -> enqueueChatDelivery(() -> notifyOllamaUnavailable(player)));
+    }
+
+    public synchronized void sendOllamaStatus(final Player player) {
+        configureOllama();
+        for (String line : OllamaBotChat.getInstance().statusLines()) {
+            player.getSender().sendMessage("@cya@[Ollama] @whi@" + line);
+        }
+        OllamaBotChat.getInstance().probe(line -> enqueueChatDelivery(
+                () -> player.getSender().sendMessage("@cya@[Ollama] @whi@" + line)));
+    }
+
+    public synchronized void sendOllamaModelHelp(Player player) {
+        for (String line : OllamaBotChat.getInstance().modelHelp()) {
+            player.getSender().sendMessage("@cya@[Ollama] @whi@" + line);
+        }
+    }
+
+    public synchronized void selectOllamaModel(Player player, String model) {
+        player.getSender().sendMessage("@cya@[Ollama] @whi@" + OllamaBotChat.getInstance().selectModel(model));
+        sendOllamaStatus(player);
+    }
+
+    public synchronized void resetOllamaModel(Player player) {
+        player.getSender().sendMessage("@cya@[Ollama] @whi@" + OllamaBotChat.getInstance().resetModel());
+    }
+
+    public synchronized void forgetOllama(Player player) {
+        int count = OllamaBotChat.getInstance().forget(player.getUsername());
+        player.getSender().sendMessage("@cya@[Ollama] @whi@Forgot " + count + " saved bot conversations.");
+    }
+
+    public synchronized void sendOllamaStartupStatus(final Player player) {
+        configureOllama();
+        player.getSender().sendMessage("@cya@[Ollama] @whi@World bot speech uses "
+                + OllamaBotChat.getInstance().activeModel() + " locally. Use ::ollamastatus.");
+        OllamaBotChat.getInstance().probe(line -> enqueueChatDelivery(
+                () -> player.getSender().sendMessage("@cya@[Ollama] @whi@" + line)));
+    }
+
+    private boolean acquireChatCooldown(String key, long duration) {
+        long now = System.currentTimeMillis();
+        Long until = chatCooldowns.get(key);
+        if (until != null && until > now) return false;
+        chatCooldowns.put(key, now + Math.max(1000L, duration));
+        return true;
+    }
+
+    private void notifyOllamaUnavailable(Player player) {
+        long now = System.currentTimeMillis();
+        if (player == null || !player.isLoggedIn() || now - lastOllamaNoticeAt < 30_000L) return;
+        lastOllamaNoticeAt = now;
+        player.getSender().sendMessage("@cya@[Ollama] @whi@Offline or model missing; bots stay silent. Use ::ollamastatus.");
+    }
+
     private int skillIndex(String name) {
         if (name == null) return -1;
         String normalized = name.trim().toLowerCase();
@@ -486,6 +627,9 @@ public final class WorldBotManager {
                 + "\nsave_every_seconds=" + config.saveEverySeconds
                 + "\nchat_frequency=" + config.chatFrequency
                 + "\naggression=" + config.aggression + " (" + config.aggressionLabel() + ")"
+                + "\nollama_enabled=" + config.ollamaEnabled
+                + "\nollama_url=" + config.ollamaUrl
+                + "\nollama_model=" + OllamaBotChat.getInstance().activeModel()
                 + "\nconfig_file=" + CONFIG_FILE;
     }
 
@@ -860,6 +1004,7 @@ public final class WorldBotManager {
         if (!running) {
             return;
         }
+        drainChatDeliveries();
         updateWorldEvent();
         updateAutoGroups();
         for (WorldBot bot : bots) {
@@ -868,6 +1013,71 @@ public final class WorldBotManager {
         if (System.currentTimeMillis() - lastStateSave > config.saveEverySeconds * 1000L) {
             saveState();
         }
+    }
+
+    private void drainChatDeliveries() {
+        for (int i = 0; i < 32; i++) {
+            Runnable delivery = chatDeliveries.poll();
+            if (delivery == null) return;
+            try {
+                delivery.run();
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
+    private void enqueueChatDelivery(Runnable delivery) {
+        if (delivery != null) chatDeliveries.add(delivery);
+    }
+
+    private void tryAmbientChat(final WorldBot bot) {
+        Player player = World.getWorld().getPlayer();
+        long now = System.currentTimeMillis();
+        if (config.chatFrequency <= 0 || player == null || !player.isLoggedIn()
+                || now < nextPopulationChatAt || bot.npc == null
+                || !bot.npc.getLocation().withinRange(player.getLocation(), 14)) return;
+        nextPopulationChatAt = now + config.ollamaAmbientCooldownSeconds * 1000L
+                + Math.floorMod(bot.name.hashCode(), 10) * 1000L;
+        OllamaBotChat.getInstance().reply(bot.chatIdentity(), player.getUsername(), "public",
+                "Start a spontaneous conversation about what is happening while " + bot.activity + ".",
+                line -> enqueueChatDelivery(() -> {
+                    synchronized (WorldBotManager.this) {
+                        if (!player.isLoggedIn() || !bot.canSpeakNear(player, 14)) return;
+                        bot.showOllamaLine(line);
+                        WorldBot partner = null;
+                        for (WorldBot candidate : availableBots(player, 14, null, null)) {
+                            if (candidate != bot) {
+                                partner = candidate;
+                                break;
+                            }
+                        }
+                        if (partner == null) return;
+                        final WorldBot replyBot = partner;
+                        OllamaBotChat.getInstance().reply(replyBot.chatIdentity(), bot.name, "public",
+                                bot.name + " just said: " + line + " Reply naturally if you have something to add.",
+                                reply -> enqueueChatDelivery(() -> {
+                                    synchronized (WorldBotManager.this) {
+                                        if (replyBot.canSpeakNear(player, 14)) replyBot.showOllamaLine(reply);
+                                    }
+                                }), null);
+                    }
+                }), null);
+    }
+
+    private void requestEventSpeech(final WorldBot bot, String context) {
+        Player player = World.getWorld().getPlayer();
+        long now = System.currentTimeMillis();
+        if (config.chatFrequency <= 0 || player == null || !player.isLoggedIn()
+                || now < nextEventChatAt || now < bot.nextOllamaEventAt || !bot.canSpeakNear(player, 14)) return;
+        nextEventChatAt = now + 4000L;
+        bot.nextOllamaEventAt = now + 12_000L;
+        OllamaBotChat.getInstance().reply(bot.chatIdentity(), player.getUsername(), "public event",
+                "React naturally to this event: " + context,
+                line -> enqueueChatDelivery(() -> {
+                    synchronized (WorldBotManager.this) {
+                        if (bot.canSpeakNear(player, 14)) bot.showOllamaLine(line);
+                    }
+                }), null);
     }
 
     private WorldBot createBot(int index) {
@@ -971,6 +1181,21 @@ public final class WorldBotManager {
             config.saveEverySeconds = parseInt(properties.getProperty("save_every_seconds"), 60);
             config.chatFrequency = Math.max(0, parseInt(properties.getProperty("chat_frequency"), 1));
             config.aggression = Math.max(0, Math.min(5, parseInt(properties.getProperty("aggression"), 3)));
+            config.ollamaEnabled = Boolean.parseBoolean(properties.getProperty("ollama_enabled", "true"));
+            config.ollamaUrl = properties.getProperty("ollama_url", "http://127.0.0.1:11434").trim();
+            config.ollamaModel = properties.getProperty("ollama_model", "qwen3.5:4b").trim();
+            config.ollamaTimeoutSeconds = Math.max(5, Math.min(120,
+                    parseInt(properties.getProperty("ollama_timeout_seconds"), 30)));
+            config.ollamaHistoryMessages = Math.max(2, Math.min(20,
+                    parseInt(properties.getProperty("ollama_history_messages"), 8)));
+            config.ollamaPublicCooldownSeconds = Math.max(1,
+                    parseInt(properties.getProperty("ollama_public_cooldown_seconds"), 4));
+            config.ollamaClanCooldownSeconds = Math.max(1,
+                    parseInt(properties.getProperty("ollama_clan_cooldown_seconds"), 5));
+            config.ollamaAmbientCooldownSeconds = Math.max(5,
+                    parseInt(properties.getProperty("ollama_ambient_cooldown_seconds"), 18));
+            config.ollamaPersistHistory = Boolean.parseBoolean(
+                    properties.getProperty("ollama_persist_history", "true"));
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -991,6 +1216,15 @@ public final class WorldBotManager {
             properties.setProperty("save_every_seconds", String.valueOf(config.saveEverySeconds));
             properties.setProperty("chat_frequency", String.valueOf(config.chatFrequency));
             properties.setProperty("aggression", String.valueOf(config.aggression));
+            properties.setProperty("ollama_enabled", String.valueOf(config.ollamaEnabled));
+            properties.setProperty("ollama_url", config.ollamaUrl);
+            properties.setProperty("ollama_model", config.ollamaModel);
+            properties.setProperty("ollama_timeout_seconds", String.valueOf(config.ollamaTimeoutSeconds));
+            properties.setProperty("ollama_history_messages", String.valueOf(config.ollamaHistoryMessages));
+            properties.setProperty("ollama_public_cooldown_seconds", String.valueOf(config.ollamaPublicCooldownSeconds));
+            properties.setProperty("ollama_clan_cooldown_seconds", String.valueOf(config.ollamaClanCooldownSeconds));
+            properties.setProperty("ollama_ambient_cooldown_seconds", String.valueOf(config.ollamaAmbientCooldownSeconds));
+            properties.setProperty("ollama_persist_history", String.valueOf(config.ollamaPersistHistory));
             try (FileOutputStream out = new FileOutputStream(file)) {
                 properties.store(out, "Single-RSC autonomous world bot settings");
             }
@@ -1013,6 +1247,15 @@ public final class WorldBotManager {
             properties.setProperty("save_every_seconds", "60");
             properties.setProperty("chat_frequency", "1");
             properties.setProperty("aggression", "3");
+            properties.setProperty("ollama_enabled", "true");
+            properties.setProperty("ollama_url", "http://127.0.0.1:11434");
+            properties.setProperty("ollama_model", "qwen3.5:4b");
+            properties.setProperty("ollama_timeout_seconds", "30");
+            properties.setProperty("ollama_history_messages", "8");
+            properties.setProperty("ollama_public_cooldown_seconds", "4");
+            properties.setProperty("ollama_clan_cooldown_seconds", "5");
+            properties.setProperty("ollama_ambient_cooldown_seconds", "18");
+            properties.setProperty("ollama_persist_history", "true");
             try (FileOutputStream out = new FileOutputStream(file)) {
                 properties.store(out, "Single-RSC autonomous world bot settings");
             }
@@ -1235,6 +1478,7 @@ public final class WorldBotManager {
         private Goal goal;
         private int directedSkill = -1;
         private int directedLevel;
+        private long nextOllamaEventAt;
 
         private WorldBot(int index, Role role, NPC npc, BotArea area, Personality personality) {
             this.name = personality.name;
@@ -1336,9 +1580,7 @@ public final class WorldBotManager {
                 nextWorkAt = System.currentTimeMillis() + 5000 + random.nextInt(8000);
             }
 
-            if (config.chatFrequency > 0 && random.nextInt(Math.max(1, personality.chatRate / config.chatFrequency)) == 0) {
-                say(randomLine());
-            }
+            WorldBotManager.this.tryAmbientChat(this);
 
             tradeWithExchange();
 
@@ -1687,13 +1929,34 @@ public final class WorldBotManager {
             carriedItemName = itemName(carriedItem);
         }
 
-        private void say(String message) {
-            if (message == null || message.equals(lastMessage)) {
+        private void say(String context) {
+            WorldBotManager.this.requestEventSpeech(this, context);
+        }
+
+        private void showOllamaLine(String message) {
+            if (message == null || message.trim().isEmpty() || message.equals(lastMessage)) {
                 return;
             }
             lastMessage = message;
             messageSequence++;
             messageUntil = System.currentTimeMillis() + 5000;
+        }
+
+        private boolean canSpeakNear(Player player, int radius) {
+            return player != null && player.isLoggedIn() && active && online && npc != null && !npc.isRemoved()
+                    && npc.getLocation().withinRange(player.getLocation(), radius);
+        }
+
+        private OllamaBotChat.BotIdentity chatIdentity() {
+            String goalText = directedSkill >= 0
+                    ? SKILL_NAMES[directedSkill] + " level " + directedLevel : goal.label;
+            String interests = role == Role.GATHERER
+                    ? "skilling, resources, trading, and the exchange"
+                    : role == Role.FIGHTER
+                            ? "combat training, equipment, drops, and group trips"
+                            : "the wilderness, risk, loot, clans, and player killing";
+            return new OllamaBotChat.BotIdentity(name, personality.title, personality.clan,
+                    personality.rivalClan, area.name, activity, goalText, interests, level);
         }
 
         private String randomLine() {
@@ -2352,6 +2615,15 @@ public final class WorldBotManager {
         private int saveEverySeconds = 60;
         private int chatFrequency = 1;
         private int aggression = 3;
+        private boolean ollamaEnabled = true;
+        private String ollamaUrl = "http://127.0.0.1:11434";
+        private String ollamaModel = "qwen3.5:4b";
+        private int ollamaTimeoutSeconds = 30;
+        private int ollamaHistoryMessages = 8;
+        private int ollamaPublicCooldownSeconds = 4;
+        private int ollamaClanCooldownSeconds = 5;
+        private int ollamaAmbientCooldownSeconds = 18;
+        private boolean ollamaPersistHistory = true;
 
         private String aggressionLabel() {
             if (aggression <= 0) {
