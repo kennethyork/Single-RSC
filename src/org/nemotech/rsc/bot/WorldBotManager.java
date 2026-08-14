@@ -60,6 +60,10 @@ public final class WorldBotManager {
     private static final int HERBLAW = 15;
     private static final int AGILITY = 16;
     private static final int THIEVING = 17;
+    private static final int[] NON_COMBAT_SKILLS = {
+            COOKING, WOODCUTTING, FLETCHING, FISHING, FIREMAKING, CRAFTING,
+            SMITHING, MINING, HERBLAW, AGILITY, THIEVING
+    };
     private static final long MINUTE_MS = 60 * 1000L;
     private static final String CONFIG_FILE = Constants.CACHE_DIRECTORY + "worldbots.properties";
     private static final String STATE_FILE = Constants.CACHE_DIRECTORY + "worldbots_state.properties";
@@ -1796,6 +1800,10 @@ public final class WorldBotManager {
                 workDirectedSkill();
                 return;
             }
+            // Advance a side skill on every work cycle. The primary action below still
+            // defines the bot's role, while this keeps old combat-heavy bot saves from
+            // leaving every non-combat highscore at level 1 indefinitely.
+            trainLowestNonCombatSkill();
             if (role == Role.GATHERER) {
                 addInventory(carriedItem, 1 + random.nextInt(4));
                 gainSkillXp(skillForItem(carriedItem), 18 + random.nextInt(18));
@@ -1821,6 +1829,31 @@ public final class WorldBotManager {
             if (random.nextInt(5) == 0) {
                 processProduction();
             }
+        }
+
+        private void trainLowestNonCombatSkill() {
+            int lowestLevel = Integer.MAX_VALUE;
+            int choices = 0;
+            int selectedSkill = NON_COMBAT_SKILLS[0];
+            for (int skill : NON_COMBAT_SKILLS) {
+                int skillLevel = skillLevel(skill);
+                if (skillLevel < lowestLevel) {
+                    lowestLevel = skillLevel;
+                    selectedSkill = skill;
+                    choices = 1;
+                } else if (skillLevel == lowestLevel && random.nextInt(++choices) == 0) {
+                    selectedSkill = skill;
+                }
+            }
+
+            int itemId = productForSkill(selectedSkill);
+            if (itemId >= 0 && itemId != COINS) {
+                addInventory(itemId, 1 + random.nextInt(2));
+            }
+            // 90 XP guarantees visible early-level progress even for a 1x bot. Picking
+            // the lowest skill keeps this catch-up balanced rather than inflating one stat.
+            gainSkillXp(selectedSkill, 90 + random.nextInt(31));
+            activity = "training " + SKILL_NAMES[selectedSkill] + " in " + area.name;
         }
 
         private void workDirectedSkill() {
