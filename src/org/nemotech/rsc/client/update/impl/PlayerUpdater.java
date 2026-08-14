@@ -79,6 +79,10 @@ public class PlayerUpdater extends Updater {
             for (int i = 0; i < character.equippedItem.length; i++) {
                 character.equippedItem[i] = i < bot.equipment.length ? bot.equipment[i] : 0;
             }
+            if (bot.bubbleItem >= 0) {
+                character.bubbleItem = bot.bubbleItem;
+                character.bubbleTimeout = 30;
+            }
         }
     }
     

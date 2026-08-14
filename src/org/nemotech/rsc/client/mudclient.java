@@ -5173,16 +5173,20 @@ OUTER:		for (int animationIndex = 0; animationIndex < EntityManager.getAnimation
         }
         // WORLD BOT PLAYER TRADE
         if (mitemid == 2810) {
-            String name = WorldBotManager.getInstance().getNameForServerIndex(midx);
-            if (name != null) {
-                showMessage(name + " is busy and declines the trade", 3);
+            int npcIndex = WorldBotManager.getInstance().getNpcIndexForServerIndex(midx);
+            if (npcIndex >= 0) {
+                ActionManager.get(NPCHandler.class).handleCommand(npcIndex);
+            } else {
+                showMessage("That player is no longer nearby", 3);
             }
         }
         // WORLD BOT PLAYER FOLLOW
         if (mitemid == 2820) {
-            String name = WorldBotManager.getInstance().getNameForServerIndex(midx);
+            String name = WorldBotManager.getInstance().followBot(player, midx);
             if (name != null) {
                 showMessage("You start following " + name, 3);
+            } else {
+                showMessage("That player is no longer nearby", 3);
             }
         }
         // CAST ON GROUND

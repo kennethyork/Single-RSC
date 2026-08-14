@@ -16,6 +16,8 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 
 import org.nemotech.rsc.Constants;
 import org.nemotech.rsc.event.DelayedEvent;
+import org.nemotech.rsc.model.Entity;
+import org.nemotech.rsc.model.GameObject;
 import org.nemotech.rsc.model.GrandExchange;
 import org.nemotech.rsc.model.Item;
 import org.nemotech.rsc.model.Mob;
@@ -958,6 +960,18 @@ public final class WorldBotManager {
         return null;
     }
 
+    public synchronized String followBot(Player player, int serverIndex) {
+        for (WorldBot bot : bots) {
+            if (bot.playerServerIndex == serverIndex && bot.active && bot.online
+                    && bot.npc != null && !bot.npc.isRemoved()) {
+                player.reset();
+                player.setFollowing(bot.npc, 1);
+                return bot.name;
+            }
+        }
+        return null;
+    }
+
     public synchronized void onPlayerAttackedBot(Player player, NPC npc) {
         WorldBot bot = findBot(npc);
         if (bot == null || !bot.active) {
@@ -1094,13 +1108,14 @@ public final class WorldBotManager {
             role = Role.GATHERER;
         }
 
-        BotArea area = role.areaFor(index);
+        SkillingSite skillingSite = role == Role.GATHERER ? SkillingSite.forBot(index) : null;
+        BotArea area = skillingSite == null ? role.areaFor(index) : skillingSite.area;
         int npcId = role == Role.GATHERER ? GATHERER_NPC : role == Role.FIGHTER ? FIGHTER_NPC : WILDERNESS_NPC;
         NPC npc = new NPC(npcId, area.randomX(random), area.randomY(random),
                 area.minX, area.maxX, area.minY, area.maxY);
         npc.setShouldRespawn(false);
         World.getWorld().registerNpc(npc);
-        return new WorldBot(index, role, npc, area, Personality.forBot(index, role));
+        return new WorldBot(index, role, npc, area, Personality.forBot(index, role), skillingSite);
     }
 
     private void updateWorldEvent() {
@@ -1299,6 +1314,7 @@ public final class WorldBotManager {
                 } else {
                     parseIntArray(savedSkills, bot.skillXp);
                 }
+                bot.ensureVariedGathererCombat(i);
                 bot.playerReputation = parseInt(properties.getProperty(prefix + "player_reputation"), bot.playerReputation);
                 bot.directedSkill = parseInt(properties.getProperty(prefix + "directed_skill"), -1);
                 bot.directedLevel = parseInt(properties.getProperty(prefix + "directed_level"), 0);
@@ -1440,6 +1456,7 @@ public final class WorldBotManager {
         private final String name;
         private final Role role;
         private final Personality personality;
+        private SkillingSite skillingSite;
         private final int playerServerIndex;
         private final int[] appearanceSprites;
         private final int hairColour;
@@ -1483,11 +1500,20 @@ public final class WorldBotManager {
         private int directedSkill = -1;
         private int directedLevel;
         private long nextOllamaEventAt;
+        private boolean bankingTrip;
+        private long visibleActionUntil;
+        private int visibleBubbleItem = -1;
+        private int visibleToolItem = -1;
+        private long nextSkillingSiteChangeAt;
 
-        private WorldBot(int index, Role role, NPC npc, BotArea area, Personality personality) {
+        private WorldBot(int index, Role role, NPC npc, BotArea area, Personality personality,
+                SkillingSite skillingSite) {
             this.name = personality.name;
             this.role = role;
             this.personality = personality;
+            this.skillingSite = skillingSite;
+            this.nextSkillingSiteChangeAt = System.currentTimeMillis()
+                    + (1 + random.nextInt(3)) * MINUTE_MS;
             this.playerServerIndex = PLAYER_SERVER_INDEX_BASE + index;
             this.npc = npc;
             this.area = area;
@@ -1500,6 +1526,7 @@ public final class WorldBotManager {
             level = personality.startLevel;
             xpRate = xpRateFor(index, role);
             initializeSkills(level);
+            ensureVariedGathererCombat(index);
             initializeEquipment();
             addInventory(COINS, 500 + (level * 25) + random.nextInt(1500));
             refreshDerivedStats();
@@ -1527,6 +1554,27 @@ public final class WorldBotManager {
                     skillXp[RANGED] = Formulae.lvlToXp(Math.max(1, combat - 4));
                     skillXp[MAGIC] = Formulae.lvlToXp(Math.max(1, combat - 5));
                 }
+            }
+        }
+
+        private void ensureVariedGathererCombat(int index) {
+            if (role != Role.GATHERER || skillXp[ATTACK] > 0 || skillXp[DEFENSE] > 0
+                    || skillXp[STRENGTH] > 0 || skillXp[RANGED] > 0 || skillXp[MAGIC] > 0) {
+                return;
+            }
+            int targetCombat = 3 + Math.floorMod(index * 47, 121);
+            if (targetCombat <= 5) {
+                return;
+            }
+            int meleeTarget = Math.min(114, targetCombat);
+            int baseLevel = Math.min(99, Math.max(2, Math.round(meleeTarget / 1.15f)));
+            skillXp[ATTACK] = Formulae.lvlToXp(baseLevel);
+            skillXp[DEFENSE] = Formulae.lvlToXp(baseLevel);
+            skillXp[STRENGTH] = Formulae.lvlToXp(baseLevel);
+            skillXp[HITS] = Formulae.lvlToXp(Math.max(10, baseLevel));
+            if (targetCombat > 114) {
+                int prayerLevel = Math.min(99, (targetCombat - 114) * 8);
+                skillXp[PRAYER] = Formulae.lvlToXp(prayerLevel);
             }
         }
 
@@ -1588,7 +1636,7 @@ public final class WorldBotManager {
 
             tradeWithExchange();
 
-            if (inventorySize() >= role.depositAt) {
+            if (role != Role.GATHERER && inventorySize() >= role.depositAt) {
                 int banked = depositInventoryToExchange();
                 say("banking " + banked + " items");
             }
@@ -1805,12 +1853,8 @@ public final class WorldBotManager {
             // leaving every non-combat highscore at level 1 indefinitely.
             trainLowestNonCombatSkill();
             if (role == Role.GATHERER) {
-                addInventory(carriedItem, 1 + random.nextInt(4));
-                gainSkillXp(skillForItem(carriedItem), 18 + random.nextInt(18));
-                activity = "collecting " + carriedItemName + " in " + area.name;
-                if (random.nextInt(20) == 0) {
-                    say("banking " + carriedItemName + " soon");
-                }
+                workVisibleGathering();
+                return;
             } else if (role == Role.FIGHTER) {
                 addInventory(carriedItem, 1 + random.nextInt(3));
                 trainCombat(28 + random.nextInt(30));
@@ -1829,6 +1873,133 @@ public final class WorldBotManager {
             if (random.nextInt(5) == 0) {
                 processProduction();
             }
+        }
+
+        private void workVisibleGathering() {
+            if (skillingSite == null) {
+                return;
+            }
+            if (!bankingTrip && System.currentTimeMillis() >= nextSkillingSiteChangeAt) {
+                switchSkillingSite();
+                return;
+            }
+            if (inventorySize() >= role.depositAt) {
+                bankingTrip = true;
+            }
+            if (bankingTrip) {
+                if (distanceTo(skillingSite.bankX, skillingSite.bankY) > 2) {
+                    clearVisibleAction();
+                    activity = "walking to bank from " + skillingSite.name;
+                    npc.setPath(new Path(npc.getX(), npc.getY(), skillingSite.bankX, skillingSite.bankY));
+                    return;
+                }
+                int banked = depositInventoryToExchange();
+                bankingTrip = false;
+                beginVisibleAction(COINS, -1, 2500L);
+                activity = "banking " + banked + " items from " + skillingSite.name;
+                say("banked, back to " + skillingSite.shortName);
+                npc.setPath(new Path(npc.getX(), npc.getY(), skillingSite.targetX, skillingSite.targetY));
+                return;
+            }
+
+            Entity target = nearestSkillingTarget();
+            if (target == null || distanceTo(target.getX(), target.getY()) > 2) {
+                clearVisibleAction();
+                activity = "walking to " + skillingSite.name;
+                npc.setPath(new Path(npc.getX(), npc.getY(), skillingSite.targetX, skillingSite.targetY));
+                return;
+            }
+
+            npc.resetPath();
+            npc.face(target);
+            beginVisibleAction(skillingSite.toolItem, skillingSite.toolItem, 3200L);
+            int amount = 1 + random.nextInt(4);
+            addInventory(skillingSite.resourceItem, amount);
+            carriedItem = skillingSite.resourceItem;
+            carriedItemName = itemName(carriedItem);
+            gainSkillXp(skillingSite.skill, 25 + random.nextInt(35));
+            activity = skillingSite.verb + " at " + skillingSite.name;
+            if (random.nextInt(20) == 0) {
+                say(skillingSite.chatLine);
+            }
+            if (random.nextInt(5) == 0) {
+                processProduction();
+            }
+        }
+
+        private void switchSkillingSite() {
+            skillingSite = SkillingSite.next(skillingSite, random);
+            area = skillingSite.area;
+            carriedItem = skillingSite.resourceItem;
+            carriedItemName = itemName(carriedItem);
+            clearVisibleAction();
+            npc.getLoc().minX = area.minX;
+            npc.getLoc().maxX = area.maxX;
+            npc.getLoc().minY = area.minY;
+            npc.getLoc().maxY = area.maxY;
+            npc.getLoc().startX = skillingSite.targetX;
+            npc.getLoc().startY = skillingSite.targetY;
+            activity = "travelling across the world to " + skillingSite.name;
+            npc.setPath(new Path(npc.getX(), npc.getY(), skillingSite.targetX, skillingSite.targetY));
+            nextSkillingSiteChangeAt = System.currentTimeMillis()
+                    + (2 + random.nextInt(5)) * MINUTE_MS;
+            if (random.nextInt(4) == 0) {
+                say("heading to " + skillingSite.shortName);
+            }
+        }
+
+        private Entity nearestSkillingTarget() {
+            Entity nearest = null;
+            int nearestDistance = Integer.MAX_VALUE;
+            if (skillingSite.npcIds.length > 0) {
+                for (NPC candidate : World.getWorld().getNpcs()) {
+                    if (candidate == null || candidate.isRemoved()
+                            || !contains(skillingSite.npcIds, candidate.getID())) {
+                        continue;
+                    }
+                    int distance = distanceTo(candidate.getX(), candidate.getY());
+                    if (distance < nearestDistance) {
+                        nearest = candidate;
+                        nearestDistance = distance;
+                    }
+                }
+                return nearest;
+            }
+            for (GameObject candidate : npc.getViewArea().getGameObjectsInView()) {
+                if (candidate == null || candidate.isRemoved()
+                        || !contains(skillingSite.objectIds, candidate.getID())) {
+                    continue;
+                }
+                int distance = distanceTo(candidate.getX(), candidate.getY());
+                if (distance < nearestDistance) {
+                    nearest = candidate;
+                    nearestDistance = distance;
+                }
+            }
+            return nearest;
+        }
+
+        private int distanceTo(int x, int y) {
+            return Math.max(Math.abs(npc.getX() - x), Math.abs(npc.getY() - y));
+        }
+
+        private boolean contains(int[] values, int value) {
+            for (int candidate : values) {
+                if (candidate == value) return true;
+            }
+            return false;
+        }
+
+        private void beginVisibleAction(int bubbleItem, int toolItem, long duration) {
+            visibleBubbleItem = bubbleItem;
+            visibleToolItem = toolItem;
+            visibleActionUntil = System.currentTimeMillis() + duration;
+        }
+
+        private void clearVisibleAction() {
+            visibleBubbleItem = -1;
+            visibleToolItem = -1;
+            visibleActionUntil = 0L;
         }
 
         private void trainLowestNonCombatSkill() {
@@ -1907,8 +2078,12 @@ public final class WorldBotManager {
         }
 
         private void updateGoal() {
+            if (role == Role.GATHERER && goal != Goal.SKILLING && goal != Goal.BUILD_BANK) {
+                goal = Goal.SKILLING;
+            }
             if (goal == Goal.BUILD_BANK && coins() > 10000 && random.nextInt(8) == 0) {
-                goal = role == Role.WILDERNESS ? Goal.PK_TRIP : Goal.UPGRADE_GEAR;
+                goal = role == Role.WILDERNESS ? Goal.PK_TRIP
+                        : role == Role.GATHERER ? Goal.SKILLING : Goal.UPGRADE_GEAR;
                 say("bank is looking good");
                 return;
             }
@@ -1926,8 +2101,11 @@ public final class WorldBotManager {
         }
 
         private void walkSomewhere() {
-            if (role == Role.GATHERER && random.nextInt(12) == 0) {
-                area = Role.GATHERER.randomArea(random);
+            if (role == Role.GATHERER && skillingSite != null) {
+                clearVisibleAction();
+                activity = "returning to " + skillingSite.name;
+                npc.setPath(new Path(npc.getX(), npc.getY(), skillingSite.targetX, skillingSite.targetY));
+                return;
             }
             activity = "walking through " + area.name;
             npc.setPath(new Path(npc.getX(), npc.getY(), area.randomX(random), area.randomY(random)));
@@ -1935,6 +2113,11 @@ public final class WorldBotManager {
 
         private void chooseCarriedItem(int index) {
             if (role == Role.GATHERER) {
+                if (skillingSite != null) {
+                    carriedItem = skillingSite.resourceItem;
+                    carriedItemName = itemName(carriedItem);
+                    return;
+                }
                 int[] items = {
                         14, 632, 633, 634, 635, 636,
                         150, 202, 151, 155, 383, 152, 153, 154, 409,
@@ -2089,10 +2272,23 @@ public final class WorldBotManager {
 
         private Snapshot snapshot() {
             int[] equipment = appearanceSprites.clone();
+            int bubbleItem = -1;
+            if (System.currentTimeMillis() < visibleActionUntil) {
+                bubbleItem = visibleBubbleItem;
+                try {
+                    org.nemotech.rsc.external.definition.extra.ItemWieldableDef wieldable =
+                            org.nemotech.rsc.external.EntityManager.getItemWieldableDef(visibleToolItem);
+                    if (wieldable != null && wieldable.getWieldPos() >= 0
+                            && wieldable.getWieldPos() < equipment.length) {
+                        equipment[wieldable.getWieldPos()] = wieldable.getSprite();
+                    }
+                } catch (Exception ignored) {
+                }
+            }
             return new Snapshot(playerServerIndex, name, npc.getX(), npc.getY(), npc.getSprite(),
                     level, role == Role.WILDERNESS, equipment,
                     hairColour, topColour, bottomColour, skinColour,
-                    System.currentTimeMillis() < messageUntil ? lastMessage : null, messageSequence);
+                    System.currentTimeMillis() < messageUntil ? lastMessage : null, messageSequence, bubbleItem);
         }
 
         private void addInventory(int itemId, int amount) {
@@ -2355,7 +2551,8 @@ public final class WorldBotManager {
         }
 
         private void respawn() {
-            BotArea spawnArea = role.randomArea(random);
+            BotArea spawnArea = role == Role.GATHERER && skillingSite != null
+                    ? skillingSite.area : role.randomArea(random);
             spawn(spawnArea);
             active = true;
             online = true;
@@ -2375,7 +2572,8 @@ public final class WorldBotManager {
         }
 
         private void login() {
-            BotArea spawnArea = role.randomArea(random);
+            BotArea spawnArea = role == Role.GATHERER && skillingSite != null
+                    ? skillingSite.area : role.randomArea(random);
             spawn(spawnArea);
             online = true;
             scheduleLogout();
@@ -2690,16 +2888,17 @@ public final class WorldBotManager {
         public final int skinColour;
         public final String message;
         public final int messageSequence;
+        public final int bubbleItem;
 
         private Snapshot(int serverIndex, String name, int x, int y, int sprite, int combatLevel,
                 boolean skulled, int[] equipment, int hairColour, int topColour, int bottomColour, int skinColour) {
             this(serverIndex, name, x, y, sprite, combatLevel, skulled, equipment,
-                    hairColour, topColour, bottomColour, skinColour, null, 0);
+                    hairColour, topColour, bottomColour, skinColour, null, 0, -1);
         }
 
         private Snapshot(int serverIndex, String name, int x, int y, int sprite, int combatLevel,
                 boolean skulled, int[] equipment, int hairColour, int topColour, int bottomColour, int skinColour,
-                String message, int messageSequence) {
+                String message, int messageSequence, int bubbleItem) {
             this.serverIndex = serverIndex;
             this.name = name;
             this.x = x;
@@ -2714,6 +2913,7 @@ public final class WorldBotManager {
             this.skinColour = skinColour;
             this.message = message;
             this.messageSequence = messageSequence;
+            this.bubbleItem = bubbleItem;
         }
     }
 
@@ -3026,6 +3226,99 @@ public final class WorldBotManager {
                 return WILDERNESS;
             }
             return null;
+        }
+    }
+
+    private static final class SkillingSite {
+        private static final int[] ROCK_IDS = {
+                100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111,
+                112, 113, 114, 115, 176, 195, 196, 210, 211
+        };
+        private static final SkillingSite[] SITES = {
+                new SkillingSite("Draynor forest", "the trees", "chopping trees", "these trees are busy",
+                        WOODCUTTING, 14, 12, 199, 644, 218, 635, new int[] { 0, 1 }, new int[0],
+                        new BotArea("Draynor forest", 194, 205, 638, 649)),
+                new SkillingSite("Seers oak grove", "the oaks", "chopping oak", "oak spot is good",
+                        WOODCUTTING, 632, 88, 486, 458, 500, 451, new int[] { 306 }, new int[0],
+                        new BotArea("Seers oak grove", 483, 491, 454, 463)),
+                new SkillingSite("Seers maple grove", "the maples", "chopping maple", "maples then bank",
+                        WOODCUTTING, 634, 203, 499, 461, 500, 451, new int[] { 308 }, new int[0],
+                        new BotArea("Seers maple grove", 496, 503, 457, 465)),
+                new SkillingSite("Seers yew grove", "the yews", "chopping yew", "yews are active",
+                        WOODCUTTING, 635, 203, 515, 476, 500, 451, new int[] { 309 }, new int[0],
+                        new BotArea("Seers yew grove", 511, 520, 470, 480)),
+                new SkillingSite("Falador willow grove", "the willows", "chopping willow", "willows then bank",
+                        WOODCUTTING, 633, 88, 340, 511, 331, 551, new int[] { 307 }, new int[0],
+                        new BotArea("Falador willow grove", 337, 345, 508, 515)),
+                new SkillingSite("Ardougne yew grove", "the yews", "chopping yew", "quiet yew world",
+                        WOODCUTTING, 635, 203, 509, 571, 552, 613, new int[] { 309 }, new int[0],
+                        new BotArea("Ardougne yew grove", 505, 513, 567, 575)),
+                new SkillingSite("Seers magic trees", "the magic trees", "chopping magic tree", "magic logs trip",
+                        WOODCUTTING, 636, 203, 519, 494, 503, 449, new int[] { 310 }, new int[0],
+                        new BotArea("Seers magic trees", 516, 525, 489, 497)),
+                new SkillingSite("Varrock mine", "the rocks", "mining ore", "mining then Varrock bank",
+                        MINING, 155, 156, 163, 535, 149, 504, ROCK_IDS, new int[0],
+                        new BotArea("Varrock mine", 158, 169, 532, 540)),
+                new SkillingSite("Ardougne mine", "the rocks", "mining ore", "Ardougne mining trip",
+                        MINING, 154, 156, 519, 570, 552, 613, ROCK_IDS, new int[0],
+                        new BotArea("Ardougne mine", 514, 525, 567, 575)),
+                new SkillingSite("Rimmington mine", "the rocks", "mining ore", "Rimmington mining trip",
+                        MINING, 151, 156, 312, 636, 282, 566, ROCK_IDS, new int[0],
+                        new BotArea("Rimmington mine", 307, 318, 632, 645)),
+                new SkillingSite("Draynor fishing spot", "the fishing spot", "fishing", "fishing then bank",
+                        FISHING, 349, 376, 260, 641, 218, 635, new int[0], new int[] { 193 },
+                        new BotArea("Draynor fishing spot", 256, 263, 638, 645))
+        };
+
+        private final String name;
+        private final String shortName;
+        private final String verb;
+        private final String chatLine;
+        private final int skill;
+        private final int resourceItem;
+        private final int toolItem;
+        private final int targetX;
+        private final int targetY;
+        private final int bankX;
+        private final int bankY;
+        private final int[] objectIds;
+        private final int[] npcIds;
+        private final BotArea area;
+
+        private SkillingSite(String name, String shortName, String verb, String chatLine,
+                int skill, int resourceItem, int toolItem, int targetX, int targetY,
+                int bankX, int bankY, int[] objectIds, int[] npcIds, BotArea area) {
+            this.name = name;
+            this.shortName = shortName;
+            this.verb = verb;
+            this.chatLine = chatLine;
+            this.skill = skill;
+            this.resourceItem = resourceItem;
+            this.toolItem = toolItem;
+            this.targetX = targetX;
+            this.targetY = targetY;
+            this.bankX = bankX;
+            this.bankY = bankY;
+            this.objectIds = objectIds;
+            this.npcIds = npcIds;
+            this.area = area;
+        }
+
+        private static SkillingSite forBot(int index) {
+            int gathererIndex = (index / 4) * 2 + (index % 4);
+            return SITES[Math.floorMod(gathererIndex, SITES.length)];
+        }
+
+        private static SkillingSite next(SkillingSite current, Random random) {
+            int currentIndex = 0;
+            for (int i = 0; i < SITES.length; i++) {
+                if (SITES[i] == current) {
+                    currentIndex = i;
+                    break;
+                }
+            }
+            int offset = 1 + random.nextInt(SITES.length - 1);
+            return SITES[(currentIndex + offset) % SITES.length];
         }
     }
 
