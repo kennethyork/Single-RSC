@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>RSC Single Player</title>
-  <link rel="stylesheet" href="styles.css?v=20260814-3" />
+  <link rel="stylesheet" href="styles.css?v=20260814-4" />
 </head>
 <body>
   <header>
@@ -117,7 +117,6 @@
       <p>The game creates <code>cache/highscores-export.json</code> when you log in and refreshes it every 20 seconds. Connect that file once and this page remembers your rankings, search, and open profile across page refreshes. Your data is read only by this browser and is never uploaded.</p>
       <div class="highscore-controls">
         <button class="file-button" id="highscore-connect" type="button">Connect live highscores</button>
-        <label class="file-button" id="highscore-fallback" for="highscore-file">Choose highscore export</label>
         <input id="highscore-file" type="file" accept="application/json,.json">
         <label for="highscore-skill">Ranking</label>
         <select id="highscore-skill" disabled><option value="overall">Overall</option></select>
@@ -270,6 +269,6 @@
     </div>
   </footer>
 
-  <script src="main.js?v=20260814-3"></script>
+  <script src="main.js?v=20260814-4"></script>
 </body>
 </html>

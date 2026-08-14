@@ -1,6 +1,5 @@
 const fileInput = document.querySelector("#highscore-file");
 const connectButton = document.querySelector("#highscore-connect");
-const fallbackButton = document.querySelector("#highscore-fallback");
 const skillSelect = document.querySelector("#highscore-skill");
 const searchInput = document.querySelector("#highscore-search");
 const summary = document.querySelector("#highscore-summary");
@@ -299,7 +298,6 @@ profileClose.addEventListener("click", () => {
 
 restoreCachedExport();
 if (supportsPersistentFile) {
-  fallbackButton.hidden = true;
   savedHandle().then(async (handle) => {
     if (!handle) return;
     liveHandle = handle;
@@ -310,7 +308,6 @@ if (supportsPersistentFile) {
   });
 } else {
   connectButton.textContent = "Choose highscore export";
-  fallbackButton.hidden = true;
 }
 
 document.addEventListener("visibilitychange", () => {
