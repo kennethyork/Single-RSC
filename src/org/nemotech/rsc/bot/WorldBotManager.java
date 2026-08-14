@@ -40,6 +40,7 @@ public final class WorldBotManager {
     private static final int COINS = 10;
     private static final int DEFAULT_BOT_COUNT = 200;
     private static final int DEFAULT_MAX_BOT_COUNT = 200;
+    private static final int DEFAULT_ONLINE_LIMIT = 80;
     private static final String[] SKILL_NAMES = {
             "Attack", "Defense", "Strength", "Hits", "Ranged", "Prayer", "Magic", "Cooking", "Woodcutting",
             "Fletching", "Fishing", "Firemaking", "Crafting", "Smithing", "Mining", "Herblaw", "Agility", "Thieving"
@@ -118,6 +119,7 @@ public final class WorldBotManager {
             bots.add(createBot(i));
         }
         loadState();
+        enforceOnlineLimit();
         tickEvent = new DelayedEvent(null, 2500) {
             @Override
             public Object getIdentifier() {
@@ -156,10 +158,38 @@ public final class WorldBotManager {
         return bots.size();
     }
 
+    private int onlineBotCount() {
+        int count = 0;
+        for (WorldBot bot : bots) {
+            if (bot.active && bot.online && bot.npc != null && !bot.npc.isRemoved()) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private void enforceOnlineLimit() {
+        List<WorldBot> onlineBots = new ArrayList<>();
+        for (WorldBot bot : bots) {
+            if (bot.active && bot.online && bot.npc != null && !bot.npc.isRemoved()) {
+                onlineBots.add(bot);
+            }
+        }
+        Collections.shuffle(onlineBots, random);
+        for (int i = config.onlineLimit; i < onlineBots.size(); i++) {
+            WorldBot bot = onlineBots.get(i);
+            World.getWorld().unregisterNpc(bot.npc);
+            bot.online = false;
+            bot.activity = "offline";
+            bot.nextSessionChangeAt = System.currentTimeMillis() + bot.offlineDuration();
+        }
+    }
+
     public synchronized String getStatusReport() {
         StringBuilder report = new StringBuilder();
         report.append("World bots: ").append(running ? "running" : "stopped")
-                .append(" (").append(bots.size()).append(")")
+                .append(" (").append(bots.size()).append(" roster, ")
+                .append(onlineBotCount()).append(" online)")
                 .append("\nEvent: ").append(currentWorldEvent);
         for (WorldBot bot : bots) {
             report.append("\n").append(bot.name)
@@ -629,6 +659,7 @@ public final class WorldBotManager {
                 + "\nautostart=" + config.autoStart
                 + "\ndefault_count=" + config.defaultCount
                 + "\nmax_count=" + config.maxCount
+                + "\nonline_limit=" + config.onlineLimit
                 + "\nrespawn_seconds=" + config.respawnSeconds
                 + "\nsave_every_seconds=" + config.saveEverySeconds
                 + "\nchat_frequency=" + config.chatFrequency
@@ -1196,6 +1227,8 @@ public final class WorldBotManager {
             config.autoStart = Boolean.parseBoolean(properties.getProperty("autostart", String.valueOf(config.autoStart)));
             config.defaultCount = parseInt(properties.getProperty("default_count"), DEFAULT_BOT_COUNT);
             config.maxCount = parseInt(properties.getProperty("max_count"), DEFAULT_MAX_BOT_COUNT);
+            config.onlineLimit = Math.max(1, Math.min(config.maxCount,
+                    parseInt(properties.getProperty("online_limit"), DEFAULT_ONLINE_LIMIT)));
             config.respawnSeconds = parseInt(properties.getProperty("respawn_seconds"), 20);
             config.saveEverySeconds = parseInt(properties.getProperty("save_every_seconds"), 60);
             config.chatFrequency = Math.max(0, parseInt(properties.getProperty("chat_frequency"), 1));
@@ -1231,6 +1264,7 @@ public final class WorldBotManager {
             properties.setProperty("autostart", String.valueOf(config.autoStart));
             properties.setProperty("default_count", String.valueOf(config.defaultCount));
             properties.setProperty("max_count", String.valueOf(config.maxCount));
+            properties.setProperty("online_limit", String.valueOf(config.onlineLimit));
             properties.setProperty("respawn_seconds", String.valueOf(config.respawnSeconds));
             properties.setProperty("save_every_seconds", String.valueOf(config.saveEverySeconds));
             properties.setProperty("chat_frequency", String.valueOf(config.chatFrequency));
@@ -1262,6 +1296,7 @@ public final class WorldBotManager {
             properties.setProperty("autostart", "true");
             properties.setProperty("default_count", String.valueOf(DEFAULT_BOT_COUNT));
             properties.setProperty("max_count", String.valueOf(DEFAULT_MAX_BOT_COUNT));
+            properties.setProperty("online_limit", String.valueOf(DEFAULT_ONLINE_LIMIT));
             properties.setProperty("respawn_seconds", "20");
             properties.setProperty("save_every_seconds", "60");
             properties.setProperty("chat_frequency", "1");
@@ -2572,6 +2607,11 @@ public final class WorldBotManager {
         }
 
         private void login() {
+            if (onlineBotCount() >= config.onlineLimit) {
+                activity = "offline";
+                nextSessionChangeAt = System.currentTimeMillis() + offlineDuration();
+                return;
+            }
             BotArea spawnArea = role == Role.GATHERER && skillingSite != null
                     ? skillingSite.area : role.randomArea(random);
             spawn(spawnArea);
@@ -2842,6 +2882,7 @@ public final class WorldBotManager {
         private boolean autoStart = true;
         private int defaultCount = DEFAULT_BOT_COUNT;
         private int maxCount = DEFAULT_MAX_BOT_COUNT;
+        private int onlineLimit = DEFAULT_ONLINE_LIMIT;
         private int respawnSeconds = 20;
         private int saveEverySeconds = 60;
         private int chatFrequency = 1;
