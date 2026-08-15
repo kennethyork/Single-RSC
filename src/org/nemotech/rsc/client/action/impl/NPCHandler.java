@@ -94,8 +94,14 @@ public class NPCHandler implements ActionHandler {
     }
 
     public void handleAttack(int idx) {
-        Player player = World.getWorld().getPlayer();
-        
+        handleAttack(World.getWorld().getPlayer(), idx);
+    }
+
+    /** Starts the normal NPC combat path for either the local or a headless player. */
+    public void handleAttack(Player player, int idx) {
+        if (player == null) {
+            return;
+        }
         if (player.isBusy()) {
             player.resetPath();
             return;

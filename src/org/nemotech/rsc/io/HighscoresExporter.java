@@ -101,7 +101,7 @@ public final class HighscoresExporter {
                 return names;
             }
             for (Player player : world.getPlayers()) {
-                if (player != null && player.isLoggedIn() && player.getUsername() != null) {
+                if (player != null && !player.isHeadless() && player.isLoggedIn() && player.getUsername() != null) {
                     names.add(player.getUsername().trim().toLowerCase(Locale.ROOT));
                 }
             }
@@ -134,6 +134,7 @@ public final class HighscoresExporter {
                 entry.status = onlineNames.contains(username.trim().toLowerCase(Locale.ROOT))
                         ? "Online" : "Offline";
                 entry.goal = save.hardcoreDead ? "hardcore dead" : "saved character";
+                entry.activity = entry.goal;
                 entry.xpRate = Math.max(1, save.xpRate) + "x";
                 entry.level = totalLevel(save.expStats);
                 entry.xp = totalXp(save.expStats);
@@ -196,6 +197,7 @@ public final class HighscoresExporter {
             entry.clan = "World bots";
             entry.status = online ? "Online" : "Offline";
             entry.goal = goalLabel(properties.getProperty(prefix + "goal"));
+            entry.activity = properties.getProperty(prefix + "activity", online ? entry.goal : "offline");
             entry.combatLevel = level;
             entry.level = hasProgress(skillXp) ? totalLevel(skillXp) : level;
             entry.xpRate = Math.max(1, xpRate) + "x";
@@ -352,6 +354,7 @@ public final class HighscoresExporter {
                     .append("\"clan\":\"").append(escape(entry.clan)).append("\",")
                     .append("\"status\":\"").append(escape(entry.status)).append("\",")
                     .append("\"goal\":\"").append(escape(entry.goal)).append("\",")
+                    .append("\"activity\":\"").append(escape(entry.activity)).append("\",")
                     .append("\"level\":").append(entry.level).append(',')
                     .append("\"combatLevel\":").append(entry.combatLevel).append(',')
                     .append("\"xpRate\":\"").append(escape(entry.xpRate)).append("\",")
@@ -418,6 +421,7 @@ public final class HighscoresExporter {
                     .append("\"displayName\":\"").append(escape(entry.name)).append("\",")
                     .append("\"username\":\"").append(escape(entry.name)).append("\",")
                     .append("\"bot\":").append(entry.worldBot).append(',')
+                    .append("\"activity\":\"").append(escape(entry.activity)).append("\",")
                     .append("\"combatLevel\":").append(entry.worldBot ? entry.combatLevel : combatLevel(entry)).append(',')
                     .append("\"totalLevel\":").append(entry.level).append(',')
                     .append("\"totalXp\":").append(entry.xp).append(',')
@@ -566,6 +570,7 @@ public final class HighscoresExporter {
         private String clan;
         private String status;
         private String goal;
+        private String activity;
         private int level;
         private int combatLevel;
         private String xpRate;

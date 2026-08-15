@@ -10,8 +10,8 @@ android {
         applicationId "org.nemotech.rsc"
         minSdk 24
         targetSdk 34
-        versionCode 14
-        versionName "2.7.9"
+        versionCode 15
+        versionName "2.8.0"
     }
 
     signingConfigs {

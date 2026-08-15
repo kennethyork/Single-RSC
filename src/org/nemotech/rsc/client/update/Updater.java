@@ -8,7 +8,15 @@ public abstract class Updater {
     
     public mudclient mc = mudclient.getInstance();
     
-    public Player player = World.getWorld().getPlayer();
+    public Player player;
+
+    protected Updater() {
+        this(World.getWorld().getPlayer());
+    }
+
+    protected Updater(Player player) {
+        this.player = player;
+    }
     
     public void handlePositionUpdate(Player player) {}
     

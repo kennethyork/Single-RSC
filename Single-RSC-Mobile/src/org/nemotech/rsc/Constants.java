@@ -7,7 +7,7 @@ import org.nemotech.rsc.model.Point3D;
 
 public class Constants {
     
-    public static final String VERSION = "2.7.9 Mobile";
+    public static final String VERSION = "2.8.0 Mobile";
 
     /** True when running on Android. Set by AndroidPlatform.init(). */
     public static boolean IS_ANDROID = false;

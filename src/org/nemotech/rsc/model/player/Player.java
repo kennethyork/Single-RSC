@@ -42,7 +42,7 @@ import org.nemotech.rsc.bot.WorldBotManager;
 import org.nemotech.rsc.plugins.QuestInterface;
 import org.nemotech.rsc.plugins.menu.Menu;
 
-public final class Player extends Mob {
+public class Player extends Mob {
     
     private DelayedEvent healUpdate = null;
     
@@ -206,9 +206,37 @@ public final class Player extends Mob {
     
     public MiscUpdater getSender() {
         if(miscUpdater == null) {
-            miscUpdater = new MiscUpdater();
+            miscUpdater = headless ? new org.nemotech.rsc.client.update.impl.HeadlessMiscUpdater(this)
+                    : new MiscUpdater(this);
         }
         return miscUpdater;
+    }
+
+    private boolean headless;
+
+    public boolean isHeadless() {
+        return headless;
+    }
+
+    public void initializeHeadless(String name, Point spawn, int[] experience, Appearance look) {
+        headless = true;
+        inventory = new Inventory(this);
+        bank = new Bank();
+        usernameHash = Util.usernameToHash(name);
+        username = Util.hashToUsername(usernameHash);
+        appearance = look;
+        setLocation(spawn, true);
+        for (int i = 0; i < exp.length; i++) {
+            int value = experience != null && i < experience.length ? Math.max(0, experience[i]) : 0;
+            exp[i] = value;
+            int level = Formulae.experienceToLevel(value);
+            maxStat[i] = level;
+            curStat[i] = level;
+        }
+        setCombatLevel(Formulae.getCombatlevel(maxStat));
+        setInitialized();
+        setLoggedIn(true);
+        setBusy(false);
     }
     
     public NPC lastNpcChasingYou = null;
@@ -980,6 +1008,7 @@ public final class Player extends Mob {
     }
 
     public void save() {
+        if (headless) return;
         // save player data
         playerData.save(this);
         try {
@@ -1631,9 +1660,10 @@ public final class Player extends Mob {
     }
 
     public void updateViewedPlayers() {
+        if (headless) return;
         List<Player> playersInView = viewArea.getPlayersInView();
         for (Player p : playersInView) {
-            if (p.getIndex() != getIndex() && p.isLoggedIn()) {
+            if (p.getIndex() != getIndex() && p.isLoggedIn() && !p.isHeadless()) {
                 this.informOfPlayer(p);
                 p.informOfPlayer(this);             
             }

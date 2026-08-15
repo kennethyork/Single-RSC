@@ -67,7 +67,8 @@ public final class PluginManager {
 
     private Map<String, Set<Object>> actionPlugins = new HashMap<>();
     private Map<String, Set<Object>> executivePlugins = new HashMap<>();
-    private ExecutorService executor = Executors.newCachedThreadPool();
+    // Keep bot activity from creating an unbounded number of sleeping plugin threads.
+    private ExecutorService executor = Executors.newFixedThreadPool(12);
     private List<Class<?>> knownInterfaces = new ArrayList<>();
     private Map<String, Class<?>> queue = new ConcurrentHashMap<>();
 
@@ -89,12 +90,7 @@ public final class PluginManager {
         if (executivePlugins.containsKey(interfce + "ExecutiveListener")) {
             for (final Object c : executivePlugins.get(interfce + "ExecutiveListener")) {
                 try {
-                    final Class<?>[] dataClasses = new Class<?>[data.length];
-                    int i = 0;
-                    for (final Object o : data) {
-                        dataClasses[i++] = o.getClass();
-                    }
-                    final Method m = c.getClass().getMethod("block" + interfce, dataClasses);
+                    final Method m = resolveMethod(c.getClass(), "block" + interfce, data);
                     shouldBlock = (Boolean) m.invoke(c, data);
                     if (shouldBlock) {
                         queue.put(interfce, c.getClass());
@@ -137,13 +133,7 @@ public final class PluginManager {
         if (actionPlugins.containsKey(interfce + "Listener")) {
             for (final Object c : actionPlugins.get(interfce + "Listener")) {
                 try {
-                    final Class<?>[] dataClasses = new Class<?>[data.length];
-                    int i = 0;
-                    for (final Object o : data) {
-                        dataClasses[i++] = o.getClass();
-                    }
-
-                    final Method m = c.getClass().getMethod("on" + interfce, dataClasses);
+                    final Method m = resolveMethod(c.getClass(), "on" + interfce, data);
                     boolean flag = false;
 
                     if (queue.containsKey(interfce)) {
@@ -176,6 +166,31 @@ public final class PluginManager {
                     e.printStackTrace();
                 }
             }
+        }
+    }
+
+    private Method resolveMethod(Class<?> pluginClass, String name, Object[] data)
+            throws NoSuchMethodException {
+        Class<?>[] exactTypes = new Class<?>[data.length];
+        for (int i = 0; i < data.length; i++) {
+            exactTypes[i] = data[i].getClass();
+        }
+        try {
+            return pluginClass.getMethod(name, exactTypes);
+        } catch (NoSuchMethodException ignored) {
+            for (Method method : pluginClass.getMethods()) {
+                if (!method.getName().equals(name) || method.getParameterCount() != data.length) continue;
+                Class<?>[] parameterTypes = method.getParameterTypes();
+                boolean compatible = true;
+                for (int i = 0; i < data.length; i++) {
+                    if (data[i] != null && !parameterTypes[i].isAssignableFrom(data[i].getClass())) {
+                        compatible = false;
+                        break;
+                    }
+                }
+                if (compatible) return method;
+            }
+            throw new NoSuchMethodException(pluginClass.getName() + "." + name);
         }
     }
 

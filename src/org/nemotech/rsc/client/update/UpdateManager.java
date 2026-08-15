@@ -15,7 +15,7 @@ public class UpdateManager {
         int count = 0;
         try {
             for(Class<?> class_ : Util.loadClasses(PACKAGE_NAME)) {
-                if(!class_.getName().contains("$")) {
+                if(!class_.getName().contains("$") && !class_.getSimpleName().equals("HeadlessMiscUpdater")) {
                     add((Updater) class_.getDeclaredConstructor().newInstance());
                     count++;
                 }

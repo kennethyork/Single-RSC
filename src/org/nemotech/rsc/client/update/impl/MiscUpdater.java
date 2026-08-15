@@ -14,6 +14,14 @@ import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 
 public class MiscUpdater extends Updater {
+
+    public MiscUpdater() {
+        super();
+    }
+
+    public MiscUpdater(org.nemotech.rsc.model.player.Player player) {
+        super(player);
+    }
     
     public void sendEnterSleep() {
         player.setSleeping(true);

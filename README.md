@@ -4,7 +4,7 @@
 
 A self-contained single-player RuneScape Classic experience for desktop and Android.
 
-**Current release:** `v2.7.9`
+**Current release:** `v2.8.0`
 **Desktop:** Java 17+  
 **Android:** APK included in GitHub releases  
 **License:** GPL v3
@@ -21,8 +21,8 @@ https://github.com/kennethyork/Single-RSC/releases
 
 Use:
 
-- `Single-RSC-v2.7.9.zip` for desktop
-- `Single-RSC-v2.7.9.apk` for Android
+- `Single-RSC-v2.8.0.zip` for desktop
+- `Single-RSC-v2.8.0.apk` for Android
 
 The release does not include a standalone `rsc.jar` download. The desktop zip already contains the jar and launch scripts.
 
@@ -48,19 +48,21 @@ The goal is to make RuneScape Classic feel alive as a single-player game. The wo
 - Full music support
 - Admin account and debug commands
 - Skill automation bots for your own player
-- Autonomous world bots that act like fake players
+- Autonomous world bots backed by server-side player entities
 - Grand Exchange-style shared item stock at banks
 
 ---
 
 ## World Bots
 
-World bots are autonomous fake players that run around the world while you play.
+World bots are autonomous, clientless server-side players that run around the world while you play.
 
 They can:
 
 - Walk to real trees, rocks, and fishing spots and gather from them
-- Bank their trips, then visibly cook, fletch, light logs, or smelt saved supplies using RSC requirements and XP
+- Train every RSC skill through native skill, production, and combat handlers
+- Bank their trips, then visibly cook, fletch, light logs, craft, or smelt saved supplies using RSC requirements and XP
+- Stagger movement and decisions to support a persistent 200-bot roster without freezing the game loop
 - Recover from blocked routes by trying a nearby detour or changing world
 - Fight monsters
 - Enter and patrol the wilderness
@@ -435,7 +437,7 @@ Important bot files:
 No. It runs locally as a single-player game.
 
 **Are the world bots real players?**  
-No. They are local AI-controlled fake players designed to make the world feel more active.
+They are local AI-controlled server-side `Player` entities without separate graphical clients. They use normal player stats, inventories, movement, skill handlers, and combat systems.
 
 **Do desktop and Android have the same updates?**  
 No. Android is a separate mobile build. Desktop world-bot features are not automatically present in Android.

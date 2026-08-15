@@ -5173,10 +5173,7 @@ OUTER:		for (int animationIndex = 0; animationIndex < EntityManager.getAnimation
         }
         // WORLD BOT PLAYER TRADE
         if (mitemid == 2810) {
-            int npcIndex = WorldBotManager.getInstance().getNpcIndexForServerIndex(midx);
-            if (npcIndex >= 0) {
-                ActionManager.get(NPCHandler.class).handleCommand(npcIndex);
-            } else {
+            if (!WorldBotManager.getInstance().tradeWithBotPlayer(player, midx)) {
                 showMessage("That player is no longer nearby", 3);
             }
         }

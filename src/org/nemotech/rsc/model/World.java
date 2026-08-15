@@ -383,13 +383,27 @@ public class World {
     }
 
     public void registerPlayer(Player p) {
+        if (p.isHeadless()) {
+            registerHeadlessPlayer(p);
+            return;
+        }
         p.setInitialized();
         players.add(p);
         mudclient.getInstance().player = p;
     }
+
+    public void registerHeadlessPlayer(Player p) {
+        p.setInitialized();
+        p.setLoggedIn(true);
+        players.add(p);
+    }
     
     public void unregisterPlayer(final Player player) {
         try {
+            if (player.isHeadless()) {
+                unregisterHeadlessPlayer(player);
+                return;
+            }
             player.setLoggedIn(false);
             player.reset();
             // Avoid rewriting a save that was intentionally deleted (e.g., Hardcore death)
@@ -410,6 +424,20 @@ public class World {
         } catch(Exception e) {
             e.printStackTrace();
         }
+    }
+
+    public void unregisterHeadlessPlayer(Player player) {
+        if (player == null) return;
+        player.setLoggedIn(false);
+        Mob opponent = player.getOpponent();
+        if (opponent != null) {
+            player.resetCombat(CombatState.ERROR);
+            opponent.resetCombat(CombatState.ERROR);
+        }
+        getDelayedEventHandler().removePlayersEvents(player);
+        players.remove(player);
+        setLocation(player, player.getLocation(), null);
+        player.remove();
     }
 
     public void registerShop(Shop shop) {

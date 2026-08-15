@@ -4,8 +4,10 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.util.ArrayList;
+import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Deque;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -15,12 +17,14 @@ import java.util.Random;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 import org.nemotech.rsc.Constants;
+import org.nemotech.rsc.client.action.impl.NPCHandler;
 import org.nemotech.rsc.event.DelayedEvent;
 import org.nemotech.rsc.external.EntityManager;
 import org.nemotech.rsc.external.definition.NPCDropDef;
 import org.nemotech.rsc.external.definition.extra.ItemCookingDef;
 import org.nemotech.rsc.external.definition.extra.ItemLogCutDef;
 import org.nemotech.rsc.external.definition.extra.ItemSmeltingDef;
+import org.nemotech.rsc.external.definition.extra.ItemUnIdentHerbDef;
 import org.nemotech.rsc.external.definition.extra.ObjectMiningDef;
 import org.nemotech.rsc.external.definition.extra.ReqOreDef;
 import org.nemotech.rsc.model.Entity;
@@ -34,9 +38,23 @@ import org.nemotech.rsc.model.Point;
 import org.nemotech.rsc.model.World;
 import org.nemotech.rsc.model.landscape.Path;
 import org.nemotech.rsc.model.player.InvItem;
+import org.nemotech.rsc.model.player.Appearance;
 import org.nemotech.rsc.model.player.Player;
 import org.nemotech.rsc.model.player.states.CombatState;
 import org.nemotech.rsc.io.HighscoresExporter;
+import org.nemotech.rsc.plugins.PluginManager;
+import org.nemotech.rsc.plugins.skills.Fishing;
+import org.nemotech.rsc.plugins.skills.Fletching;
+import org.nemotech.rsc.plugins.skills.Firemaking;
+import org.nemotech.rsc.plugins.skills.Herblaw;
+import org.nemotech.rsc.plugins.skills.Mining;
+import org.nemotech.rsc.plugins.skills.ObjectCooking;
+import org.nemotech.rsc.plugins.skills.Prayer;
+import org.nemotech.rsc.plugins.skills.Crafting;
+import org.nemotech.rsc.plugins.skills.Smelting;
+import org.nemotech.rsc.plugins.skills.Thieving;
+import org.nemotech.rsc.plugins.skills.Woodcutting;
+import org.nemotech.rsc.plugins.skills.agility.GnomeAgilityCourse;
 import org.nemotech.rsc.util.Formulae;
 
 public final class WorldBotManager {
@@ -48,6 +66,15 @@ public final class WorldBotManager {
     private static final int COINS = 10;
     private static final int KNIFE = 13;
     private static final int TINDERBOX = 166;
+    private static final int[][] COOKING_STATIONS = {
+            { 87, 685 }, { 121, 533 }, { 311, 521 }, { 510, 505 }, { 581, 578 }
+    };
+    private static final int[][] FURNACE_STATIONS = {
+            { 85, 679 }, { 130, 626 }, { 306, 546 }, { 419, 559 }, { 591, 590 }
+    };
+    private static final int[][] POTTERY_STATIONS = {
+            { 22, 573 }, { 227, 524 }, { 343, 605 }, { 609, 589 }
+    };
     private static final int DEFAULT_BOT_COUNT = 200;
     private static final int DEFAULT_MAX_BOT_COUNT = 200;
     private static final int DEFAULT_ONLINE_LIMIT = 80;
@@ -87,6 +114,9 @@ public final class WorldBotManager {
     private final Random random = new Random();
     private final Config config = new Config();
     private DelayedEvent tickEvent;
+    private DelayedEvent movementEvent;
+    private int decisionCursor;
+    private int movementCursor;
     private boolean running;
     private long lastStateSave;
     private String currentWorldEvent = "quiet market";
@@ -130,7 +160,10 @@ public final class WorldBotManager {
         }
         loadState();
         enforceOnlineLimit();
-        tickEvent = new DelayedEvent(null, 2500) {
+        lastStateSave = System.currentTimeMillis();
+        decisionCursor = 0;
+        movementCursor = 0;
+        tickEvent = new DelayedEvent(null, 500) {
             @Override
             public Object getIdentifier() {
                 return "world-bot-manager";
@@ -142,6 +175,18 @@ public final class WorldBotManager {
             }
         };
         World.getWorld().getDelayedEventHandler().add(tickEvent);
+        movementEvent = new DelayedEvent(null, 300) {
+            @Override
+            public Object getIdentifier() {
+                return "world-bot-movement";
+            }
+
+            @Override
+            public void run() {
+                advanceHeadlessPlayers();
+            }
+        };
+        World.getWorld().getDelayedEventHandler().add(movementEvent);
     }
 
     public synchronized void stopBots() {
@@ -150,14 +195,32 @@ public final class WorldBotManager {
             tickEvent.interrupt();
             tickEvent = null;
         }
+        if (movementEvent != null) {
+            movementEvent.interrupt();
+            movementEvent = null;
+        }
         for (WorldBot bot : bots) {
             if (bot.npc != null && !bot.npc.isRemoved()) {
-                World.getWorld().unregisterNpc(bot.npc);
+                bot.unregisterAvatar();
             }
         }
         autoGroups.clear();
         bots.clear();
         running = false;
+    }
+
+    private synchronized void advanceHeadlessPlayers() {
+        if (!running || bots.isEmpty()) return;
+        int checked = Math.min(40, bots.size());
+        for (int i = 0; i < checked; i++) {
+            WorldBot bot = bots.get(movementCursor);
+            movementCursor = (movementCursor + 1) % bots.size();
+            if (!bot.active || !bot.online || !(bot.npc instanceof Player)
+                    || bot.npc.isRemoved() || !((Player) bot.npc).isLoggedIn()) continue;
+            bot.npc.resetMoved();
+            bot.npc.updatePosition();
+            bot.npc.updateAppearanceID();
+        }
     }
 
     public synchronized boolean isRunning() {
@@ -188,7 +251,7 @@ public final class WorldBotManager {
         Collections.shuffle(onlineBots, random);
         for (int i = config.onlineLimit; i < onlineBots.size(); i++) {
             WorldBot bot = onlineBots.get(i);
-            World.getWorld().unregisterNpc(bot.npc);
+            bot.unregisterAvatar();
             bot.online = false;
             bot.activity = "offline";
             bot.nextSessionChangeAt = System.currentTimeMillis() + bot.offlineDuration();
@@ -199,7 +262,9 @@ public final class WorldBotManager {
         StringBuilder report = new StringBuilder();
         report.append("World bots: ").append(running ? "running" : "stopped")
                 .append(" (").append(bots.size()).append(" roster, ")
-                .append(onlineBotCount()).append(" online)")
+                .append(onlineBotCount()).append(" online, ")
+                .append(headlessPlayerCount()).append(" players, ")
+                .append(wildernessNpcCount()).append(" PK NPCs)")
                 .append("\nEvent: ").append(currentWorldEvent);
         for (WorldBot bot : bots) {
             report.append("\n").append(bot.name)
@@ -217,6 +282,18 @@ public final class WorldBotManager {
                     .append(" deaths ").append(bot.deaths);
         }
         return report.toString();
+    }
+
+    private int headlessPlayerCount() {
+        int count = 0;
+        for (WorldBot bot : bots) if (bot.online && bot.npc instanceof Player) count++;
+        return count;
+    }
+
+    private int wildernessNpcCount() {
+        int count = 0;
+        for (WorldBot bot : bots) if (bot.online && bot.npc instanceof NPC) count++;
+        return count;
     }
 
     public synchronized String getActivityReport() {
@@ -805,6 +882,21 @@ public final class WorldBotManager {
         return true;
     }
 
+    public synchronized boolean tradeWithBotPlayer(Player player, int serverIndex) {
+        for (WorldBot bot : bots) {
+            if (bot.playerServerIndex != serverIndex || !bot.active || !bot.online
+                    || bot.npc == null || bot.npc.isRemoved()) continue;
+            if (!bot.canTrade()) {
+                player.getSender().sendMessage("@cya@[WorldBots] @whi@" + bot.name
+                        + " has nothing useful to sell.");
+                return true;
+            }
+            openMarketplace(player, bot);
+            return true;
+        }
+        return false;
+    }
+
     private void openMarketplace(final Player player, final WorldBot bot) {
         String[] options = { "Buy from " + bot.name, "Sell to " + bot.name, "Inspect " + bot.name, "Cancel" };
         player.setMenuHandler(new MenuHandler(options) {
@@ -985,7 +1077,7 @@ public final class WorldBotManager {
 
     public synchronized int getNpcIndexForServerIndex(int serverIndex) {
         for (WorldBot bot : bots) {
-            if (bot.snapshot().serverIndex == serverIndex) {
+            if (bot.snapshot().serverIndex == serverIndex && bot.npc instanceof NPC) {
                 return bot.npc.getIndex();
             }
         }
@@ -1115,8 +1207,12 @@ public final class WorldBotManager {
         drainChatDeliveries();
         updateWorldEvent();
         updateAutoGroups();
-        for (WorldBot bot : bots) {
-            bot.tick();
+        if (!bots.isEmpty()) {
+            int checked = Math.min(25, bots.size());
+            for (int i = 0; i < checked; i++) {
+                bots.get(decisionCursor).tick();
+                decisionCursor = (decisionCursor + 1) % bots.size();
+            }
         }
         if (System.currentTimeMillis() - lastStateSave > config.saveEverySeconds * 1000L) {
             saveState();
@@ -1144,10 +1240,21 @@ public final class WorldBotManager {
         if (config.chatFrequency <= 0 || player == null || !player.isLoggedIn()
                 || now < nextPopulationChatAt || bot.npc == null
                 || !bot.npc.getLocation().withinRange(player.getLocation(), 14)) return;
-        nextPopulationChatAt = now + config.ollamaAmbientCooldownSeconds * 1000L
+        long frequencyAdjustedCooldown = config.ollamaAmbientCooldownSeconds * 1000L
+                * Math.max(2, 7 - config.chatFrequency) / 4L;
+        nextPopulationChatAt = now + Math.max(8_000L, frequencyAdjustedCooldown)
                 + Math.floorMod(bot.name.hashCode(), 10) * 1000L;
+        String[] openings = {
+                "Say something specific about the task you are doing now. Mention real progress or supplies.",
+                "Start a short conversation about your current activity, location, or next bank trip.",
+                "Make a natural RSC-era remark about what just happened in your current training session.",
+                "Ask or tell the nearby player something useful about the skill you are training.",
+                "Comment briefly on your current goal without sounding like an announcement."
+        };
+        String prompt = openings[Math.floorMod(bot.messageSequence + bot.name.hashCode(), openings.length)]
+                + " Current facts: " + bot.activityContext() + " Do not reuse a recent phrase.";
         OllamaBotChat.getInstance().reply(bot.chatIdentity(), player.getUsername(), "public",
-                "Start a spontaneous conversation about what is happening while " + bot.activity + ".",
+                prompt,
                 line -> enqueueChatDelivery(() -> {
                     synchronized (WorldBotManager.this) {
                         if (!player.isLoggedIn() || !bot.canSpeakNear(player, 14)) return;
@@ -1162,7 +1269,8 @@ public final class WorldBotManager {
                         if (partner == null) return;
                         final WorldBot replyBot = partner;
                         OllamaBotChat.getInstance().reply(replyBot.chatIdentity(), bot.name, "public",
-                                bot.name + " just said: " + line + " Reply naturally if you have something to add.",
+                                bot.name + " just said: " + line + ". Reply from your own current situation: "
+                                        + replyBot.activityContext() + ". Agree, disagree, answer, or compare progress; do not echo it.",
                                 reply -> enqueueChatDelivery(() -> {
                                     synchronized (WorldBotManager.this) {
                                         if (replyBot.canSpeakNear(player, 14)) replyBot.showOllamaLine(reply);
@@ -1180,7 +1288,8 @@ public final class WorldBotManager {
         nextEventChatAt = now + 4000L;
         bot.nextOllamaEventAt = now + 12_000L;
         OllamaBotChat.getInstance().reply(bot.chatIdentity(), player.getUsername(), "public event",
-                "React naturally to this event: " + context,
+                "React naturally to this event: " + context + ". Tie it to these current facts: "
+                        + bot.activityContext() + ". Use fresh wording.",
                 line -> enqueueChatDelivery(() -> {
                     synchronized (WorldBotManager.this) {
                         if (bot.canSpeakNear(player, 14)) bot.showOllamaLine(line);
@@ -1202,13 +1311,9 @@ public final class WorldBotManager {
         SkillingSite skillingSite = role == Role.GATHERER
                 ? SkillingSite.forBot(index, personality.startLevel) : null;
         BotArea area = skillingSite == null ? role.areaFor(index) : skillingSite.area;
-        int npcId = role == Role.GATHERER ? GATHERER_NPC : role == Role.FIGHTER ? FIGHTER_NPC : WILDERNESS_NPC;
-        Point spawnPoint = area.randomWalkablePoint(random);
-        NPC npc = new NPC(npcId, spawnPoint.getX(), spawnPoint.getY(),
-                area.minX, area.maxX, area.minY, area.maxY);
-        npc.setShouldRespawn(false);
-        World.getWorld().registerNpc(npc);
-        return new WorldBot(index, role, npc, area, personality, skillingSite);
+        WorldBot bot = new WorldBot(index, role, null, area, personality, skillingSite);
+        bot.spawn(area);
+        return bot;
     }
 
     private void updateWorldEvent() {
@@ -1405,6 +1510,7 @@ public final class WorldBotManager {
                 bot.playerKills = parseInt(properties.getProperty(prefix + "player_kills"), bot.playerKills);
                 bot.online = Boolean.parseBoolean(properties.getProperty(prefix + "online", String.valueOf(bot.online)));
                 bot.goal = Goal.fromName(properties.getProperty(prefix + "goal"), bot.goal);
+                bot.activity = properties.getProperty(prefix + "activity", bot.activity);
                 String savedSkills = properties.getProperty(prefix + "skills", "");
                 if (savedSkills.isEmpty()) {
                     bot.initializeSkills(bot.level);
@@ -1425,9 +1531,11 @@ public final class WorldBotManager {
                 bot.bank.clear();
                 parseItemMap(properties.getProperty(prefix + "bank", ""), bot.bank);
                 parseIntArray(properties.getProperty(prefix + "equipment", ""), bot.equipmentItems);
+                bot.syncHeadlessContainers();
+                bot.syncHeadlessStats();
                 bot.refreshDerivedStats();
                 if (!bot.online && bot.npc != null && !bot.npc.isRemoved()) {
-                    World.getWorld().unregisterNpc(bot.npc);
+                    bot.unregisterAvatar();
                 }
             }
             recentActivity.clear();
@@ -1467,6 +1575,7 @@ public final class WorldBotManager {
             properties.setProperty(prefix + "player_kills", String.valueOf(bot.playerKills));
             properties.setProperty(prefix + "online", String.valueOf(bot.online));
             properties.setProperty(prefix + "goal", bot.goal.name());
+            properties.setProperty(prefix + "activity", bot.activity == null ? "idle" : bot.activity);
             properties.setProperty(prefix + "inventory", bot.inventoryString());
             properties.setProperty(prefix + "bank", bot.bankString());
             properties.setProperty(prefix + "skills", intArrayString(bot.skillXp));
@@ -1567,7 +1676,7 @@ public final class WorldBotManager {
         private final int topColour;
         private final int bottomColour;
         private final int skinColour;
-        private NPC npc;
+        private Mob npc;
         private BotArea area;
         private int carriedItem;
         private String carriedItemName = "nothing";
@@ -1577,6 +1686,7 @@ public final class WorldBotManager {
         private final int[] equipmentItems = new int[4];
         private long nextWorkAt;
         private String lastMessage;
+        private final Deque<String> recentSpeech = new ArrayDeque<>();
         private int messageSequence;
         private long messageUntil;
         private boolean active = true;
@@ -1603,10 +1713,13 @@ public final class WorldBotManager {
         private Goal goal;
         private int directedSkill = -1;
         private int directedLevel;
+        private int lifeSkill;
+        private long nextLifeSkillChangeAt;
         private long nextOllamaEventAt;
         private boolean bankingTrip;
         private int productionActionsRemaining;
         private long visibleActionUntil;
+        private long nativeActionPendingUntil;
         private int visibleBubbleItem = -1;
         private int visibleToolItem = -1;
         private long nextSkillingSiteChangeAt;
@@ -1634,15 +1747,19 @@ public final class WorldBotManager {
         private int pvmLastDamage;
         private boolean pvmAttackerTurn;
 
-        private WorldBot(int index, Role role, NPC npc, BotArea area, Personality personality,
+        private WorldBot(int index, Role role, Mob npc, BotArea area, Personality personality,
                 SkillingSite skillingSite) {
             this.name = personality.name;
             this.role = role;
             this.personality = personality;
             this.skillingSite = skillingSite;
             this.nextSkillingSiteChangeAt = System.currentTimeMillis()
-                    + (1 + random.nextInt(3)) * MINUTE_MS;
+                    + (skillingSite != null && skillingSite.isSeersHub()
+                            ? 8 + random.nextInt(9) : 3 + random.nextInt(5)) * MINUTE_MS;
             this.playerServerIndex = PLAYER_SERVER_INDEX_BASE + index;
+            this.lifeSkill = role == Role.GATHERER && Math.floorMod(index, 3) != 2
+                    ? WOODCUTTING : Math.floorMod(index, SKILL_NAMES.length);
+            this.nextLifeSkillChangeAt = System.currentTimeMillis() + (6 + random.nextInt(10)) * MINUTE_MS;
             this.npc = npc;
             this.area = area;
             this.appearanceSprites = role.appearanceSprites(index);
@@ -1734,6 +1851,14 @@ public final class WorldBotManager {
                 }
                 return;
             }
+            if (System.currentTimeMillis() < nativeActionPendingUntil) {
+                return;
+            }
+            if (npc instanceof Player && npc.isBusy() && !npc.inCombat()) {
+                activity = "performing " + SKILL_NAMES[lifeSkill] + " action";
+                return;
+            }
+            syncFromHeadlessPlayer();
             if (pvpOpponent != null) {
                 handleBotPvp();
                 return;
@@ -1748,6 +1873,10 @@ public final class WorldBotManager {
             if (npc.isRemoved() || npc.inCombat()) {
                 activity = "busy";
                 return;
+            }
+
+            if (System.currentTimeMillis() >= nextLifeSkillChangeAt) {
+                rotateLifeSkill();
             }
 
             if (partyOwner != null && partyMode != PartyMode.NONE) {
@@ -1768,7 +1897,8 @@ public final class WorldBotManager {
                 return;
             }
 
-            if (role == Role.FIGHTER && tryAttackMonster()) {
+            if ((role == Role.FIGHTER || lifeSkill <= MAGIC && lifeSkill != PRAYER)
+                    && tryAttackMonster()) {
                 return;
             }
 
@@ -1776,7 +1906,7 @@ public final class WorldBotManager {
 
             if (System.currentTimeMillis() >= nextWorkAt) {
                 work();
-                nextWorkAt = System.currentTimeMillis() + 5000 + random.nextInt(8000);
+                nextWorkAt = System.currentTimeMillis() + workDelay();
             }
 
             WorldBotManager.this.tryAmbientChat(this);
@@ -1838,7 +1968,7 @@ public final class WorldBotManager {
             }
             fights++;
             activity = "skulling on " + player.getUsername() + " in " + area.name;
-            npc.startCombat(player);
+            if (npc instanceof NPC) ((NPC) npc).startCombat(player);
             say(personality.attackLine(random, player.getCombatLevel(), level, coins()));
             return true;
         }
@@ -1988,7 +2118,7 @@ public final class WorldBotManager {
                 loser.npc.resetCombat(CombatState.LOST);
             }
             loser.npc.setHits(0);
-            World.getWorld().unregisterNpc(loser.npc);
+            loser.unregisterAvatar();
             scheduleRespawn(loser);
         }
 
@@ -2084,6 +2214,12 @@ public final class WorldBotManager {
             }
             if (nearest == null) {
                 return false;
+            }
+            if (npc instanceof Player) {
+                fights++;
+                activity = "attacking " + nearest.getDef().getName() + " through native RSC combat";
+                new NPCHandler().handleAttack((Player) npc, nearest.getIndex());
+                return true;
             }
             pvmTarget = nearest;
             pvmFightStartedAt = now;
@@ -2204,7 +2340,7 @@ public final class WorldBotManager {
             say("died to " + target.getDef().getName());
             recordActivity(name + " died to " + target.getDef().getName() + " in " + area.name);
             endMonsterCombat(target, CombatState.LOST);
-            World.getWorld().unregisterNpc(npc);
+            unregisterAvatar();
             scheduleRespawn(this);
         }
 
@@ -2336,7 +2472,8 @@ public final class WorldBotManager {
         }
 
         private boolean handleGroupSurvival(Player player) {
-            int maxHits = Math.max(1, npc.getDef().getHitpoints());
+            int maxHits = npc instanceof NPC ? Math.max(1, ((NPC) npc).getDef().getHitpoints())
+                    : Math.max(1, skillLevel(HITS));
             if (npc.getHits() > maxHits / 3) {
                 return false;
             }
@@ -2410,28 +2547,23 @@ public final class WorldBotManager {
                 workDirectedSkill();
                 return;
             }
-            // Advance a side skill on every work cycle. The primary action below still
-            // defines the bot's role, while this keeps old combat-heavy bot saves from
-            // leaving every non-combat highscore at level 1 indefinitely.
-            trainLowestNonCombatSkill();
+            if (tryLifeSkillActivity()) {
+                return;
+            }
             if (role == Role.GATHERER) {
                 workVisibleGathering();
                 return;
             } else if (role == Role.FIGHTER) {
-                addInventory(carriedItem, 1 + random.nextInt(3));
-                trainCombat(28 + random.nextInt(30));
-                activity = "hunting drops in " + area.name;
-                if (random.nextInt(4) == 0) {
-                    addInventory(COINS, 5 + random.nextInt(60));
-                }
+                activity = "searching for monsters in " + area.name;
             } else {
-                addInventory(carriedItem, 1 + random.nextInt(2));
-                trainCombat(38 + random.nextInt(38));
-                activity = "patrolling " + area.name;
-                if (random.nextInt(3) == 0) {
-                    addInventory(COINS, 25 + random.nextInt(150));
-                }
+                activity = "looking for a fight while patrolling " + area.name;
             }
+        }
+
+        private long workDelay() {
+            if (role == Role.GATHERER) return 1800L + random.nextInt(2200);
+            if (role == Role.FIGHTER) return 2500L + random.nextInt(3000);
+            return 3000L + random.nextInt(4000);
         }
 
         private void workVisibleGathering() {
@@ -2498,6 +2630,9 @@ public final class WorldBotManager {
         }
 
         private boolean performAuthenticGather(Entity target) {
+            if (npc instanceof Player && target instanceof GameObject) {
+                return performNativeGather((Player) npc, (GameObject) target);
+            }
             if (skillingSite.skill == FISHING) {
                 int fishingLevel = skillLevel(FISHING);
                 int successChance = Math.max(25, Math.min(92, 45 + fishingLevel));
@@ -2537,6 +2672,35 @@ public final class WorldBotManager {
             return false;
         }
 
+        private boolean performNativeGather(Player playerAvatar, GameObject object) {
+            ensureNativeTool(playerAvatar, skillingSite.toolItem);
+            playerAvatar.resetPath();
+            playerAvatar.face(object);
+            if (skillingSite.skill == WOODCUTTING) {
+                PluginManager.getInstance().getExecutor().execute(() ->
+                        new Woodcutting().onObjectAction(object, "chop", playerAvatar));
+            } else if (skillingSite.skill == MINING) {
+                playerAvatar.click = 0;
+                PluginManager.getInstance().getExecutor().execute(() ->
+                        new Mining().onObjectAction(object, "mine", playerAvatar));
+            } else if (skillingSite.skill == FISHING) {
+                playerAvatar.click = 0;
+                String command = object.getGameObjectDef().getFirstCommand().toLowerCase();
+                PluginManager.getInstance().getExecutor().execute(() ->
+                        new Fishing().onObjectAction(object, command, playerAvatar));
+            } else {
+                return false;
+            }
+            beginVisibleAction(skillingSite.toolItem, skillingSite.toolItem, 4200L);
+            return true;
+        }
+
+        private void ensureNativeTool(Player playerAvatar, int itemId) {
+            if (itemId >= 0 && playerAvatar.getInventory().countId(itemId) < 1) {
+                playerAvatar.getInventory().add(new InvItem(itemId, 1));
+            }
+        }
+
         private void addGatheredResource(int itemId, int skill, int experience) {
             addInventory(itemId, 1);
             carriedItem = itemId;
@@ -2555,22 +2719,18 @@ public final class WorldBotManager {
         }
 
         private void switchSkillingSite() {
-            skillingSite = SkillingSite.next(skillingSite, random,
-                    skillLevel(WOODCUTTING), skillLevel(MINING), skillLevel(FISHING));
+            SkillingSite sameSkill = SkillingSite.forSkill(lifeSkill, skillLevel(lifeSkill), random);
+            skillingSite = sameSkill == null ? SkillingSite.next(skillingSite, random,
+                    skillLevel(WOODCUTTING), skillLevel(MINING), skillLevel(FISHING)) : sameSkill;
             area = skillingSite.area;
             carriedItem = skillingSite.resourceItem;
             carriedItemName = itemName(carriedItem);
             clearVisibleAction();
-            npc.getLoc().minX = area.minX;
-            npc.getLoc().maxX = area.maxX;
-            npc.getLoc().minY = area.minY;
-            npc.getLoc().maxY = area.maxY;
-            npc.getLoc().startX = skillingSite.targetX;
-            npc.getLoc().startY = skillingSite.targetY;
+            applyActivityArea(area, skillingSite.targetX, skillingSite.targetY);
             activity = "travelling across the world to " + skillingSite.name;
             routeTo(skillingSite.targetX, skillingSite.targetY);
             nextSkillingSiteChangeAt = System.currentTimeMillis()
-                    + (2 + random.nextInt(5)) * MINUTE_MS;
+                    + (skillingSite.isSeersHub() ? 8 + random.nextInt(9) : 3 + random.nextInt(5)) * MINUTE_MS;
             if (random.nextInt(4) == 0) {
                 say("heading to " + skillingSite.shortName);
             }
@@ -2637,48 +2797,272 @@ public final class WorldBotManager {
             visibleActionUntil = 0L;
         }
 
-        private void trainLowestNonCombatSkill() {
-            int lowestLevel = Integer.MAX_VALUE;
-            int choices = 0;
-            int selectedSkill = NON_COMBAT_SKILLS[0];
-            for (int skill : NON_COMBAT_SKILLS) {
-                int skillLevel = skillLevel(skill);
-                if (skillLevel < lowestLevel) {
-                    lowestLevel = skillLevel;
-                    selectedSkill = skill;
-                    choices = 1;
-                } else if (skillLevel == lowestLevel && random.nextInt(++choices) == 0) {
-                    selectedSkill = skill;
+        private boolean tryLifeSkillActivity() {
+            // A bot has a persistent side profession. It only receives XP when an item is
+            // consumed, a world target is used, or an existing production recipe succeeds.
+            if (lifeSkill == WOODCUTTING || lifeSkill == MINING || lifeSkill == FISHING) {
+                if (role != Role.GATHERER) return false;
+                if (skillingSite == null || skillingSite.skill != lifeSkill) {
+                    switchSkillingSiteForSkill(lifeSkill);
                 }
+                workVisibleGathering();
+                return true;
             }
+            if (lifeSkill <= MAGIC && lifeSkill != PRAYER) return false;
+            if (lifeSkill == PRAYER && buryOwnedBones()) return true;
+            if (lifeSkill == COOKING && cookBankedFood()) return true;
+            if (lifeSkill == FLETCHING && isNearBank() && fletchBankedLogs()) return true;
+            if (lifeSkill == FIREMAKING && lightBankedLogs()) return true;
+            if (lifeSkill == SMITHING && smeltBankedOre()) return true;
+            if (lifeSkill == HERBLAW && isNearBank() && identifyBankedHerb()) return true;
+            if (lifeSkill == CRAFTING && craftBankedClay()) return true;
+            if (lifeSkill == THIEVING && pickpocketNearbyNpc()) return true;
+            if (lifeSkill == AGILITY && useNearbyAgilityObstacle()) return true;
+            if (lifeSkill == AGILITY) {
+                travelForActivity("travelling to the Gnome agility course", 699, 696,
+                        new BotArea("Gnome agility course", 690, 715, 680, 715));
+                return true;
+            }
+            if (lifeSkill == THIEVING) {
+                travelForActivity("travelling to Varrock to pickpocket", 128, 512,
+                        new BotArea("Varrock thieving route", 115, 145, 495, 530));
+                return true;
+            }
+            if (lifeSkill == PRAYER || lifeSkill >= COOKING) {
+                if (!isNearBank()) {
+                    int[] bankTile = nearestBankTile();
+                    travelForActivity("walking to the bank for " + SKILL_NAMES[lifeSkill]
+                            + " supplies", bankTile[0], bankTile[1],
+                            new BotArea("bank for " + SKILL_NAMES[lifeSkill], bankTile[0] - 6,
+                                    bankTile[0] + 6, bankTile[1] - 6, bankTile[1] + 6));
+                } else {
+                    acquireTrainingSupply(lifeSkill);
+                    activity = "checking the bank for " + SKILL_NAMES[lifeSkill] + " supplies";
+                }
+                return true;
+            }
+            return false;
+        }
 
-            int itemId = productForSkill(selectedSkill);
-            if (itemId >= 0 && itemId != COINS) {
-                addInventory(itemId, 1 + random.nextInt(2));
+        private void rotateLifeSkill() {
+            lifeSkill = (lifeSkill + 1) % SKILL_NAMES.length;
+            nextLifeSkillChangeAt = System.currentTimeMillis() + (6 + random.nextInt(10)) * MINUTE_MS;
+            activity = "starting a " + SKILL_NAMES[lifeSkill] + " training session";
+            say("switching to " + SKILL_NAMES[lifeSkill]);
+        }
+
+        private void switchSkillingSiteForSkill(int skill) {
+            SkillingSite selected = SkillingSite.forSkill(skill, skillLevel(skill), random);
+            if (selected == null) return;
+            skillingSite = selected;
+            area = selected.area;
+            carriedItem = selected.resourceItem;
+            carriedItemName = itemName(carriedItem);
+            applyActivityArea(area, selected.targetX, selected.targetY);
+            clearVisibleAction();
+            activity = "travelling to " + selected.name + " for " + SKILL_NAMES[skill];
+            routeTo(selected.targetX, selected.targetY);
+        }
+
+        private void travelForActivity(String description, int x, int y, BotArea destination) {
+            area = destination;
+            applyActivityArea(destination, x, y);
+            activity = description;
+            routeTo(x, y);
+        }
+
+        private void applyActivityArea(BotArea destination, int startX, int startY) {
+            if (!(npc instanceof NPC)) return;
+            NPC bounded = (NPC) npc;
+            bounded.getLoc().minX = destination.minX;
+            bounded.getLoc().maxX = destination.maxX;
+            bounded.getLoc().minY = destination.minY;
+            bounded.getLoc().maxY = destination.maxY;
+            bounded.getLoc().startX = startX;
+            bounded.getLoc().startY = startY;
+        }
+
+        private void acquireTrainingSupply(int skill) {
+            int itemId = skill == PRAYER ? 20 : skill == COOKING ? 349
+                    : skill == FLETCHING || skill == FIREMAKING ? 14
+                    : skill == CRAFTING ? 243 : skill == SMITHING ? 150
+                    : skill == HERBLAW ? 165 : -1;
+            if (itemId < 0 || random.nextInt(3) != 0 || !buyFromExchange(itemId, 1)) return;
+            if (skill == PRAYER) addInventory(itemId, 1);
+            else addToBank(itemId, 1);
+            trades++;
+            activity = "buying " + itemName(itemId) + " for " + SKILL_NAMES[skill];
+        }
+
+        private boolean buryOwnedBones() {
+            int[][] bones = { { 814, 90 }, { 413, 24 }, { 20, 8 }, { 604, 8 } };
+            for (int[] bone : bones) {
+                if (!hasItem(bone[0])) continue;
+                if (npc instanceof Player) {
+                    Player playerAvatar = (Player) npc;
+                    InvItem actualBone = playerAvatar.getInventory().get(new InvItem(bone[0]));
+                    if (actualBone == null) continue;
+                    PluginManager.getInstance().getExecutor().execute(() ->
+                            new Prayer().onInvAction(new InvItem(bone[0], 1), playerAvatar));
+                    nativeActionPendingUntil = System.currentTimeMillis() + 1500L;
+                    activity = "burying " + itemName(bone[0]) + " for Prayer";
+                    return true;
+                }
+                removeInventory(bone[0], 1);
+                gainSkillXp(PRAYER, bone[1]);
+                finishProduction(bone[0], -1, -1, "burying", bone[1]);
+                return true;
             }
-            // 90 XP guarantees visible early-level progress even for a 1x bot. Picking
-            // the lowest skill keeps this catch-up balanced rather than inflating one stat.
-            gainSkillXp(selectedSkill, 90 + random.nextInt(31));
-            activity = "training " + SKILL_NAMES[selectedSkill] + " in " + area.name;
+            return false;
+        }
+
+        private boolean identifyBankedHerb() {
+            for (Map.Entry<Integer, Integer> entry : new ArrayList<>(bank.entrySet())) {
+                ItemUnIdentHerbDef definition = EntityManager.getItemUnIdentHerbDef(entry.getKey());
+                if (entry.getValue() < 1 || definition == null
+                        || skillLevel(HERBLAW) < definition.getLevelRequired()) continue;
+                if (npc instanceof Player) {
+                    removeFromBank(entry.getKey(), 1);
+                    addInventory(entry.getKey(), 1);
+                    Player playerAvatar = (Player) npc;
+                    InvItem herb = playerAvatar.getInventory().get(new InvItem(entry.getKey()));
+                    if (herb != null) PluginManager.getInstance().getExecutor().execute(() ->
+                            new Herblaw().onInvAction(herb, playerAvatar));
+                    nativeActionPendingUntil = System.currentTimeMillis() + 1200L;
+                    activity = "identifying " + itemName(entry.getKey()) + " using Herblaw";
+                    return true;
+                }
+                removeFromBank(entry.getKey(), 1);
+                addToBank(definition.getNewId(), 1);
+                gainSkillXp(HERBLAW, definition.getExp());
+                finishProduction(entry.getKey(), definition.getNewId(), -1, "identifying", definition.getExp());
+                return true;
+            }
+            return false;
+        }
+
+        private boolean craftBankedClay() {
+            if (npc instanceof Player) {
+                return performNativeCrafting((Player) npc);
+            }
+            if (bank.getOrDefault(243, 0) < 1) return false;
+            int level = skillLevel(CRAFTING);
+            int output = level >= 7 ? 340 : level >= 4 ? 278 : 279;
+            int experience = level >= 4 ? 15 : 6;
+            removeFromBank(243, 1);
+            addToBank(output, 1);
+            gainSkillXp(CRAFTING, experience);
+            finishProduction(243, output, -1, "shaping", experience);
+            return true;
+        }
+
+        private boolean pickpocketNearbyNpc() {
+            NPC target = null;
+            int nearest = Integer.MAX_VALUE;
+            for (NPC candidate : npc.getViewArea().getNpcsInView()) {
+                if (candidate == null || candidate == npc || candidate.isRemoved() || candidate.inCombat()) continue;
+                int distance = distanceTo(candidate.getX(), candidate.getY());
+                if (distance < nearest) { target = candidate; nearest = distance; }
+            }
+            if (target == null) return false;
+            if (nearest > 1) {
+                activity = "walking over to pickpocket " + target.getDef().getName();
+                routeTo(target.getX(), target.getY());
+                return true;
+            }
+            npc.face(target);
+            if (npc instanceof Player) {
+                Player playerAvatar = (Player) npc;
+                Thieving nativeThieving = new Thieving();
+                if (nativeThieving.blockNpcCommand(target, "pickpocket", playerAvatar)) {
+                    final NPC pickpocketTarget = target;
+                    PluginManager.getInstance().getExecutor().execute(() ->
+                            nativeThieving.onNpcCommand(pickpocketTarget, "pickpocket", playerAvatar));
+                    nativeActionPendingUntil = System.currentTimeMillis() + 1800L;
+                    activity = "pickpocketing " + target.getDef().getName() + " using native Thieving";
+                    return true;
+                }
+                return false;
+            }
+            beginVisibleAction(COINS, -1, 2800L);
+            int success = Math.max(35, Math.min(92, 50 + skillLevel(THIEVING) / 2));
+            if (random.nextInt(100) < success) {
+                int loot = 3 + random.nextInt(Math.max(4, skillLevel(THIEVING) + 4));
+                addInventory(COINS, loot);
+                gainSkillXp(THIEVING, 8 + Math.min(35, skillLevel(THIEVING)));
+                activity = "pickpocketing " + target.getDef().getName() + " for " + loot + " coins";
+            } else {
+                activity = "getting caught pickpocketing " + target.getDef().getName();
+            }
+            return true;
+        }
+
+        private boolean useNearbyAgilityObstacle() {
+            int[] obstacleIds = { 655, 647, 648, 650, 649, 653, 654, 675, 676, 677, 678, 703, 705, 706, 707, 708, 709 };
+            for (GameObject object : npc.getViewArea().getGameObjectsInView()) {
+                if (object == null || object.isRemoved() || !contains(obstacleIds, object.getID())) continue;
+                if (distanceTo(object.getX(), object.getY()) > 2) {
+                    activity = "running to the next agility obstacle";
+                    routeTo(object.getX(), object.getY());
+                } else {
+                    npc.face(object);
+                    if (npc instanceof Player) {
+                        Player playerAvatar = (Player) npc;
+                        GnomeAgilityCourse course = new GnomeAgilityCourse();
+                        if (course.blockObjectAction(object, object.getGameObjectDef().getFirstCommand(), playerAvatar)) {
+                            PluginManager.getInstance().getExecutor().execute(() ->
+                                    course.onObjectAction(object, object.getGameObjectDef().getFirstCommand(), playerAvatar));
+                            activity = "crossing a native agility obstacle in " + area.name;
+                            return true;
+                        }
+                        return false;
+                    }
+                    beginVisibleAction(-1, -1, 3200L);
+                    gainSkillXp(AGILITY, 8 + Math.min(40, skillLevel(AGILITY)));
+                    activity = "crossing an agility obstacle in " + area.name;
+                }
+                return true;
+            }
+            return false;
         }
 
         private void workDirectedSkill() {
-            int itemId = productForSkill(directedSkill);
-            if (itemId >= 0) {
-                addInventory(itemId, 1 + random.nextInt(3));
-                carriedItem = itemId;
-                carriedItemName = itemName(itemId);
+            boolean acted = false;
+            if (directedSkill == PRAYER) acted = buryOwnedBones();
+            else if (directedSkill == COOKING) acted = cookBankedFood();
+            else if (directedSkill == FLETCHING) acted = isNearBank() && fletchBankedLogs();
+            else if (directedSkill == FIREMAKING) acted = lightBankedLogs();
+            else if (directedSkill == SMITHING) acted = smeltBankedOre();
+            else if (directedSkill == CRAFTING) acted = craftBankedClay();
+            else if (directedSkill == HERBLAW) acted = isNearBank() && identifyBankedHerb();
+            else if (directedSkill == AGILITY) acted = useNearbyAgilityObstacle();
+            else if (directedSkill == THIEVING) acted = pickpocketNearbyNpc();
+            else if ((directedSkill == WOODCUTTING || directedSkill == MINING || directedSkill == FISHING)
+                    && role == Role.GATHERER && skillingSite != null && skillingSite.skill == directedSkill) {
+                workVisibleGathering();
+                acted = true;
             }
-            gainSkillXp(directedSkill, 28 + random.nextInt(35));
-            activity = "training " + SKILL_NAMES[directedSkill] + " for level " + directedLevel;
-            if (random.nextInt(12) == 0) {
-                say(SKILL_NAMES[directedSkill] + " goal " + skillLevel(directedSkill) + "/" + directedLevel);
+            if (!acted) {
+                activity = "gathering supplies for " + SKILL_NAMES[directedSkill]
+                        + " level " + directedLevel;
+                if (!isNearBank() && directedSkill >= COOKING) {
+                    int[] bankTile = nearestBankTile();
+                    routeTo(bankTile[0], bankTile[1]);
+                } else if (directedSkill <= MAGIC) {
+                    activity = "looking for a real fight to train " + SKILL_NAMES[directedSkill];
+                }
             }
+            if (random.nextInt(12) == 0) say(SKILL_NAMES[directedSkill] + " goal "
+                    + skillLevel(directedSkill) + "/" + directedLevel);
         }
 
         private void trainCombat(int amount) {
             int style;
-            if (role == Role.WILDERNESS && random.nextInt(4) == 0) {
+            if (directedSkill >= ATTACK && directedSkill <= MAGIC && directedSkill != PRAYER) {
+                style = directedSkill == HITS ? STRENGTH : directedSkill;
+            } else if (lifeSkill >= ATTACK && lifeSkill <= MAGIC && lifeSkill != PRAYER) {
+                style = lifeSkill == HITS ? STRENGTH : lifeSkill;
+            } else if (role == Role.WILDERNESS && random.nextInt(4) == 0) {
                 style = random.nextBoolean() ? RANGED : MAGIC;
             } else {
                 int[] melee = { ATTACK, DEFENSE, STRENGTH };
@@ -2686,9 +3070,6 @@ public final class WorldBotManager {
             }
             gainSkillXp(style, amount);
             gainSkillXp(HITS, Math.max(1, amount / 3));
-            if (random.nextInt(8) == 0) {
-                gainSkillXp(PRAYER, Math.max(1, amount / 5));
-            }
         }
 
         private void tradeWithExchange() {
@@ -2812,8 +3193,9 @@ public final class WorldBotManager {
             if (System.currentTimeMillis() - routeProgressAt < 12000L) return false;
 
             routeFailures++;
-            if (routeFailures >= 3 && role == Role.GATHERER && skillingSite != null) {
-                activity = "world hopping after a blocked route to " + skillingSite.name;
+            if (routeFailures >= 3) {
+                String destination = area == null ? "training area" : area.name;
+                activity = "world hopping after a blocked route to " + destination;
                 say("route blocked, hopping");
                 clearRouteGoal();
                 logout();
@@ -2882,12 +3264,50 @@ public final class WorldBotManager {
         }
 
         private void showOllamaLine(String message) {
-            if (message == null || message.trim().isEmpty() || message.equals(lastMessage)) {
+            if (message == null || message.trim().isEmpty()) {
                 return;
             }
+            String normalized = message.toLowerCase().replaceAll("[^a-z0-9 ]", "")
+                    .replaceAll("\\s+", " ").trim();
+            for (String recent : recentSpeech) {
+                if (normalized.equals(recent) || normalized.length() > 20 && recent.contains(normalized)
+                        || recent.length() > 20 && normalized.contains(recent)) return;
+            }
             lastMessage = message;
+            recentSpeech.addLast(normalized);
+            while (recentSpeech.size() > 8) recentSpeech.removeFirst();
             messageSequence++;
             messageUntil = System.currentTimeMillis() + 5000;
+        }
+
+        private String activityContext() {
+            int activeSkill = activeSkill();
+            String skill = activeSkill >= 0
+                    ? SKILL_NAMES[activeSkill] + " level " + skillLevel(activeSkill) : "combat level " + level;
+            return "doing " + activity + " near " + area.name + ", " + skill
+                    + ", carrying " + inventorySize() + "/" + role.depositAt + " items, goal "
+                    + (directedSkill >= 0 ? SKILL_NAMES[directedSkill] + " " + directedLevel : goal.label)
+                    + ", world event " + currentWorldEvent;
+        }
+
+        private int activeSkill() {
+            String value = activity == null ? "" : activity.toLowerCase();
+            for (int i = 0; i < SKILL_NAMES.length; i++) {
+                if (value.contains(SKILL_NAMES[i].toLowerCase())) return i;
+            }
+            if (value.contains("fish")) return FISHING;
+            if (value.contains("chop")) return WOODCUTTING;
+            if (value.contains("mine") || value.contains("mining")) return MINING;
+            if (value.contains("cook") || value.contains("burning")) return COOKING;
+            if (value.contains("fletch")) return FLETCHING;
+            if (value.contains("light")) return FIREMAKING;
+            if (value.contains("smelt")) return SMITHING;
+            if (value.contains("shap")) return CRAFTING;
+            if (value.contains("herb") || value.contains("identif")) return HERBLAW;
+            if (value.contains("agility") || value.contains("obstacle")) return AGILITY;
+            if (value.contains("pickpocket")) return THIEVING;
+            if (value.contains("bury")) return PRAYER;
+            return lifeSkill;
         }
 
         private boolean canSpeakNear(Player player, int radius) {
@@ -2976,6 +3396,7 @@ public final class WorldBotManager {
         private String profileReport() {
             StringBuilder report = new StringBuilder(name)
                     .append(" - ").append(personality.title).append(" [").append(personality.clan).append("]")
+                    .append("\nEntity: ").append(npc instanceof Player ? "Player" : "Wilderness PK NPC")
                     .append("\nCombat ").append(level).append(" | Total ").append(totalLevel()).append(" | XP ").append(totalXp())
                     .append("\nGoal: ").append(directedSkill >= 0
                             ? SKILL_NAMES[directedSkill] + " " + skillLevel(directedSkill) + "/" + directedLevel
@@ -3049,6 +3470,7 @@ public final class WorldBotManager {
 
         private void addInventory(int itemId, int amount) {
             inventory.put(itemId, inventory.getOrDefault(itemId, 0) + amount);
+            syncHeadlessContainers();
         }
 
         private boolean removeInventory(int itemId, int amount) {
@@ -3062,6 +3484,7 @@ public final class WorldBotManager {
             } else {
                 inventory.remove(itemId);
             }
+            syncHeadlessContainers();
             return true;
         }
 
@@ -3088,7 +3511,12 @@ public final class WorldBotManager {
             int total = 0;
             for (Map.Entry<Integer, Integer> entry : inventory.entrySet()) {
                 if (entry.getKey() != COINS) {
-                    total += entry.getValue();
+                    try {
+                        total += EntityManager.getItem(entry.getKey()).isStackable()
+                                ? 1 : entry.getValue();
+                    } catch (Exception ignored) {
+                        total += entry.getValue();
+                    }
                 }
             }
             return total;
@@ -3136,6 +3564,7 @@ public final class WorldBotManager {
                 trades++;
             }
             itemsBanked += deposited;
+            syncHeadlessContainers();
             activity = "selling " + deposited + " items for " + coins + " coins";
             return deposited;
         }
@@ -3143,6 +3572,7 @@ public final class WorldBotManager {
         private void addToBank(int itemId, int amount) {
             if (amount > 0) {
                 bank.put(itemId, bank.getOrDefault(itemId, 0) + amount);
+                syncHeadlessContainers();
             }
         }
 
@@ -3151,6 +3581,7 @@ public final class WorldBotManager {
             if (amount < 1 || current < amount) return false;
             if (current == amount) bank.remove(itemId);
             else bank.put(itemId, current - amount);
+            syncHeadlessContainers();
             return true;
         }
 
@@ -3189,6 +3620,13 @@ public final class WorldBotManager {
             int oldLevel = skillLevel(skill);
             long gained = (long) amount * xpRate;
             skillXp[skill] = (int) Math.min(Integer.MAX_VALUE, skillXp[skill] + gained);
+            if (npc instanceof Player) {
+                Player playerAvatar = (Player) npc;
+                playerAvatar.setExp(skill, skillXp[skill]);
+                int actualLevel = Formulae.experienceToLevel(skillXp[skill]);
+                playerAvatar.setMaxStat(skill, actualLevel);
+                playerAvatar.setCurStat(skill, actualLevel);
+            }
             int newLevel = skillLevel(skill);
             refreshDerivedStats();
             if (newLevel > oldLevel) {
@@ -3245,6 +3683,9 @@ public final class WorldBotManager {
         }
 
         private boolean cookBankedFood() {
+            if (npc instanceof Player) {
+                return performNativeCooking((Player) npc);
+            }
             for (Map.Entry<Integer, Integer> entry : new ArrayList<>(bank.entrySet())) {
                 ItemCookingDef definition = EntityManager.getItemCookingDef(entry.getKey());
                 if (entry.getValue() < 1 || definition == null || definition.getExp() < 1
@@ -3271,6 +3712,21 @@ public final class WorldBotManager {
                         || skillLevel(FLETCHING) < definition.getShortbowLvl()) {
                     continue;
                 }
+                if (npc instanceof Player) {
+                    removeFromBank(entry.getKey(), 1);
+                    addInventory(entry.getKey(), 1);
+                    Player playerAvatar = (Player) npc;
+                    ensureNativeTool(playerAvatar, KNIFE);
+                    InvItem knife = playerAvatar.getInventory().get(new InvItem(KNIFE));
+                    InvItem log = playerAvatar.getInventory().get(new InvItem(entry.getKey()));
+                    if (knife != null && log != null) {
+                        PluginManager.getInstance().getExecutor().execute(() ->
+                                new Fletching().blockInvUseOnItem(playerAvatar, knife, log));
+                        nativeActionPendingUntil = System.currentTimeMillis() + 1800L;
+                        activity = "fletching " + itemName(entry.getKey()) + " using native Fletching";
+                        return true;
+                    }
+                }
                 removeFromBank(entry.getKey(), 1);
                 addToBank(definition.getShortbowID(), 1);
                 gainSkillXp(FLETCHING, definition.getShortbowExp());
@@ -3282,6 +3738,9 @@ public final class WorldBotManager {
         }
 
         private boolean lightBankedLogs() {
+            if (npc instanceof Player) {
+                return performNativeFiremaking((Player) npc);
+            }
             int[][] logs = {
                     { 14, 1, 25 }, { 632, 15, 35 }, { 633, 30, 45 },
                     { 634, 45, 55 }, { 635, 60, 65 }, { 636, 75, 75 }
@@ -3305,6 +3764,9 @@ public final class WorldBotManager {
         }
 
         private boolean smeltBankedOre() {
+            if (npc instanceof Player) {
+                return performNativeSmelting((Player) npc);
+            }
             for (Map.Entry<Integer, Integer> entry : new ArrayList<>(bank.entrySet())) {
                 ItemSmeltingDef definition = EntityManager.getItemSmeltingDef(entry.getKey());
                 if (entry.getValue() < 1 || definition == null
@@ -3330,6 +3792,210 @@ public final class WorldBotManager {
                 return true;
             }
             return false;
+        }
+
+        private boolean performNativeCooking(Player playerAvatar) {
+            InvItem rawFood = null;
+            for (InvItem item : new ArrayList<>(playerAvatar.getInventory().getItems())) {
+                ItemCookingDef definition = EntityManager.getItemCookingDef(item.getID());
+                if (definition != null && definition.getExp() > 0
+                        && skillLevel(COOKING) >= definition.getReqLevel()) {
+                    rawFood = item;
+                    break;
+                }
+            }
+            if (rawFood == null) {
+                for (Map.Entry<Integer, Integer> entry : new ArrayList<>(bank.entrySet())) {
+                    ItemCookingDef definition = EntityManager.getItemCookingDef(entry.getKey());
+                    if (entry.getValue() < 1 || definition == null || definition.getExp() < 1
+                            || skillLevel(COOKING) < definition.getReqLevel()) continue;
+                    if (!withdrawNativeSupply(entry.getKey(), Math.min(5, entry.getValue()), "Cooking")) {
+                        return true;
+                    }
+                    activity = "withdrawing " + itemName(entry.getKey()) + " to cook";
+                    return true;
+                }
+                return false;
+            }
+            GameObject range = nearbyGameObject(11);
+            if (range == null || distanceTo(range.getX(), range.getY()) > 2) {
+                routeToNativeStation("walking to a range with " + itemName(rawFood.getID()), COOKING_STATIONS);
+                return true;
+            }
+            final InvItem input = rawFood;
+            final GameObject station = range;
+            ObjectCooking cooking = new ObjectCooking();
+            if (!cooking.blockInvUseOnObject(station, input, playerAvatar)) return false;
+            nativeActionPendingUntil = System.currentTimeMillis() + 2500L;
+            activity = "cooking " + itemName(input.getID()) + " on a real range";
+            PluginManager.getInstance().getExecutor().execute(() ->
+                    cooking.onInvUseOnObject(station, input, playerAvatar));
+            return true;
+        }
+
+        private boolean performNativeCrafting(Player playerAvatar) {
+            InvItem clay = playerAvatar.getInventory().get(new InvItem(243));
+            if (clay == null) {
+                int available = bank.getOrDefault(243, 0);
+                if (available < 1) return false;
+                if (!withdrawNativeSupply(243, Math.min(5, available), "Crafting")) return true;
+                activity = "withdrawing soft clay for Crafting";
+                return true;
+            }
+            GameObject wheel = nearbyGameObject(179);
+            if (wheel == null || distanceTo(wheel.getX(), wheel.getY()) > 2) {
+                routeToNativeStation("walking to a potter's wheel with soft clay", POTTERY_STATIONS);
+                return true;
+            }
+            Crafting crafting = new Crafting();
+            if (!crafting.blockInvUseOnObject(wheel, clay, playerAvatar)) return false;
+            nativeActionPendingUntil = System.currentTimeMillis() + 2500L;
+            activity = "shaping soft clay on a real potter's wheel";
+            PluginManager.getInstance().getExecutor().execute(() ->
+                    crafting.onInvUseOnObject(wheel, clay, playerAvatar));
+            return true;
+        }
+
+        private boolean performNativeSmelting(Player playerAvatar) {
+            InvItem primaryOre = null;
+            ItemSmeltingDef recipe = null;
+            for (InvItem item : new ArrayList<>(playerAvatar.getInventory().getItems())) {
+                ItemSmeltingDef candidate = EntityManager.getItemSmeltingDef(item.getID());
+                if (candidate != null && skillLevel(SMITHING) >= candidate.getReqLevel()) {
+                    primaryOre = item;
+                    recipe = candidate;
+                    break;
+                }
+            }
+            if (primaryOre == null) {
+                for (Map.Entry<Integer, Integer> entry : new ArrayList<>(bank.entrySet())) {
+                    ItemSmeltingDef candidate = EntityManager.getItemSmeltingDef(entry.getKey());
+                    if (entry.getValue() < 1 || candidate == null
+                            || skillLevel(SMITHING) < candidate.getReqLevel()) continue;
+                    boolean hasSupplies = true;
+                    for (ReqOreDef ore : candidate.getReqOres()) {
+                        if (bank.getOrDefault(ore.getId(), 0) < ore.getAmount()) {
+                            hasSupplies = false;
+                            break;
+                        }
+                    }
+                    if (!hasSupplies) continue;
+                    if (!isNearBank()) {
+                        routeToNearestBank("walking to the bank for Smithing ore");
+                        return true;
+                    }
+                    removeFromBank(entry.getKey(), 1);
+                    addInventory(entry.getKey(), 1);
+                    for (ReqOreDef ore : candidate.getReqOres()) {
+                        removeFromBank(ore.getId(), ore.getAmount());
+                        addInventory(ore.getId(), ore.getAmount());
+                    }
+                    activity = "withdrawing a real smelting recipe";
+                    return true;
+                }
+                return false;
+            }
+            GameObject furnace = nearbyGameObject(118);
+            if (furnace == null || distanceTo(furnace.getX(), furnace.getY()) > 2) {
+                routeToNativeStation("walking to a furnace with " + itemName(primaryOre.getID()), FURNACE_STATIONS);
+                return true;
+            }
+            Smelting smelting = new Smelting();
+            if (!smelting.blockInvUseOnObject(furnace, primaryOre, playerAvatar)) return false;
+            final InvItem input = primaryOre;
+            final GameObject station = furnace;
+            nativeActionPendingUntil = System.currentTimeMillis() + 2800L;
+            activity = "smelting " + itemName(input.getID()) + " in a real furnace";
+            PluginManager.getInstance().getExecutor().execute(() ->
+                    smelting.onInvUseOnObject(station, input, playerAvatar));
+            return true;
+        }
+
+        private boolean performNativeFiremaking(Player playerAvatar) {
+            int[][] logs = {
+                    { 14, 1 }, { 632, 15 }, { 633, 30 }, { 634, 45 }, { 635, 60 }, { 636, 75 }
+            };
+            int logId = -1;
+            for (int[] log : logs) {
+                if (skillLevel(FIREMAKING) >= log[1]
+                        && playerAvatar.getInventory().countId(log[0]) > 0) {
+                    logId = log[0];
+                    break;
+                }
+            }
+            if (logId < 0) {
+                for (int[] log : logs) {
+                    int available = bank.getOrDefault(log[0], 0);
+                    if (available < 1 || skillLevel(FIREMAKING) < log[1]) continue;
+                    if (!withdrawNativeSupply(log[0], Math.min(5, available), "Firemaking")) return true;
+                    activity = "withdrawing " + itemName(log[0]) + " to burn";
+                    return true;
+                }
+                return false;
+            }
+            if (World.getWorld().getTile(playerAvatar.getLocation()).hasGameObject()) {
+                Point fireTile = nearbyWalkablePoint(4);
+                activity = "finding a clear tile to light " + itemName(logId);
+                routeTo(fireTile.getX(), fireTile.getY());
+                return true;
+            }
+            ensureNativeTool(playerAvatar, TINDERBOX);
+            InvItem tinderbox = playerAvatar.getInventory().get(new InvItem(TINDERBOX));
+            if (tinderbox == null || playerAvatar.getInventory().remove(new InvItem(logId, 1)) < 0) return false;
+            Item groundLog = new Item(logId, playerAvatar.getX(), playerAvatar.getY(), 1, playerAvatar);
+            World.getWorld().registerItem(groundLog);
+            Firemaking firemaking = new Firemaking();
+            nativeActionPendingUntil = System.currentTimeMillis() + 2500L;
+            beginVisibleAction(logId, TINDERBOX, 4200L);
+            activity = "lighting " + itemName(logId) + " on the ground with native Firemaking";
+            firemaking.onInvUseOnGroundItem(tinderbox, groundLog, playerAvatar);
+            return true;
+        }
+
+        private boolean withdrawNativeSupply(int itemId, int amount, String skillName) {
+            if (!isNearBank()) {
+                routeToNearestBank("walking to the bank for " + skillName + " supplies");
+                return false;
+            }
+            if (!removeFromBank(itemId, amount)) return false;
+            addInventory(itemId, amount);
+            return true;
+        }
+
+        private void routeToNearestBank(String description) {
+            int[] bankTile = nearestBankTile();
+            travelForActivity(description, bankTile[0], bankTile[1],
+                    new BotArea("bank for " + SKILL_NAMES[lifeSkill], bankTile[0] - 6,
+                            bankTile[0] + 6, bankTile[1] - 6, bankTile[1] + 6));
+        }
+
+        private void routeToNativeStation(String description, int[][] stations) {
+            int[] nearest = stations[0];
+            int nearestDistance = Integer.MAX_VALUE;
+            for (int[] station : stations) {
+                int distance = Math.abs(npc.getX() - station[0]) + Math.abs(npc.getY() - station[1]);
+                if (distance < nearestDistance) {
+                    nearest = station;
+                    nearestDistance = distance;
+                }
+            }
+            travelForActivity(description, nearest[0], nearest[1],
+                    new BotArea("native " + SKILL_NAMES[lifeSkill] + " station",
+                            nearest[0] - 7, nearest[0] + 7, nearest[1] - 7, nearest[1] + 7));
+        }
+
+        private GameObject nearbyGameObject(int... objectIds) {
+            GameObject nearest = null;
+            int nearestDistance = Integer.MAX_VALUE;
+            for (GameObject object : npc.getViewArea().getGameObjectsInView()) {
+                if (object == null || object.isRemoved() || !contains(objectIds, object.getID())) continue;
+                int distance = distanceTo(object.getX(), object.getY());
+                if (distance < nearestDistance) {
+                    nearest = object;
+                    nearestDistance = distance;
+                }
+            }
+            return nearest;
         }
 
         private void finishProduction(int input, int output, int tool, String verb, int experience) {
@@ -3365,19 +4031,6 @@ public final class WorldBotManager {
             return role == Role.GATHERER ? CRAFTING : ATTACK;
         }
 
-        private int productForSkill(int skill) {
-            int[][] products = {
-                    { ATTACK, 20 }, { DEFENSE, 20 }, { STRENGTH, 20 }, { HITS, 20 }, { RANGED, 638 },
-                    { PRAYER, 413 }, { MAGIC, 41 }, { COOKING, 373 }, { WOODCUTTING, 633 }, { FLETCHING, 651 },
-                    { FISHING, 372 }, { FIREMAKING, 14 }, { CRAFTING, 148 }, { SMITHING, 171 }, { MINING, 155 },
-                    { HERBLAW, 474 }, { AGILITY, 381 }, { THIEVING, 10 }
-            };
-            for (int[] product : products) {
-                if (product[0] == skill) return product[1];
-            }
-            return -1;
-        }
-
         private int xpRateFor(int index, Role role) {
             if (role == Role.WILDERNESS) {
                 int[] rates = { 1, 2, 3, 5 };
@@ -3392,8 +4045,7 @@ public final class WorldBotManager {
         }
 
         private void respawn() {
-            BotArea spawnArea = role == Role.GATHERER && skillingSite != null
-                    ? skillingSite.area : role.randomArea(random);
+            BotArea spawnArea = currentSpawnArea();
             spawn(spawnArea);
             active = true;
             online = true;
@@ -3407,7 +4059,7 @@ public final class WorldBotManager {
                 return;
             }
             activity = logoutActivity();
-            World.getWorld().unregisterNpc(npc);
+            unregisterAvatar();
             online = false;
             nextSessionChangeAt = System.currentTimeMillis() + offlineDuration();
         }
@@ -3418,8 +4070,7 @@ public final class WorldBotManager {
                 nextSessionChangeAt = System.currentTimeMillis() + offlineDuration();
                 return;
             }
-            BotArea spawnArea = role == Role.GATHERER && skillingSite != null
-                    ? skillingSite.area : role.randomArea(random);
+            BotArea spawnArea = currentSpawnArea();
             spawn(spawnArea);
             online = true;
             scheduleLogout();
@@ -3427,15 +4078,97 @@ public final class WorldBotManager {
             say(loginLine());
         }
 
+        private BotArea currentSpawnArea() {
+            if (lifeSkill == AGILITY) return new BotArea("Gnome agility course", 690, 715, 680, 715);
+            if (lifeSkill == THIEVING) return new BotArea("Varrock thieving route", 115, 145, 495, 530);
+            if ((lifeSkill == PRAYER || lifeSkill >= COOKING) && area != null
+                    && area.name.startsWith("bank for ")) return area;
+            return role == Role.GATHERER && skillingSite != null
+                    ? skillingSite.area : role.randomArea(random);
+        }
+
         private void spawn(BotArea spawnArea) {
-            int npcId = role == Role.GATHERER ? GATHERER_NPC : role == Role.FIGHTER ? FIGHTER_NPC : WILDERNESS_NPC;
             Point spawnPoint = spawnArea.randomWalkablePoint(random);
-            npc = new NPC(npcId, spawnPoint.getX(), spawnPoint.getY(),
-                    spawnArea.minX, spawnArea.maxX, spawnArea.minY, spawnArea.maxY);
-            npc.setShouldRespawn(false);
-            npc.setCombatLevel(level);
-            World.getWorld().registerNpc(npc);
+            if (role == Role.WILDERNESS) {
+                NPC wildernessNpc = new NPC(WILDERNESS_NPC, spawnPoint.getX(), spawnPoint.getY(),
+                        spawnArea.minX, spawnArea.maxX, spawnArea.minY, spawnArea.maxY);
+                wildernessNpc.setShouldRespawn(false);
+                wildernessNpc.setCombatLevel(level);
+                npc = wildernessNpc;
+                World.getWorld().registerNpc(wildernessNpc);
+            } else {
+                Player playerAvatar = new WorldBotPlayer(name, spawnPoint, skillXp,
+                        new Appearance(hairColour, topColour, bottomColour, skinColour,
+                                appearanceSprites[0], appearanceSprites[1]), xpRate);
+                playerAvatar.setCombatLevel(level);
+                syncPlayerInventory(playerAvatar);
+                playerAvatar.setWornItems(appearanceSprites.clone());
+                npc = playerAvatar;
+                World.getWorld().registerHeadlessPlayer(playerAvatar);
+            }
             area = spawnArea;
+        }
+
+        private void syncPlayerInventory(Player playerAvatar) {
+            playerAvatar.getInventory().getItems().clear();
+            for (Map.Entry<Integer, Integer> entry : inventory.entrySet()) {
+                if (entry.getValue() <= 0) continue;
+                if (EntityManager.getItem(entry.getKey()).isStackable()) {
+                    playerAvatar.getInventory().add(new InvItem(entry.getKey(), entry.getValue()));
+                } else {
+                    for (int i = 0; i < entry.getValue() && !playerAvatar.getInventory().full(); i++) {
+                        playerAvatar.getInventory().add(new InvItem(entry.getKey(), 1));
+                    }
+                }
+            }
+            playerAvatar.getBank().getItems().clear();
+            for (Map.Entry<Integer, Integer> entry : bank.entrySet()) {
+                if (entry.getValue() > 0) playerAvatar.getBank().add(new InvItem(entry.getKey(), entry.getValue()));
+            }
+        }
+
+        private void syncHeadlessContainers() {
+            if (npc instanceof Player) syncPlayerInventory((Player) npc);
+        }
+
+        private void syncHeadlessStats() {
+            if (!(npc instanceof Player)) return;
+            Player playerAvatar = (Player) npc;
+            for (int skill = 0; skill < skillXp.length; skill++) {
+                int actualLevel = Formulae.experienceToLevel(Math.max(0, skillXp[skill]));
+                playerAvatar.setExp(skill, skillXp[skill]);
+                playerAvatar.setMaxStat(skill, actualLevel);
+                playerAvatar.setCurStat(skill, actualLevel);
+            }
+            playerAvatar.setCombatLevel(level);
+        }
+
+        private void syncFromHeadlessPlayer() {
+            if (!(npc instanceof Player)) return;
+            Player playerAvatar = (Player) npc;
+            inventory.clear();
+            for (InvItem item : new ArrayList<>(playerAvatar.getInventory().getItems())) {
+                if (isTransientTrainingTool(item.getID())) continue;
+                inventory.put(item.getID(), inventory.getOrDefault(item.getID(), 0) + item.getAmount());
+            }
+            for (int skill = 0; skill < skillXp.length; skill++) {
+                skillXp[skill] = Math.max(0, playerAvatar.getExp(skill));
+            }
+            refreshDerivedStats();
+        }
+
+        private boolean isTransientTrainingTool(int itemId) {
+            return itemId == KNIFE || itemId == TINDERBOX || itemId == 12 || itemId == 87
+                    || itemId == 88 || itemId == 203 || itemId == 204 || itemId == 405
+                    || itemId == 156 || itemId >= 1258 && itemId <= 1262
+                    || itemId == 375 || itemId == 376 || itemId == 377 || itemId == 378
+                    || itemId == 379 || itemId == 548;
+        }
+
+        private void unregisterAvatar() {
+            if (npc == null || npc.isRemoved()) return;
+            if (npc instanceof Player) World.getWorld().unregisterHeadlessPlayer((Player) npc);
+            else World.getWorld().unregisterNpc((NPC) npc);
         }
 
         private void scheduleLogout() {
@@ -4124,7 +4857,7 @@ public final class WorldBotManager {
                         MINING, 151, 156, 1, 0, 100, 1, 312, 636, 282, 566, ROCK_IDS, new int[0],
                         new BotArea("Rimmington mine", 307, 318, 632, 645)),
                 new SkillingSite("Draynor fishing spot", "the fishing spot", "fishing", "fishing then bank",
-                        FISHING, 349, 376, 1, 50, 0, 0, 260, 641, 218, 635, new int[0], new int[] { 193 },
+                        FISHING, 349, 376, 1, 50, 0, 0, 260, 641, 218, 635, new int[] { 194 }, new int[0],
                         new BotArea("Draynor fishing spot", 256, 263, 638, 645))
         };
 
@@ -4173,6 +4906,14 @@ public final class WorldBotManager {
 
         private static SkillingSite forBot(int index, int startingLevel) {
             int gathererIndex = (index / 4) * 2 + (index % 4);
+            // Mirror the busy 2012-world feel: roughly two thirds of skillers form
+            // persistent woodcutting crowds around Seers, split by their actual level.
+            if (Math.floorMod(gathererIndex, 3) != 2) {
+                int[] seersPreference = { 6, 3, 2, 1 };
+                for (int siteIndex : seersPreference) {
+                    if (SITES[siteIndex].minimumLevel <= startingLevel) return SITES[siteIndex];
+                }
+            }
             int start = Math.floorMod(gathererIndex, SITES.length);
             for (int offset = 0; offset < SITES.length; offset++) {
                 SkillingSite site = SITES[(start + offset) % SITES.length];
@@ -4186,14 +4927,38 @@ public final class WorldBotManager {
         private static SkillingSite next(SkillingSite current, Random random,
                 int woodcuttingLevel, int miningLevel, int fishingLevel) {
             List<SkillingSite> eligible = new ArrayList<>();
+            List<SkillingSite> seers = new ArrayList<>();
             for (SkillingSite site : SITES) {
                 int level = site.skill == WOODCUTTING ? woodcuttingLevel
                         : site.skill == MINING ? miningLevel : fishingLevel;
                 if (site != current && level >= site.minimumLevel) {
                     eligible.add(site);
+                    if (site.isSeersHub()) seers.add(site);
                 }
             }
+            if (!seers.isEmpty() && random.nextInt(100) < 65) {
+                return seers.get(random.nextInt(seers.size()));
+            }
             return eligible.isEmpty() ? current : eligible.get(random.nextInt(eligible.size()));
+        }
+
+        private static SkillingSite forSkill(int skill, int level, Random random) {
+            List<SkillingSite> eligible = new ArrayList<>();
+            List<SkillingSite> seers = new ArrayList<>();
+            for (SkillingSite site : SITES) {
+                if (site.skill != skill || site.minimumLevel > level) continue;
+                eligible.add(site);
+                if (site.isSeersHub()) seers.add(site);
+            }
+            if (eligible.isEmpty()) return null;
+            if (skill == WOODCUTTING && !seers.isEmpty() && random.nextInt(100) < 75) {
+                return seers.get(random.nextInt(seers.size()));
+            }
+            return eligible.get(random.nextInt(eligible.size()));
+        }
+
+        private boolean isSeersHub() {
+            return name.startsWith("Seers ");
         }
     }
 
