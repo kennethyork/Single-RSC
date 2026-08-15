@@ -78,6 +78,10 @@ public final class WorldBotManager {
     private static final int DEFAULT_BOT_COUNT = 200;
     private static final int DEFAULT_MAX_BOT_COUNT = 200;
     private static final int DEFAULT_ONLINE_LIMIT = 80;
+    private static final int DECISION_BATCH_SIZE = 10;
+    private static final long DECISION_BUDGET_NANOS = 8_000_000L;
+    private static final int MOVEMENT_BATCH_SIZE = 24;
+    private static final long MOVEMENT_BUDGET_NANOS = 4_000_000L;
     private static final String[] SKILL_NAMES = {
             "Attack", "Defense", "Strength", "Hits", "Ranged", "Prayer", "Magic", "Cooking", "Woodcutting",
             "Fletching", "Fishing", "Firemaking", "Crafting", "Smithing", "Mining", "Herblaw", "Agility", "Thieving"
@@ -211,8 +215,10 @@ public final class WorldBotManager {
 
     private synchronized void advanceHeadlessPlayers() {
         if (!running || bots.isEmpty()) return;
-        int checked = Math.min(40, bots.size());
+        int checked = Math.min(MOVEMENT_BATCH_SIZE, bots.size());
+        long deadline = System.nanoTime() + MOVEMENT_BUDGET_NANOS;
         for (int i = 0; i < checked; i++) {
+            if (i > 0 && System.nanoTime() >= deadline) break;
             WorldBot bot = bots.get(movementCursor);
             movementCursor = (movementCursor + 1) % bots.size();
             if (!bot.active || !bot.online || !(bot.npc instanceof Player)
@@ -1208,8 +1214,10 @@ public final class WorldBotManager {
         updateWorldEvent();
         updateAutoGroups();
         if (!bots.isEmpty()) {
-            int checked = Math.min(25, bots.size());
+            int checked = Math.min(DECISION_BATCH_SIZE, bots.size());
+            long deadline = System.nanoTime() + DECISION_BUDGET_NANOS;
             for (int i = 0; i < checked; i++) {
+                if (i > 0 && System.nanoTime() >= deadline) break;
                 bots.get(decisionCursor).tick();
                 decisionCursor = (decisionCursor + 1) % bots.size();
             }
@@ -1613,7 +1621,7 @@ public final class WorldBotManager {
                 properties.store(out, "Single-RSC autonomous world bot state");
             }
             lastStateSave = System.currentTimeMillis();
-            HighscoresExporter.export();
+            HighscoresExporter.requestExport();
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -1729,6 +1737,11 @@ public final class WorldBotManager {
         private int routeLastY;
         private int routeFailures;
         private long routeProgressAt;
+        private final int routeStyle;
+        private int routeTrip;
+        private int routeApproachX = Integer.MIN_VALUE;
+        private int routeApproachY = Integer.MIN_VALUE;
+        private boolean routeApproachPending;
         private WorldBot pvpOpponent;
         private long nextPvpSearchAt;
         private long pvpFightStartedAt;
@@ -1753,6 +1766,7 @@ public final class WorldBotManager {
             this.role = role;
             this.personality = personality;
             this.skillingSite = skillingSite;
+            this.routeStyle = index;
             this.nextSkillingSiteChangeAt = System.currentTimeMillis()
                     + (skillingSite != null && skillingSite.isSeersHub()
                             ? 8 + random.nextInt(9) : 3 + random.nextInt(5)) * MINUTE_MS;
@@ -1916,7 +1930,7 @@ public final class WorldBotManager {
                 int[] bankTile = nearestBankTile();
                 if (distanceTo(bankTile[0], bankTile[1]) > 2) {
                     activity = "walking to bank from " + area.name;
-                    npc.setPath(new Path(npc.getX(), npc.getY(), bankTile[0], bankTile[1]));
+                    routeTo(bankTile[0], bankTile[1]);
                     return;
                 }
                 int banked = depositInventoryToExchange();
@@ -2393,7 +2407,8 @@ public final class WorldBotManager {
             if (this == autoGroup.leader) {
                 activity = "leading " + autoGroup.goal.label + " at " + autoGroup.area.name;
                 if (!inside(autoGroup.area)) {
-                    npc.setPath(new Path(npc.getX(), npc.getY(), autoGroup.area.randomX(random), autoGroup.area.randomY(random)));
+                    Point destination = autoGroup.area.randomWalkablePoint(random);
+                    routeTo(destination.getX(), destination.getY());
                     return;
                 }
                 if (System.currentTimeMillis() >= nextWorkAt) {
@@ -2401,7 +2416,8 @@ public final class WorldBotManager {
                     nextWorkAt = System.currentTimeMillis() + 6000 + random.nextInt(9000);
                 }
                 if (npc.finishedPath() && random.nextInt(4) == 0) {
-                    npc.setPath(new Path(npc.getX(), npc.getY(), autoGroup.area.randomX(random), autoGroup.area.randomY(random)));
+                    Point destination = autoGroup.area.randomWalkablePoint(random);
+                    routeTo(destination.getX(), destination.getY());
                 }
                 return;
             }
@@ -2411,7 +2427,7 @@ public final class WorldBotManager {
             }
             if (!npc.getLocation().withinRange(autoGroup.leader.npc.getLocation(), 6)) {
                 activity = "following " + autoGroup.leader.name + " for " + autoGroup.goal.label;
-                routeTo(autoGroup.leader.npc.getX(), autoGroup.leader.npc.getY());
+                routeDirect(autoGroup.leader.npc.getX(), autoGroup.leader.npc.getY());
                 return;
             }
             activity = "group " + autoGroup.goal.label + " with " + autoGroup.leader.name;
@@ -2441,7 +2457,7 @@ public final class WorldBotManager {
             }
             if (!npc.getLocation().withinRange(player.getLocation(), 12)) {
                 activity = "following " + player.getUsername();
-                routeTo(player.getX(), player.getY());
+                routeDirect(player.getX(), player.getY());
                 return;
             }
 
@@ -3149,10 +3165,38 @@ public final class WorldBotManager {
                 return;
             }
             activity = "walking through " + area.name;
-            routeTo(area.randomX(random), area.randomY(random));
+            Point destination = area.randomWalkablePoint(random);
+            routeTo(destination.getX(), destination.getY());
         }
 
         private void routeTo(int x, int y) {
+            long now = System.currentTimeMillis();
+            boolean changedTarget = routeTargetX != x || routeTargetY != y;
+            boolean madeProgress = npc.getX() != routeLastX || npc.getY() != routeLastY;
+            if (changedTarget) {
+                routeFailures = 0;
+                routeTrip++;
+                Point approach = personalizedApproachTo(x, y);
+                routeApproachX = approach.getX();
+                routeApproachY = approach.getY();
+                routeApproachPending = routeApproachX != x || routeApproachY != y;
+            }
+            routeTargetX = x;
+            routeTargetY = y;
+            if (changedTarget || madeProgress || routeProgressAt == 0L) {
+                routeLastX = npc.getX();
+                routeLastY = npc.getY();
+                routeProgressAt = now;
+            }
+            if (routeApproachPending && distanceTo(routeApproachX, routeApproachY) <= 2) {
+                routeApproachPending = false;
+            }
+            int nextX = routeApproachPending ? routeApproachX : x;
+            int nextY = routeApproachPending ? routeApproachY : y;
+            npc.setPath(new Path(npc.getX(), npc.getY(), nextX, nextY));
+        }
+
+        private void routeDirect(int x, int y) {
             long now = System.currentTimeMillis();
             boolean changedTarget = routeTargetX != x || routeTargetY != y;
             boolean madeProgress = npc.getX() != routeLastX || npc.getY() != routeLastY;
@@ -3166,7 +3210,75 @@ public final class WorldBotManager {
                 routeLastY = npc.getY();
                 routeProgressAt = now;
             }
+            routeApproachPending = false;
+            routeApproachX = Integer.MIN_VALUE;
+            routeApproachY = Integer.MIN_VALUE;
             npc.setPath(new Path(npc.getX(), npc.getY(), x, y));
+        }
+
+        private Point personalizedApproachTo(int x, int y) {
+            int dx = x - npc.getX();
+            int dy = y - npc.getY();
+            if (Math.abs(dx) + Math.abs(dy) < 16) {
+                return new Point(x, y);
+            }
+
+            int style = Math.floorMod(routeStyle * 37 + routeTrip * 17, 1000);
+            int progress = 30 + style % 41;
+            int approachX = npc.getX() + dx * progress / 100;
+            int approachY = npc.getY() + dy * progress / 100;
+            int lane = 2 + Math.floorMod(style / 7, 7);
+            int side = ((style / 49) & 1) == 0 ? 1 : -1;
+            if (Math.abs(dx) >= Math.abs(dy)) {
+                approachY += side * lane;
+            } else {
+                approachX += side * lane;
+            }
+            return nearestWalkableRoutePoint(approachX, approachY, x, y);
+        }
+
+        private Point nearestWalkableRoutePoint(int preferredX, int preferredY, int fallbackX, int fallbackY) {
+            World world = World.getWorld();
+            int rotation = Math.floorMod(routeStyle + routeTrip, 8);
+            for (int radius = 0; radius <= 4; radius++) {
+                int circumference = Math.max(1, radius * 8);
+                for (int step = 0; step < circumference; step++) {
+                    int position = Math.floorMod(step + rotation, circumference);
+                    int candidateX = preferredX + squareRingOffsetX(radius, position);
+                    int candidateY = preferredY + squareRingOffsetY(radius, position);
+                    if (!world.withinWorld(candidateX, candidateY)) continue;
+                    boolean blockedTerrain = (world.getTileValue(candidateX, candidateY).mapValue & 64) != 0;
+                    boolean occupiedByObject = world.tiles[candidateX][candidateY] != null
+                            && world.tiles[candidateX][candidateY].getGameObject() != null;
+                    if (!blockedTerrain && !occupiedByObject) {
+                        return new Point(candidateX, candidateY);
+                    }
+                }
+            }
+            return new Point(fallbackX, fallbackY);
+        }
+
+        private int squareRingOffsetX(int radius, int position) {
+            if (radius == 0) return 0;
+            int sideLength = radius * 2;
+            if (position < sideLength) return -radius + position;
+            position -= sideLength;
+            if (position < sideLength) return radius;
+            position -= sideLength;
+            if (position < sideLength) return radius - position;
+            return -radius;
+        }
+
+        private int squareRingOffsetY(int radius, int position) {
+            if (radius == 0) return 0;
+            int sideLength = radius * 2;
+            if (position < sideLength) return -radius;
+            position -= sideLength;
+            if (position < sideLength) return -radius + position;
+            position -= sideLength;
+            if (position < sideLength) return radius;
+            position -= sideLength;
+            return radius - position;
         }
 
         private void clearRouteGoal() {
@@ -3174,6 +3286,9 @@ public final class WorldBotManager {
             routeTargetY = Integer.MIN_VALUE;
             routeFailures = 0;
             routeProgressAt = 0L;
+            routeApproachX = Integer.MIN_VALUE;
+            routeApproachY = Integer.MIN_VALUE;
+            routeApproachPending = false;
         }
 
         private boolean recoverBlockedRoute() {
@@ -3205,6 +3320,7 @@ public final class WorldBotManager {
 
             Point detour = nearbyWalkablePoint(6);
             activity = "finding another route around scenery in " + area.name;
+            routeApproachPending = false;
             npc.resetPath();
             npc.setPath(new Path(npc.getX(), npc.getY(), detour.getX(), detour.getY()));
             routeLastX = npc.getX();

@@ -19,12 +19,12 @@
       <div class="container">
         <p>No servers. No setup. No internet required. Just pure solo RuneScape Classic gameplay &mdash; preserved and reimagined.</p>
         <div class="download-buttons">
-          <a href="https://github.com/kennethyork/Single-RSC/releases/tag/v2.8.2" class="cta">Desktop Download (v2.8.2)</a>
-          <a href="https://github.com/kennethyork/Single-RSC/releases/tag/v2.8.2" class="cta cta-mobile">Mobile Download (v2.8.2)</a>
+          <a href="https://github.com/kennethyork/Single-RSC/releases/tag/v2.8.3" class="cta">Desktop Download (v2.8.3)</a>
+          <a href="https://github.com/kennethyork/Single-RSC/releases/tag/v2.8.3" class="cta cta-mobile">Mobile Download (v2.8.3)</a>
         </div>
         <div class="badges">
-          <img src="https://img.shields.io/github/downloads/kennethyork/Single-RSC/latest/Single-RSC-v2.8.2.zip?label=Desktop%20Downloads" alt="Desktop Downloads" />
-          <img src="https://img.shields.io/github/downloads/kennethyork/Single-RSC/latest/Single-RSC-v2.8.2.apk?label=Mobile%20Downloads&color=green" alt="Mobile Downloads" />
+          <img src="https://img.shields.io/github/downloads/kennethyork/Single-RSC/latest/Single-RSC-v2.8.3.zip?label=Desktop%20Downloads" alt="Desktop Downloads" />
+          <img src="https://img.shields.io/github/downloads/kennethyork/Single-RSC/latest/Single-RSC-v2.8.3.apk?label=Mobile%20Downloads&color=green" alt="Mobile Downloads" />
         </div>
       </div>
     </section>
@@ -63,7 +63,7 @@
       <li>Admin account: create user named <code>root</code> for all admin commands</li>
     </ul>
 
-    <h3>Desktop (v2.8.2)</h3>
+    <h3>Desktop (v2.8.3)</h3>
     <ul>
       <li>Java 17+ required</li>
       <li>Launch via <code>run.sh</code> (Linux/macOS) or <code>run.bat</code> (Windows)</li>
@@ -71,7 +71,7 @@
       <li>Build from source with included compile command</li>
     </ul>
 
-    <h3>Mobile (v2.8.2)</h3>
+    <h3>Mobile (v2.8.3)</h3>
     <ul>
       <li>Android 7.0+ (API 24) &mdash; ~6 MB</li>
       <li>Tap = left click, Long press = right click</li>
@@ -143,6 +143,15 @@
 
     <h2 id="changelog">Changelog</h2>
     <details open>
+      <summary>v2.8.3</summary>
+      <ul>
+        <li>Move highscore exports off the game loop and coalesce duplicate export requests</li>
+        <li>Apply strict time budgets to autonomous bot decisions and movement</li>
+        <li>Isolate and log slow or failing delayed events</li>
+        <li>Give every world bot an individualized long-distance route style while keeping combat pursuit direct</li>
+      </ul>
+    </details>
+    <details>
       <summary>v2.8.2</summary>
       <ul>
         <li>Give every new character a complete valid RSC appearance</li>
@@ -210,7 +219,7 @@
 
         <h3>Desktop</h3>
         <ol>
-          <li>Download <code>Single-RSC-v2.8.2.zip</code> from <a href="https://github.com/kennethyork/Single-RSC/releases/tag/v2.8.2">GitHub releases</a></li>
+          <li>Download <code>Single-RSC-v2.8.3.zip</code> from <a href="https://github.com/kennethyork/Single-RSC/releases/tag/v2.8.3">GitHub releases</a></li>
           <li>Extract the zip file</li>
           <li>Ensure Java 17+ is installed: <code>java -version</code></li>
           <li>Run <code>run.sh</code> (Linux/macOS) or <code>run.bat</code> (Windows)</li>
@@ -218,7 +227,7 @@
 
         <h3>Mobile</h3>
         <ol>
-          <li>Download <code>Single-RSC-v2.8.2.apk</code> from <a href="https://github.com/kennethyork/Single-RSC/releases/tag/v2.8.2">GitHub releases</a></li>
+          <li>Download <code>Single-RSC-v2.8.3.apk</code> from <a href="https://github.com/kennethyork/Single-RSC/releases/tag/v2.8.3">GitHub releases</a></li>
           <li>Enable "Install from unknown sources" in Settings</li>
           <li>Open the APK file to install</li>
           <li>Launch the app from your app drawer</li>

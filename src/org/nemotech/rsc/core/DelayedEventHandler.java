@@ -58,8 +58,24 @@ public final class DelayedEventHandler {
         while(iterator.hasNext()) {
             DelayedEvent event = iterator.next();
             if(event.shouldRun()) {
-                event.run();
-                event.updateLastRun();
+                long started = System.nanoTime();
+                try {
+                    event.run();
+                } catch(Throwable failure) {
+                    Object identifier = event.getIdentifier();
+                    String name = identifier == null ? event.getClass().getName() : identifier.toString();
+                    System.err.println("[Engine] Disabled failing event " + name + ": " + failure.getMessage());
+                    failure.printStackTrace();
+                    event.interrupt();
+                } finally {
+                    event.updateLastRun();
+                    long elapsedMillis = (System.nanoTime() - started) / 1_000_000L;
+                    if(elapsedMillis >= 100L) {
+                        Object identifier = event.getIdentifier();
+                        String name = identifier == null ? event.getClass().getName() : identifier.toString();
+                        System.err.println("[Performance] Slow event " + name + " took " + elapsedMillis + " ms");
+                    }
+                }
             }
             if(event.shouldRemove()) {
                 iterator.remove();

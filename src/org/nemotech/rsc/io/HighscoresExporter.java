@@ -14,6 +14,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.nemotech.rsc.Constants;
 import org.nemotech.rsc.model.World;
@@ -24,6 +27,12 @@ import org.nemotech.rsc.util.Formulae;
 public final class HighscoresExporter {
 
     private static final String PRIVATE_OUTPUT_FILE = Constants.CACHE_DIRECTORY + "highscores-export.json";
+    private static final AtomicBoolean EXPORT_PENDING = new AtomicBoolean(false);
+    private static final ExecutorService EXPORT_EXECUTOR = Executors.newSingleThreadExecutor(task -> {
+        Thread thread = new Thread(task, "highscores-exporter");
+        thread.setDaemon(true);
+        return thread;
+    });
     private static final String[] SKILL_NAMES = {
             "Attack", "Defense", "Strength", "Hits", "Ranged", "Prayer", "Magic", "Cooking", "Woodcutting",
             "Fletching", "Fishing", "Firemaking", "Crafting", "Smithing", "Mining", "Herblaw", "Agility", "Thieving"
@@ -48,6 +57,23 @@ public final class HighscoresExporter {
         } catch (Exception e) {
             System.err.println("[Highscores] Could not export highscores: " + e.getMessage());
         }
+    }
+
+    /**
+     * Coalesces periodic export requests and performs file parsing/JSON writing
+     * away from the engine thread.
+     */
+    public static void requestExport() {
+        if (!EXPORT_PENDING.compareAndSet(false, true)) {
+            return;
+        }
+        EXPORT_EXECUTOR.execute(() -> {
+            try {
+                export();
+            } finally {
+                EXPORT_PENDING.set(false);
+            }
+        });
     }
 
     private static void writeAtomically(String path, String json) throws Exception {

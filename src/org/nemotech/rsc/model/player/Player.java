@@ -1003,7 +1003,7 @@ public class Player extends Mob {
         setLoggedIn(true);
         setBusy(false);
         WorldBotManager.getInstance().sendOllamaStartupStatus(this);
-        HighscoresExporter.export();
+        HighscoresExporter.requestExport();
     }
 
     public void save() {
@@ -1030,7 +1030,7 @@ public class Player extends Mob {
         } catch (Exception e) {
             e.printStackTrace();
         }
-        HighscoresExporter.export();
+        HighscoresExporter.requestExport();
 
     }
 

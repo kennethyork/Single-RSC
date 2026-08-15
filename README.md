@@ -4,7 +4,7 @@
 
 A self-contained single-player RuneScape Classic experience for desktop and Android.
 
-**Current release:** `v2.8.2`
+**Current release:** `v2.8.3`
 **Desktop:** Java 17+  
 **Android:** APK included in GitHub releases  
 **License:** GPL v3
@@ -21,18 +21,18 @@ https://github.com/kennethyork/Single-RSC/releases
 
 Use:
 
-- `Single-RSC-v2.8.2.zip` for desktop
-- `Single-RSC-v2.8.2.apk` for Android
+- `Single-RSC-v2.8.3.zip` for desktop
+- `Single-RSC-v2.8.3.apk` for Android
 
 The release does not include a standalone `rsc.jar` download. The desktop zip already contains the jar and launch scripts.
 
-### What's new in v2.8.2
+### What's new in v2.8.3
 
-- New characters now start with a complete valid RSC appearance.
-- Existing saves with an incomplete appearance are repaired and returned to character design.
-- Player-automation command implementations were removed from the command plugin, including `::woodcut`, `::fish`, `::mine`, and `::combat`.
-- Up to 200 autonomous world bots and their ambient/Ollama conversations remain available.
-- The existing configurable 1x–50x player XP behavior remains unchanged.
+- Highscore exports now run away from the game loop and duplicate requests are coalesced.
+- Bot decisions and movement use strict per-tick time budgets to reduce gameplay stalls.
+- Slow or failing delayed events are isolated and logged instead of stopping the event loop.
+- Every world bot has an individualized long-distance route style for banks, skilling sites, towns, and group trips.
+- Combat pursuit and player following remain direct so moving-target interactions stay reliable.
 
 ---
 
@@ -46,7 +46,7 @@ The goal is to make RuneScape Classic feel alive as a single-player game. The wo
 
 ## Single RS 2012 Comparison
 
-Current comparison: **Single RS 2012 v0.15.0** and **Single-RSC v2.8.2**.
+Current comparison: **Single RS 2012 v0.15.0** and **Single-RSC v2.8.3**.
 
 | Area | Single RS 2012 | Single-RSC |
 |---|---|---|
@@ -238,7 +238,7 @@ Requirements:
 Steps:
 
 ```bash
-unzip Single-RSC-v2.8.2.zip
+unzip Single-RSC-v2.8.3.zip
 cd Single-RSC
 ./run.sh
 ```
@@ -264,7 +264,7 @@ Create a new user and log in. Create a user named `root` if you want admin privi
 Install:
 
 ```text
-Single-RSC-v2.8.2.apk
+Single-RSC-v2.8.3.apk
 ```
 
 Player-controlled automation commands have been removed from both desktop and Android. Autonomous world bots are a desktop feature and do not control your character.
