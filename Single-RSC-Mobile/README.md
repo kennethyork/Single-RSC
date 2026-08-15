@@ -13,7 +13,6 @@ RSC Single Player Mobile is a standalone RuneScape Classic reproduction and sand
 - [Touch Controls](#touch-controls)
 - [Gameplay Notes](#gameplay-notes)
 - [Commands & Utilities](#commands--utilities)
-- [Bot System](#bot-system)
 - [Hardcore Mode](#hardcore-mode)
 - [Experience Rates](#experience-rates)
 - [Skill Batching System](#skill-batching-system)
@@ -106,74 +105,9 @@ Chat commands are typed using the on-screen keyboard — double-tap anywhere to 
 
 ---
 
-## Bot System
+## Player Automation
 
-RSC Single Player includes a comprehensive bot system that can automate training for all 18 skills. Bots will automatically bank collected resources and handle common tasks like eating food during combat.
-
-Start bots by typing commands in chat (double-tap to open keyboard).
-
-### Bot Commands
-
-| Command | Description |
-|---------|-------------|
-| `::bothelp` | Shows all available bot commands |
-| `::stopbot` | Stops the currently running bot |
-| `::pausebot` | Pauses the current bot |
-| `::resumebot` | Resumes a paused bot |
-| `::botstatus` | Shows current bot status and statistics |
-
-### Available Bots
-
-#### Combat Bots
-| Command | Skills Trained | Description |
-|---------|----------------|-------------|
-| `::combat <npc>` | Attack, Defense, Strength, Hits | Melee combat training |
-| `::ranged <npc>` | Ranged, Hits | Ranged combat training |
-| `::magic <npc> <spell>` | Magic, Hits | Magic combat training |
-| `::prayer <bones>` | Prayer | Buries bones (normal/big/dragon) |
-
-#### Gathering Bots
-| Command | Skill | Description |
-|---------|-------|-------------|
-| `::woodcut <tree>` | Woodcutting | Cuts trees and banks logs |
-| `::fish <type>` | Fishing | Catches fish and banks them |
-| `::mine <ore>` | Mining | Mines ore and banks it |
-
-#### Production Bots
-| Command | Skill | Description |
-|---------|-------|-------------|
-| `::cook <food>` | Cooking | Cooks raw food on ranges |
-| `::fm <log>` | Firemaking | Burns logs for firemaking XP |
-| `::smith <bar>` | Smithing | Smiths bars on anvils |
-| `::fletch <log>` | Fletching | Fletches logs into bows/arrows |
-| `::craft <mode> <item>` | Crafting | Leather work, spinning, pottery |
-| `::herblaw <mode> <herb>` | Herblaw | Identify herbs or make potions |
-
-#### Support Bots
-| Command | Skill | Description |
-|---------|-------|-------------|
-| `::agility <course>` | Agility | Runs agility courses (gnome/barbarian/wilderness) |
-| `::thieve <target>` | Thieving | Pickpockets NPCs or steals from stalls |
-
-### Bot Examples
-
-```
-::woodcut willow       - Cuts willow trees
-::fish lobster         - Catches lobsters
-::mine iron            - Mines iron ore
-::combat goblin        - Fights goblins
-::agility gnome        - Runs the Gnome Agility Course
-::cook lobster         - Cooks raw lobsters
-::prayer dragon        - Buries dragon bones
-::craft leather gloves - Crafts leather gloves
-::herblaw identify     - Identifies unidentified herbs
-```
-
-### Bot Features
-- **Auto-banking:** All gathering bots automatically bank collected resources
-- **Food support:** Combat bots eat food when health is low
-- **Statistics:** Track items collected, XP gained, and time running
-- **Pause/Resume:** Temporarily pause bots without losing progress
+Player-controlled botting has been removed. The Android app does not register commands that automate combat, gathering, production, banking, or movement for your character.
 
 ---
 
@@ -185,7 +119,7 @@ Start bots by typing commands in chat (double-tap to open keyboard).
 ---
 
 ## Experience Rates
-- Global modifier: 1x–50x (configured internally).
+- Global modifier: 1x–50x, saved per character.
 
 ---
 
@@ -263,7 +197,7 @@ A: Drag left/right with two fingers.
 A: Intended behavior is permanent loss; only manual file backups would bypass it.
 
 **Q: Do bot scripts work on mobile?**
-A: Yes — all bot commands work identically to desktop. Type them in chat.
+A: Player-controlled bot scripts have been removed. Normal gameplay remains manual.
 
 ---
 

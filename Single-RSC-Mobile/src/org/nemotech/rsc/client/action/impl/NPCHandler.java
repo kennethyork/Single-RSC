@@ -14,8 +14,31 @@ import org.nemotech.rsc.model.player.states.Action;
 import org.nemotech.rsc.util.Formulae;
 import org.nemotech.rsc.external.definition.NPCDef;
 import org.nemotech.rsc.client.action.ActionHandler;
+import org.nemotech.rsc.plugins.npcs.Bankers;
 
 public class NPCHandler implements ActionHandler {
+
+    /** Opens the bank through an actual banker NPC once the player is in range. */
+    public boolean handleBank(int idx) {
+        Player player = World.getWorld().getPlayer();
+        NPC npc = World.getWorld().getNpc(idx);
+        if (player == null || npc == null || npc.isRemoved() || !Bankers.isBanker(npc.getID())) {
+            return false;
+        }
+        if (player.isBusy() || player.isRanging() || !player.nextTo(npc)) {
+            return false;
+        }
+
+        player.reset();
+        player.setInteractingNpc(npc);
+        npc.resetPath();
+        if (Formulae.getDirection(player, npc) != -1) {
+            npc.setSprite(Formulae.getDirection(player, npc));
+            player.setSprite(Formulae.getDirection(npc, player));
+        }
+        player.getSender().showBank();
+        return true;
+    }
 
     public void handleTalk(int idx) {
         Player player = World.getWorld().getPlayer();

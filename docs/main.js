@@ -92,7 +92,7 @@ function renderRankings() {
   if (matches.length === 0) {
     const row = document.createElement("tr");
     const cell = document.createElement("td");
-    cell.colSpan = 5;
+    cell.colSpan = 6;
     cell.className = "highscore-empty";
     cell.textContent = "No players match that search.";
     row.appendChild(cell);
@@ -109,6 +109,7 @@ function renderRankings() {
     addCell(row, ranked.indexOf(entry) + 1);
     addCell(row, entry.displayName);
     addCell(row, entry.bot ? "Bot" : "Character");
+    addCell(row, entry.xpRate || "1x");
     addCell(row, skillIndex < 0 ? entry.totalLevel : entry.levels[skillIndex]);
     addCell(row, numberFormat.format(skillIndex < 0 ? entry.totalXp : entry.xp[skillIndex]));
     const open = () => renderProfile(entry);
@@ -127,7 +128,7 @@ function renderProfile(entry, scroll = true) {
   selectedUsername = entry.username;
   saveView();
   profileName.textContent = entry.displayName;
-  profileSummary.textContent = `${entry.bot ? "Bot" : "Character"} · Combat ${entry.combatLevel}`
+  profileSummary.textContent = `${entry.bot ? "Bot" : "Character"} · ${entry.xpRate || "1x"} XP · Combat ${entry.combatLevel}`
     + ` · Total level ${numberFormat.format(entry.totalLevel)} · Total XP ${numberFormat.format(entry.totalXp)}`;
   profileSkills.replaceChildren(...data.skills.map((skill, index) => {
     const row = document.createElement("tr");

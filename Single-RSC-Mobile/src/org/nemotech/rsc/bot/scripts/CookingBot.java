@@ -10,7 +10,7 @@ import org.nemotech.rsc.model.GameObject;
  * 1. Have raw food in your inventory
  * 2. Stand near a range (object ID 11) or fire (object ID 97)
  * 3. Start the bot - it will cook all raw food
- * 4. When out of food, it will bank (uses ::bank)
+ * 4. When out of food, it will walk to a banker
  * 
  * Raw Food IDs:
  * - Raw shrimp: 349
@@ -166,10 +166,10 @@ public class CookingBot extends Bot {
     private int handleBanking() {
         // Open bank if not already open
         if (!api.isBankOpen()) {
-            api.openBank();
-            consecutiveBankFailures++;
+            if (api.openBank()) consecutiveBankFailures = 0;
+            else consecutiveBankFailures++;
             if (consecutiveBankFailures > 3) {
-                gameMessage("@red@Bank command failed too many times. Stopping bot.");
+                gameMessage("@red@Could not reach a banker. Stopping bot.");
                 return -1;
             }
             return random(800, 1200);

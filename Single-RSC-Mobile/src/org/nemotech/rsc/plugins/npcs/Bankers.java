@@ -10,9 +10,13 @@ public class Bankers implements TalkToNpcExecutiveListener, TalkToNpcListener {
 
     public static int[] BANKERS = { 95, 224, 268, 540, 617 };
 
+    public static boolean isBanker(int npcId) {
+        return inArray(npcId, BANKERS);
+    }
+
     @Override
     public boolean blockTalkToNpc(final Player player, final NPC npc) {
-        if(inArray(npc.getID(), BANKERS)) {
+        if(isBanker(npc.getID())) {
             return true;
         }
         return false;

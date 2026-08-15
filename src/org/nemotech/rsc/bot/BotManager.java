@@ -85,7 +85,7 @@ public class BotManager {
     }
 
     public boolean isBotRunning() {
-        return activeBot != null && activeBot.isRunning() && !activeBot.isPaused();
+        return false;
     }
     
     /**
@@ -94,20 +94,7 @@ public class BotManager {
      * @return true if the bot was started, false otherwise
      */
     public boolean startBot(String botName) {
-        Bot bot = getBot(botName);
-        if (bot == null) {
-            System.out.println("[BotManager] Bot not found: " + botName);
-            return false;
-        }
-        
-        // Stop any currently running bot
-        if (activeBot != null && activeBot.isRunning()) {
-            activeBot.stop();
-        }
-        
-        activeBot = bot;
-        bot.start();
-        return true;
+        return false;
     }
     
     /**

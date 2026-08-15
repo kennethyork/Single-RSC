@@ -50,6 +50,8 @@ public class AppearanceHandler implements ActionHandler {
         mudclient.getInstance().localPlayer.colourTop = appearance.getShirtColor();
         mudclient.getInstance().localPlayer.colourBottom = appearance.getPantsColor();
         mudclient.getInstance().localPlayer.colourSkin = appearance.getSkinColor();
+        player.setChangingAppearance(false);
+        player.save();
     }
     
 }

@@ -15,7 +15,8 @@ import org.nemotech.rsc.bot.scripts.*;
 import java.util.List;
 
 /**
- * Command plugin for controlling bots via chat commands.
+ * Commands for autonomous world bots and related multiplayer-style systems.
+ * Player-controlled automation is intentionally not registered.
  * 
  * Commands:
  * - ::bot list - Lists all registered bots
@@ -50,19 +51,11 @@ public class BotCommands extends Plugin implements CommandListener {
     
     public String[] getCommands() {
         return new String[] { 
-            "bot", "botarea", "woodcut", "wc", "fish", "combat", "fight", 
-            "mine", "mining", "agility", "agil", "cook", "cooking",
-            "firemaking", "fm", "thieve", "thieving", "pickpocket",
-            "prayer", "pray", "ranged", "range", "magic", "mage",
-            "smith", "smithing", "fletch", "fletching", "craft", "crafting",
-            "herblaw", "everything", "allbots",
             "worldbots", "worldbot",
             "ollamastatus", "botchatstatus", "ollamamodel", "botmodel",
             "ollamaforget", "forgetbotchat", "botchat", "botpm", "botclan",
             "exporthighscores", "exporthiscores",
-            "ge", "exchange",
-            "debugobjects", "listobjects",
-            "stopbot", "botoff"
+            "ge", "exchange"
         };
     }
     

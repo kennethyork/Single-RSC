@@ -9,7 +9,7 @@ import org.nemotech.rsc.model.GameObject;
  * Usage:
  * 1. Make sure you have a pickaxe equipped or in inventory
  * 2. Start the bot near mining rocks
- * 3. It will automatically find rocks, mine them, and bank ore (uses ::bank)
+ * 3. It will automatically find rocks, mine them, and walk to a banker
  * 
  * Rock Object IDs (vary by location):
  * - Copper rocks: 100, 101
@@ -193,10 +193,10 @@ public class MiningBot extends Bot {
     private int bankOres() {
         // Open bank if not already open
         if (!api.isBankOpen()) {
-            api.openBank();
-            consecutiveBankFailures++;
+            if (api.openBank()) consecutiveBankFailures = 0;
+            else consecutiveBankFailures++;
             if (consecutiveBankFailures > 3) {
-                gameMessage("@red@Bank command failed too many times. Stopping bot.");
+                gameMessage("@red@Could not reach a banker. Stopping bot.");
                 return -1;
             }
             return random(800, 1200);

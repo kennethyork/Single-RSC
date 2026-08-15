@@ -40,15 +40,7 @@ import org.nemotech.rsc.bot.scripts.*;
 public class BotCommands extends Plugin implements CommandListener {
     
     public String[] getCommands() {
-        return new String[] { 
-            "bot", "botarea", "woodcut", "wc", "fish", "combat", "fight", 
-            "mine", "mining", "agility", "agil", "cook", "cooking",
-            "firemaking", "fm", "thieve", "thieving", "pickpocket",
-            "prayer", "pray", "ranged", "range", "magic", "mage",
-            "smith", "smithing", "fletch", "fletching", "craft", "crafting",
-            "herblaw", "herblore",
-            "debugobjects", "listobjects"
-        };
+        return new String[0];
     }
     
     @Override

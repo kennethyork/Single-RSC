@@ -9,7 +9,7 @@ import org.nemotech.rsc.model.GameObject;
  * Usage:
  * 1. Start the bot near a fishing spot with proper equipment
  * 2. It will automatically find fishing spots and fish
- * 3. When inventory is full, it will bank the fish (uses ::bank)
+ * 3. When inventory is full, it will walk to a banker and bank the fish
  * 
  * Fishing Spot Object IDs:
  * - Net/Bait Fishing Spot: 192 (small net/bait)
@@ -200,10 +200,13 @@ public class FishingBot extends Bot {
     private int bankFish() {
         // Open bank if not already open
         if (!api.isBankOpen()) {
-            api.openBank();
-            consecutiveBankFailures++;
+            if (api.openBank()) {
+                consecutiveBankFailures = 0;
+            } else {
+                consecutiveBankFailures++;
+            }
             if (consecutiveBankFailures > 3) {
-                gameMessage("@red@Bank command failed too many times. Stopping bot.");
+                gameMessage("@red@Could not reach a banker. Stopping bot.");
                 return -1;
             }
             return random(800, 1200);

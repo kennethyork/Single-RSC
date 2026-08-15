@@ -4,7 +4,7 @@
 
 A self-contained single-player RuneScape Classic experience for desktop and Android.
 
-**Current release:** `v2.8.0`
+**Current release:** `v2.8.1`
 **Desktop:** Java 17+  
 **Android:** APK included in GitHub releases  
 **License:** GPL v3
@@ -21,8 +21,8 @@ https://github.com/kennethyork/Single-RSC/releases
 
 Use:
 
-- `Single-RSC-v2.8.0.zip` for desktop
-- `Single-RSC-v2.8.0.apk` for Android
+- `Single-RSC-v2.8.1.zip` for desktop
+- `Single-RSC-v2.8.1.apk` for Android
 
 The release does not include a standalone `rsc.jar` download. The desktop zip already contains the jar and launch scripts.
 
@@ -44,10 +44,9 @@ The goal is to make RuneScape Classic feel alive as a single-player game. The wo
 - Multi-account local saves
 - Hardcore mode
 - Resizable desktop UI
-- 8x XP multiplier
+- Configurable 1x–50x player XP multiplier
 - Full music support
 - Admin account and debug commands
-- Skill automation bots for your own player
 - Autonomous world bots backed by server-side player entities
 - Grand Exchange-style shared item stock at banks
 
@@ -202,7 +201,7 @@ Requirements:
 Steps:
 
 ```bash
-unzip Single-RSC-v2.7.6.zip
+unzip Single-RSC-v2.8.1.zip
 cd Single-RSC
 ./run.sh
 ```
@@ -228,63 +227,26 @@ Create a new user and log in. Create a user named `root` if you want admin privi
 Install:
 
 ```text
-Single-RSC-v2.7.6.apk
+Single-RSC-v2.8.1.apk
 ```
 
-Android includes the same gameplay updates as desktop, including world bots, Grand Exchange stock, and bot dialogue/settings.
+Player-controlled automation commands have been removed from both desktop and Android. Autonomous world bots are a desktop feature and do not control your character.
 
 If Android blocks installation, enable installation from unknown sources for your browser or file manager.
 
 ---
 
-## Player Bot Commands
-
-These bots control your own character for skilling/combat automation.
-
-| Command | Description |
-|---|---|
-| `::bot list` | List registered player bots |
-| `::bot start <name>` | Start a named bot |
-| `::bot stop [name]` | Stop a bot |
-| `::bot pause` | Pause/resume active bot |
-| `::bot status` | Show player bot status |
-| `::everything` | Start full skill progression |
-| `::allbots` | Alias for `::everything` |
-| `::stopbot` | Stop all player bots |
-| `::exporthighscores` | Refresh the private website highscore export |
-
-Quick skill commands:
-
-| Command | Skill |
-|---|---|
-| `::woodcut [type]` / `::wc [type]` | Woodcutting |
-| `::fish [type]` | Fishing |
-| `::mine [type]` | Mining |
-| `::combat [target]` / `::fight [target]` | Melee combat |
-| `::ranged [target]` / `::range [target]` | Ranged |
-| `::magic [target]` / `::mage [target]` | Magic |
-| `::cook` | Cooking |
-| `::fm` | Firemaking |
-| `::smith` | Smithing |
-| `::fletch` | Fletching |
-| `::craft [mode]` | Crafting |
-| `::herblaw [mode]` | Herblaw |
-| `::agility [course]` / `::agil [course]` | Agility |
-| `::thieve [target]` | Thieving |
-| `::prayer` / `::pray` | Prayer |
-
-Examples:
+## World Bot and Exchange Examples
 
 ```text
 ::worldbots settings
-::worldbots start 20
+::worldbots start 200
 ::worldbots trade
 ::ge list
 ::ge depositall
-::everything
-::woodcut willow
-::combat goblin
 ```
+
+There are no commands that automate your own character.
 
 ---
 
@@ -417,7 +379,7 @@ Important bot files:
 |---|---|
 | `src/org/nemotech/rsc/bot/WorldBotManager.java` | Autonomous world bots |
 | `src/org/nemotech/rsc/model/GrandExchange.java` | Shared exchange stock |
-| `src/org/nemotech/rsc/plugins/commands/BotCommands.java` | Bot and GE commands |
+| `src/org/nemotech/rsc/plugins/commands/BotCommands.java` | World-bot and GE commands |
 | `src/org/nemotech/rsc/plugins/npcs/Bankers.java` | Bank/Grand Exchange menu |
 
 ---

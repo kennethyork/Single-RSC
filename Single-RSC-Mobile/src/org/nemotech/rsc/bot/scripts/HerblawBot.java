@@ -202,10 +202,10 @@ public class HerblawBot extends Bot {
     
     private int handleBankingIdentify() {
         if (!api.isBankOpen()) {
-            api.openBank();
-            consecutiveBankFailures++;
+            if (api.openBank()) consecutiveBankFailures = 0;
+            else consecutiveBankFailures++;
             if (consecutiveBankFailures > 3) {
-                gameMessage("@red@Bank command failed too many times. Stopping bot.");
+                gameMessage("@red@Could not reach a banker. Stopping bot.");
                 return -1;
             }
             return random(800, 1200);
@@ -233,10 +233,10 @@ public class HerblawBot extends Bot {
     
     private int handleBankingPotions() {
         if (!api.isBankOpen()) {
-            api.openBank();
-            consecutiveBankFailures++;
+            if (api.openBank()) consecutiveBankFailures = 0;
+            else consecutiveBankFailures++;
             if (consecutiveBankFailures > 3) {
-                gameMessage("@red@Bank command failed too many times. Stopping bot.");
+                gameMessage("@red@Could not reach a banker. Stopping bot.");
                 return -1;
             }
             return random(800, 1200);

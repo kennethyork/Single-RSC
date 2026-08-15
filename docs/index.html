@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>RSC Single Player</title>
-  <link rel="stylesheet" href="styles.css?v=20260814-4" />
+  <link rel="stylesheet" href="styles.css?v=20260815-1" />
 </head>
 <body>
   <header>
@@ -19,12 +19,12 @@
       <div class="container">
         <p>No servers. No setup. No internet required. Just pure solo RuneScape Classic gameplay &mdash; preserved and reimagined.</p>
         <div class="download-buttons">
-          <a href="https://github.com/kennethyork/Single-RSC/releases/tag/v2.7.6" class="cta">Desktop Download (v2.7.6)</a>
-          <a href="https://github.com/kennethyork/Single-RSC/releases/tag/v2.7.6" class="cta cta-mobile">Mobile Download (v2.7.6)</a>
+          <a href="https://github.com/kennethyork/Single-RSC/releases/tag/v2.8.1" class="cta">Desktop Download (v2.8.1)</a>
+          <a href="https://github.com/kennethyork/Single-RSC/releases/tag/v2.8.1" class="cta cta-mobile">Mobile Download (v2.8.1)</a>
         </div>
         <div class="badges">
-          <img src="https://img.shields.io/github/downloads/kennethyork/Single-RSC/latest/Single-RSC-v2.7.6.zip?label=Desktop%20Downloads" alt="Desktop Downloads" />
-          <img src="https://img.shields.io/github/downloads/kennethyork/Single-RSC/latest/Single-RSC-v2.7.6.apk?label=Mobile%20Downloads&color=green" alt="Mobile Downloads" />
+          <img src="https://img.shields.io/github/downloads/kennethyork/Single-RSC/latest/Single-RSC-v2.8.1.zip?label=Desktop%20Downloads" alt="Desktop Downloads" />
+          <img src="https://img.shields.io/github/downloads/kennethyork/Single-RSC/latest/Single-RSC-v2.8.1.apk?label=Mobile%20Downloads&color=green" alt="Mobile Downloads" />
         </div>
       </div>
     </section>
@@ -41,13 +41,13 @@
     <ul>
       <li>100% single-process design &mdash; no external DB, server, or internet required</li>
       <li>All core content including all 50 quests</li>
-      <li>18-skill bot system with auto-banking and combat support</li>
+      <li>Up to 200 autonomous world bots that skill, fight, trade, chat, and travel</li>
       <li>Batched skill actions (woodcutting, mining, cooking, etc.) using a tick-based batch system</li>
       <li>Resizable UI &mdash; drag to any window size (desktop) / pinch zoom (mobile)</li>
       <li>Full music &mdash; 55 MIDI tracks mapped to game regions</li>
       <li>Dynamic login screen</li>
       <li>Multi-account capable</li>
-      <li>XP multiplier configurable 1x&ndash;50x</li>
+      <li>Player XP multiplier configurable and saved per character, with 50x supported</li>
       <li>Hardcore mode &mdash; death permanently deletes your save</li>
       <li><strong>Enhanced poison system</strong> (6 damage per 15 seconds)</li>
       <li><strong>Context-aware object interactions</strong> (pillars, crystals, vines, docks, traps, scaffolding)</li>
@@ -63,7 +63,7 @@
       <li>Admin account: create user named <code>root</code> for all admin commands</li>
     </ul>
 
-    <h3>Desktop (v2.7.6)</h3>
+    <h3>Desktop (v2.8.1)</h3>
     <ul>
       <li>Java 17+ required</li>
       <li>Launch via <code>run.sh</code> (Linux/macOS) or <code>run.bat</code> (Windows)</li>
@@ -71,34 +71,27 @@
       <li>Build from source with included compile command</li>
     </ul>
 
-    <h3>Mobile (v2.7.6)</h3>
+    <h3>Mobile (v2.8.1)</h3>
     <ul>
       <li>Android 7.0+ (API 24) &mdash; ~6 MB</li>
       <li>Tap = left click, Long press = right click</li>
       <li>Double tap = toggle on-screen keyboard</li>
       <li>Pinch zoom in/out, two-finger drag to rotate camera</li>
-      <li>All bot commands work identically to desktop</li>
+      <li>Player-controlled skill botting commands have been removed</li>
     </ul>
 
     <h3>Bot System</h3>
     <ul>
       <li><strong>World bots:</strong> Up to 200 autonomous skilling, fighting, trading, login/logout, wilderness patrol, and region-travel bots</li>
       <li><strong>Variable world-bot XP:</strong> Autonomous world bots roll 1x, 2x, 3x, or 5x rates for more interesting highscores</li>
-      <li><strong>1x managed bot progression:</strong> Bots that train your character stay locked to authentic 1x progression</li>
+      <li><strong>No player botting:</strong> Commands such as <code>::woodcut</code>, <code>::fish</code>, and <code>::combat</code> no longer automate your character</li>
       <li><strong>Bot lookup:</strong> Use <code>::worldbots lookup &lt;name&gt;</code> to inspect a world bot profile</li>
       <li><strong>World-bot grouping:</strong> Use <code>::worldbots group nearby</code>, <code>role fighter</code>, <code>mode boss</code>, and <code>dismiss</code> to build a party</li>
       <li><strong>World-bot trading:</strong> Use <code>::worldbots trade</code>, <code>trade &lt;name&gt;</code>, or <code>group trade</code> to buy supplies from nearby bots</li>
       <li><strong>Living-world feed:</strong> Use <code>::worldbots activity</code> and <code>::worldbots hint</code> for recent bot events and contextual help</li>
       <li><strong>World bot highscores:</strong> Use <code>::worldbots top</code> for score, coins, trades, kills, deaths, and banked items</li>
-      <li><strong>Auto-switch at 99:</strong> Bots automatically switch to next bot when skill reaches 99</li>
-      <li><strong>Teleport Home:</strong> Bots teleport back when exceeding 50 tiles from home</li>
-      <li><strong>Progression:</strong> Woodcutting &rarr; Mining &rarr; Fishing &rarr; Combat</li>
-      <li><strong>Home Locations:</strong> Seers (WC), Varrock (Mining), Catherby (Fishing), Lumbridge (FM/Prayer), Ardougne (Herblaw/Thieving), Gnome (Agility)</li>
-      <li><strong>Gathering:</strong> <code>::woodcut</code>, <code>::fish</code>, <code>::mine</code> &mdash; auto-bank when inventory full</li>
-      <li><strong>Combat:</strong> <code>::combat</code>, <code>::ranged</code>, <code>::magic</code> &mdash; auto-eat food when HP drops</li>
-      <li><strong>Production:</strong> <code>::cook</code>, <code>::fm</code>, <code>::smith</code>, <code>::fletch</code>, <code>::craft</code>, <code>::herblaw</code></li>
-      <li><strong>Support:</strong> <code>::agility</code>, <code>::thieve</code>, <code>::prayer</code></li>
-      <li>Manage with <code>::bot start/stop/pause/status/list</code></li>
+      <li><strong>World-bot skills:</strong> Autonomous bots train all 18 RSC skills without controlling your character</li>
+      <li>Manage the living world with <code>::worldbots status</code>, <code>settings</code>, <code>start</code>, and <code>stop</code></li>
     </ul>
 
     <h3>Commands</h3>
@@ -127,8 +120,8 @@
       <p id="highscore-results" class="highscore-results" role="status"></p>
       <div class="table-wrap highscore-table-wrap">
         <table class="highscore-table">
-          <thead><tr><th>Rank</th><th>Player</th><th>Type</th><th>Level</th><th>XP</th></tr></thead>
-          <tbody id="highscore-body"><tr><td colspan="5" class="highscore-empty">Start the game, then connect cache/highscores-export.json.</td></tr></tbody>
+          <thead><tr><th>Rank</th><th>Player</th><th>Type</th><th>Rate</th><th>Level</th><th>XP</th></tr></thead>
+          <tbody id="highscore-body"><tr><td colspan="6" class="highscore-empty">Start the game, then connect cache/highscores-export.json.</td></tr></tbody>
         </table>
       </div>
       <section id="highscore-profile" class="highscore-profile" aria-labelledby="highscore-profile-name" hidden>
@@ -150,6 +143,14 @@
 
     <h2 id="changelog">Changelog</h2>
     <details open>
+      <summary>v2.8.1</summary>
+      <ul>
+        <li>Keep up to 200 autonomous world bots while removing commands that automate the player's character</li>
+        <li>Show each character and world bot's saved XP rate directly in website highscores</li>
+        <li>Add live world-bot stats, activity, trading, grouping, conversations, and broader RSC skilling</li>
+      </ul>
+    </details>
+    <details>
       <summary>v2.7.6</summary>
       <ul>
         <li>Add autonomous bot-created groups for bossing, wilderness PK trips, skilling trips, and market runs</li>
@@ -198,7 +199,7 @@
 
         <h3>Desktop</h3>
         <ol>
-          <li>Download <code>Single-RSC-v2.7.6.zip</code> from <a href="https://github.com/kennethyork/Single-RSC/releases/tag/v2.7.6">GitHub releases</a></li>
+          <li>Download <code>Single-RSC-v2.8.1.zip</code> from <a href="https://github.com/kennethyork/Single-RSC/releases/tag/v2.8.1">GitHub releases</a></li>
           <li>Extract the zip file</li>
           <li>Ensure Java 17+ is installed: <code>java -version</code></li>
           <li>Run <code>run.sh</code> (Linux/macOS) or <code>run.bat</code> (Windows)</li>
@@ -206,7 +207,7 @@
 
         <h3>Mobile</h3>
         <ol>
-          <li>Download <code>Single-RSC-v2.7.6.apk</code> from <a href="https://github.com/kennethyork/Single-RSC/releases/tag/v2.7.6">GitHub releases</a></li>
+          <li>Download <code>Single-RSC-v2.8.1.apk</code> from <a href="https://github.com/kennethyork/Single-RSC/releases/tag/v2.8.1">GitHub releases</a></li>
           <li>Enable "Install from unknown sources" in Settings</li>
           <li>Open the APK file to install</li>
           <li>Launch the app from your app drawer</li>
@@ -269,6 +270,6 @@
     </div>
   </footer>
 
-  <script src="main.js?v=20260814-4"></script>
+  <script src="main.js?v=20260815-1"></script>
 </body>
 </html>

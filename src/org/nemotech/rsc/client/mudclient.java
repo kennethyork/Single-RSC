@@ -1240,8 +1240,7 @@ public class mudclient extends Shell {
         controlButtonAppearanceXP2 = panelAppearance.addButton((x - xoff) + 40, y, 20, 20);
 
         // Accept button
-        y += 82;
-        y -= 35;
+        y = Math.min(y + 47, gameHeight - 25);
         panelAppearance.addButtonBackground(x, y, 200, 30);
         panelAppearance.addText(x, y, "Accept", 4, false);
         controlButtonAppearanceAccept = panelAppearance.addButton(x, y, 200, 30);

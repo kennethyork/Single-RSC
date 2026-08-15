@@ -14,8 +14,12 @@ public class RegisterHandler implements ActionHandler {
     
     public boolean handleRegister(String username, boolean hardcore) {
         username = username.replace("_", " ");
-        File dataFile = new File(Constants.CACHE_DIRECTORY + "players" + File.separator + username + "_data.dat");
-        File cacheFile = new File(Constants.CACHE_DIRECTORY + "players" + File.separator + username + "_cache.dat");
+        String playersDir = Constants.CACHE_DIRECTORY + "players" + File.separator;
+        if (!new File(playersDir).exists() && !new File(playersDir).mkdirs()) {
+            return false;
+        }
+        File dataFile = new File(playersDir + username + "_data.dat");
+        File cacheFile = new File(playersDir + username + "_cache.dat");
         if(!dataFile.exists() && !cacheFile.exists()) {
             try {
                 // player data file
@@ -32,6 +36,7 @@ public class RegisterHandler implements ActionHandler {
                 oos.close();
             } catch(IOException e) {
                 e.printStackTrace();
+                return false;
             }
             return true;
         }

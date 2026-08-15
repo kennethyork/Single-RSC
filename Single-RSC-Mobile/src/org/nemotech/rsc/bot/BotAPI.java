@@ -10,6 +10,7 @@ import org.nemotech.rsc.external.definition.*;
 import org.nemotech.rsc.client.mudclient;
 import org.nemotech.rsc.client.action.ActionManager;
 import org.nemotech.rsc.client.action.impl.*;
+import org.nemotech.rsc.plugins.npcs.Bankers;
 import org.nemotech.rsc.util.EntityList;
 
 import java.util.ArrayList;
@@ -22,6 +23,11 @@ import java.util.List;
 public class BotAPI {
     
     private static BotAPI instance;
+    private NPC bankTarget;
+    private int bankLastX = Integer.MIN_VALUE;
+    private int bankLastY = Integer.MIN_VALUE;
+    private long bankLastProgressAt;
+    private long bankLastDoorActionAt;
     
     private BotAPI() {}
     
@@ -461,25 +467,105 @@ public class BotAPI {
     
     // ==================== BANKING METHODS ====================
     
-    /**
-     * Opens the bank interface (uses ::bank command functionality).
-     */
-    public void openBank() {
-        getPlayer().getSender().showBank();
+    /** Walks to the nearest real banker and opens the bank through that NPC. */
+    public boolean openBank() {
+        if (isBankOpen()) {
+            clearBankRoute();
+            return true;
+        }
+
+        NPC banker = getBankTarget();
+        if (banker == null) {
+            clearBankRoute();
+            return false;
+        }
+
+        updateBankProgress();
+        if (!getPlayer().nextTo(banker)) {
+            if (isMoving()) return true;
+            if (tryOpenBankDoor(banker)) return true;
+            walkTo(banker.getX(), banker.getY());
+            return true;
+        }
+
+        boolean opened = ActionManager.get(NPCHandler.class).handleBank(banker.getIndex());
+        if (opened) clearBankRoute();
+        return opened;
+    }
+
+    private NPC getBankTarget() {
+        NPC nearest = getNearestNpc(Bankers.BANKERS);
+        boolean invalidTarget = bankTarget == null || bankTarget.isRemoved() || !Bankers.isBanker(bankTarget.getID());
+        boolean substantiallyCloserTarget = nearest != null && bankTarget != null
+                && distanceTo(nearest) + 8 < distanceTo(bankTarget);
+        if (invalidTarget || substantiallyCloserTarget) {
+            bankTarget = nearest;
+            bankLastX = getX();
+            bankLastY = getY();
+            bankLastProgressAt = System.currentTimeMillis();
+        }
+        return bankTarget;
+    }
+
+    private void updateBankProgress() {
+        if (getX() != bankLastX || getY() != bankLastY) {
+            bankLastX = getX();
+            bankLastY = getY();
+            bankLastProgressAt = System.currentTimeMillis();
+        }
+    }
+
+    private boolean tryOpenBankDoor(NPC banker) {
+        long now = System.currentTimeMillis();
+        if (now - bankLastProgressAt < 1500L || now - bankLastDoorActionAt < 1500L) return false;
+
+        GameObject nearestDoor = null;
+        int nearestDistance = Integer.MAX_VALUE;
+        int bankerDistance = distanceTo(banker);
+        for (GameObject object : RegionManager.getLocalObjects(getPlayer())) {
+            if (object == null || object.isRemoved() || object.getType() != 1) continue;
+            DoorDef definition = object.getDoorDef();
+            if (definition == null || !"open".equalsIgnoreCase(definition.getCommandFirst())) continue;
+            int distance = distanceTo(object);
+            if (distance <= 3 && distance < nearestDistance && distanceToBanker(object, banker) < bankerDistance) {
+                nearestDoor = object;
+                nearestDistance = distance;
+            }
+        }
+        if (nearestDoor == null) return false;
+
+        bankLastDoorActionAt = now;
+        ActionManager.get(DoorActionHandler.class).handleDoor(nearestDoor.getX(), nearestDoor.getY(), true);
+        return true;
+    }
+
+    private int distanceToBanker(Entity entity, NPC banker) {
+        return Math.max(Math.abs(entity.getX() - banker.getX()), Math.abs(entity.getY() - banker.getY()));
+    }
+
+    private void clearBankRoute() {
+        bankTarget = null;
+        bankLastX = Integer.MIN_VALUE;
+        bankLastY = Integer.MIN_VALUE;
+        bankLastProgressAt = 0L;
+        bankLastDoorActionAt = 0L;
     }
     
     /**
      * Checks if the bank is currently open.
      */
     public boolean isBankOpen() {
-        return mudclient.getInstance().showDialogBank;
+        mudclient client = mudclient.getInstance();
+        return client != null && client.showDialogBank;
     }
     
     /**
      * Closes the bank interface.
      */
     public void closeBank() {
-        mudclient.getInstance().showDialogBank = false;
+        mudclient client = mudclient.getInstance();
+        if (client != null) client.showDialogBank = false;
+        clearBankRoute();
     }
     
     /**
@@ -491,6 +577,7 @@ public class BotAPI {
         if (!isBankOpen()) {
             openBank();
         }
+        if (!isBankOpen()) return;
         ActionManager.get(BankHandler.class).handleDeposit(itemId, amount);
     }
     
@@ -524,6 +611,7 @@ public class BotAPI {
         if (!isBankOpen()) {
             openBank();
         }
+        if (!isBankOpen()) return;
         ActionManager.get(BankHandler.class).handleWithdrawl(itemId, amount);
     }
     
