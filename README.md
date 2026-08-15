@@ -4,7 +4,7 @@
 
 A self-contained single-player RuneScape Classic experience for desktop and Android.
 
-**Current release:** `v2.7.7`
+**Current release:** `v2.7.8`
 **Desktop:** Java 17+  
 **Android:** APK included in GitHub releases  
 **License:** GPL v3
@@ -21,8 +21,8 @@ https://github.com/kennethyork/Single-RSC/releases
 
 Use:
 
-- `Single-RSC-v2.7.7.zip` for desktop
-- `Single-RSC-v2.7.7.apk` for Android
+- `Single-RSC-v2.7.8.zip` for desktop
+- `Single-RSC-v2.7.8.apk` for Android
 
 The release does not include a standalone `rsc.jar` download. The desktop zip already contains the jar and launch scripts.
 
