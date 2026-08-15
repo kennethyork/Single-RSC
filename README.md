@@ -44,6 +44,35 @@ The goal is to make RuneScape Classic feel alive as a single-player game. The wo
 
 ---
 
+## Single RS 2012 Comparison
+
+Current comparison: **Single RS 2012 v0.15.0** and **Single-RSC v2.8.2**.
+
+| Area | Single RS 2012 | Single-RSC |
+|---|---|---|
+| Bot population | 286 configured simulated players | 200-player roster with up to 80 online simultaneously |
+| Player representation | Headless `Player` entities; Wilderness PKers are NPC-based | Headless `Player` entities; Wilderness bots are NPC-based |
+| Skills | 25 visible skills | All 18 RSC skills |
+| Real skilling | Strong native woodcutting, mining, and fishing | Broader mixture of native gathering, production, combat, and some simulated XP actions |
+| Combat | 88 dedicated Wilderness PKers; the normal population is not attackable | Fighters train against NPCs; Wilderness bots attack players and each other |
+| Movement | Collision-checked resource searching, regional routines, and stuck recovery | Regional travel, skilling sites, banks, route recovery, and staggered decisions |
+| Social systems | Friends-list PMs, clans, clan recruitment, bot groups, and clan parties | Public chat, private bot chat, grouped chat, following, roles, and party modes |
+| Ollama | Public, private, clan, and bot-to-bot conversation with persistent identities | Public, private, and grouped conversation with persistent identities |
+| Trading | Player Marketplace plus fuller 2012 Grand Exchange integration | Direct bot marketplace plus shared GE-style stock |
+| Grouping | Persistent regional/player groups of up to eight | Persistent skilling, combat, boss, Wilderness, and social groups |
+| Highscores | Player and bot rankings across 25 skills | Player and bot rankings across 18 RSC skills, including saved XP rates |
+| Saving | 30-second world autosave and shutdown save | World-bot state every 60 seconds plus normal character saving |
+| Bot quests/minigames | Boss, Dungeoneering, and Pest Control helpers that do not earn XP or complete content | Party modes assist in fights, but bots do not complete quests or minigames |
+| Player automation | None | Removed completely |
+| Mobile | Desktop platforms only | Android client available; autonomous world bots remain desktop-only |
+| XP setting | Any positive whole number at launch | 1x–50x saved per character |
+
+Single RS 2012 remains stronger as a socially connected simulated MMO because of its larger population, Friends List integration, clans, regional routines, marketplace, and polished native resource gathering. Single-RSC is stronger at preserving the RSC presentation while providing broader classic skill coverage and more general-world combat activity.
+
+Single-RSC is roughly 80% of the overall Single RS 2012 bot experience rather than exact parity. Its largest remaining gaps are real clan/Friends List integration, consistently native actions, richer autonomous routines, and genuine boss or minigame participation.
+
+---
+
 ## Main Features
 
 - Offline single-player RuneScape Classic
