@@ -4,7 +4,7 @@
 
 A self-contained single-player RuneScape Classic experience for desktop and Android.
 
-**Current release:** `v2.8.1`
+**Current release:** `v2.8.2`
 **Desktop:** Java 17+  
 **Android:** APK included in GitHub releases  
 **License:** GPL v3
@@ -21,18 +21,18 @@ https://github.com/kennethyork/Single-RSC/releases
 
 Use:
 
-- `Single-RSC-v2.8.1.zip` for desktop
-- `Single-RSC-v2.8.1.apk` for Android
+- `Single-RSC-v2.8.2.zip` for desktop
+- `Single-RSC-v2.8.2.apk` for Android
 
 The release does not include a standalone `rsc.jar` download. The desktop zip already contains the jar and launch scripts.
 
-### What's new in v2.8.1
+### What's new in v2.8.2
 
-- Fixed new-character creation when the player-save directory does not exist yet.
-- Kept the appearance **Accept** button fully visible on compact desktop and mobile displays, and saved the chosen appearance immediately.
-- Removed commands that automate your own character while retaining up to 200 autonomous world bots.
-- Updated website highscores to show each character and world bot's saved XP rate.
-- Preserved the existing configurable 1x–50x player XP behavior.
+- New characters now start with a complete valid RSC appearance.
+- Existing saves with an incomplete appearance are repaired and returned to character design.
+- Player-automation command implementations were removed from the command plugin, including `::woodcut`, `::fish`, `::mine`, and `::combat`.
+- Up to 200 autonomous world bots and their ambient/Ollama conversations remain available.
+- The existing configurable 1x–50x player XP behavior remains unchanged.
 
 ---
 
@@ -209,7 +209,7 @@ Requirements:
 Steps:
 
 ```bash
-unzip Single-RSC-v2.8.1.zip
+unzip Single-RSC-v2.8.2.zip
 cd Single-RSC
 ./run.sh
 ```
@@ -235,7 +235,7 @@ Create a new user and log in. Create a user named `root` if you want admin privi
 Install:
 
 ```text
-Single-RSC-v2.8.1.apk
+Single-RSC-v2.8.2.apk
 ```
 
 Player-controlled automation commands have been removed from both desktop and Android. Autonomous world bots are a desktop feature and do not control your character.

@@ -29,7 +29,7 @@ public class SaveFile implements Serializable {
         }
         x = 217; y = 744; // starting player coordinates
         quests = new int[50];
-        appearance = new int[6];
+        appearance = new int[]{2, 8, 14, 0, 1, 2}; // [hair, top, trouser, skin, head, body]
         gameSettings = new boolean[5];
         gameSettings[3] = true; // music loop
         gameSettings[4] = true; // music auto
@@ -76,6 +76,13 @@ public class SaveFile implements Serializable {
         player.setAdmin(player.getUsername().equalsIgnoreCase("root") || player.getUsername().equalsIgnoreCase("zoso"));
         player.setLocation(new Point(x, y), true);
         player.setFatigue(fatigue);
+        // Repair saves created before a complete appearance could be accepted.
+        if (appearance == null || appearance.length < 6
+                || !new Appearance(appearance[0], appearance[1], appearance[2],
+                    appearance[3], appearance[4], appearance[5]).isValid()) {
+            appearance = new int[]{2, 8, 14, 0, 1, 2};
+            lastLogin = 0; // force the appearance panel to show again
+        }
         player.setLastLogin(lastLogin);
         player.setCombatStyle(combatStyle);
         player.setGameSettings(gameSettings);
