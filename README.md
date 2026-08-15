@@ -4,7 +4,7 @@
 
 A self-contained single-player RuneScape Classic experience for desktop and Android.
 
-**Current release:** `v2.7.8`
+**Current release:** `v2.7.9`
 **Desktop:** Java 17+  
 **Android:** APK included in GitHub releases  
 **License:** GPL v3
@@ -21,8 +21,8 @@ https://github.com/kennethyork/Single-RSC/releases
 
 Use:
 
-- `Single-RSC-v2.7.8.zip` for desktop
-- `Single-RSC-v2.7.8.apk` for Android
+- `Single-RSC-v2.7.9.zip` for desktop
+- `Single-RSC-v2.7.9.apk` for Android
 
 The release does not include a standalone `rsc.jar` download. The desktop zip already contains the jar and launch scripts.
 
@@ -59,7 +59,9 @@ World bots are autonomous fake players that run around the world while you play.
 
 They can:
 
-- Gather resources
+- Walk to real trees, rocks, and fishing spots and gather from them
+- Bank their trips, then visibly cook, fletch, light logs, or smelt saved supplies using RSC requirements and XP
+- Recover from blocked routes by trying a nearby detour or changing world
 - Fight monsters
 - Enter and patrol the wilderness
 - Attack the player in the wilderness depending on aggression settings
@@ -69,6 +71,13 @@ They can:
 - Gain levels
 - Die, respawn, and drop inventory
 - Show up like player avatars instead of normal NPCs
+
+Right-click a visible world bot for the normal RSC-style interactions:
+
+- **Trade with** opens that bot's marketplace
+- **Follow** follows that bot
+- **Group** invites that bot to your persistent activity party; choose it again to dismiss the bot
+- **Stats** prints its live profile and all 18 RSC skill levels in game chat
 
 Useful commands:
 
@@ -429,7 +438,7 @@ No. It runs locally as a single-player game.
 No. They are local AI-controlled fake players designed to make the world feel more active.
 
 **Do desktop and Android have the same updates?**  
-Yes. The `v2.7.6` desktop zip and Android APK were both rebuilt from the same updated code.
+No. Android is a separate mobile build. Desktop world-bot features are not automatically present in Android.
 
 **Where are saves stored?**  
 Player saves are stored locally under the game cache/player save directories.

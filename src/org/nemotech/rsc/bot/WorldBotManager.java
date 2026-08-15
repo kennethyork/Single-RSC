@@ -18,7 +18,11 @@ import org.nemotech.rsc.Constants;
 import org.nemotech.rsc.event.DelayedEvent;
 import org.nemotech.rsc.external.EntityManager;
 import org.nemotech.rsc.external.definition.NPCDropDef;
+import org.nemotech.rsc.external.definition.extra.ItemCookingDef;
+import org.nemotech.rsc.external.definition.extra.ItemLogCutDef;
+import org.nemotech.rsc.external.definition.extra.ItemSmeltingDef;
 import org.nemotech.rsc.external.definition.extra.ObjectMiningDef;
+import org.nemotech.rsc.external.definition.extra.ReqOreDef;
 import org.nemotech.rsc.model.Entity;
 import org.nemotech.rsc.model.GameObject;
 import org.nemotech.rsc.model.GrandExchange;
@@ -42,6 +46,8 @@ public final class WorldBotManager {
     private static final int WILDERNESS_NPC = 797;
     private static final int PLAYER_SERVER_INDEX_BASE = 3000;
     private static final int COINS = 10;
+    private static final int KNIFE = 13;
+    private static final int TINDERBOX = 166;
     private static final int DEFAULT_BOT_COUNT = 200;
     private static final int DEFAULT_MAX_BOT_COUNT = 200;
     private static final int DEFAULT_ONLINE_LIMIT = 80;
@@ -1007,6 +1013,35 @@ public final class WorldBotManager {
         return null;
     }
 
+    public synchronized String toggleGroupBot(Player player, int serverIndex) {
+        for (WorldBot bot : bots) {
+            if (bot.playerServerIndex != serverIndex || !bot.active || !bot.online
+                    || bot.npc == null || bot.npc.isRemoved()) {
+                continue;
+            }
+            if (!bot.npc.getLocation().withinRange(player.getLocation(), 20)) {
+                return bot.name + " is too far away to group.";
+            }
+            if (bot.isGroupedWith(player)) {
+                bot.partyOwner = null;
+                bot.partyMode = PartyMode.NONE;
+                bot.activity = "leaving " + player.getUsername() + "'s group";
+                bot.say("thanks for the group");
+                recordActivity(bot.name + " left " + player.getUsername() + "'s group");
+                return bot.name + " left your group.";
+            }
+            if (bot.partyOwner != null) {
+                return bot.name + " is already in another group.";
+            }
+            bot.autoGroup = null;
+            PartyMode mode = bot.role == Role.GATHERER ? PartyMode.SKILLING
+                    : bot.role == Role.WILDERNESS ? PartyMode.WILDERNESS : PartyMode.COMBAT;
+            inviteToParty(player, bot, mode);
+            return bot.name + " joined your group for " + mode.label + ".";
+        }
+        return null;
+    }
+
     public synchronized boolean inspectBot(Player player, int serverIndex) {
         for (WorldBot bot : bots) {
             if (bot.playerServerIndex == serverIndex && bot.active && bot.online
@@ -1380,6 +1415,11 @@ public final class WorldBotManager {
                 bot.playerReputation = parseInt(properties.getProperty(prefix + "player_reputation"), bot.playerReputation);
                 bot.directedSkill = parseInt(properties.getProperty(prefix + "directed_skill"), -1);
                 bot.directedLevel = parseInt(properties.getProperty(prefix + "directed_level"), 0);
+                String savedPartyOwner = properties.getProperty(prefix + "party_owner", "").trim();
+                bot.partyOwner = savedPartyOwner.isEmpty() ? null : savedPartyOwner;
+                PartyMode savedPartyMode = PartyMode.fromName(properties.getProperty(prefix + "party_mode"));
+                bot.partyMode = bot.partyOwner == null ? PartyMode.NONE
+                        : savedPartyMode == null ? bot.defaultPartyMode() : savedPartyMode;
                 bot.inventory.clear();
                 parseItemMap(properties.getProperty(prefix + "inventory", ""), bot.inventory);
                 bot.bank.clear();
@@ -1434,6 +1474,8 @@ public final class WorldBotManager {
             properties.setProperty(prefix + "player_reputation", String.valueOf(bot.playerReputation));
             properties.setProperty(prefix + "directed_skill", String.valueOf(bot.directedSkill));
             properties.setProperty(prefix + "directed_level", String.valueOf(bot.directedLevel));
+            properties.setProperty(prefix + "party_owner", bot.partyOwner == null ? "" : bot.partyOwner);
+            properties.setProperty(prefix + "party_mode", bot.partyMode.name());
         }
         properties.setProperty("world.event", currentWorldEvent);
         int activityIndex = 0;
@@ -1563,10 +1605,17 @@ public final class WorldBotManager {
         private int directedLevel;
         private long nextOllamaEventAt;
         private boolean bankingTrip;
+        private int productionActionsRemaining;
         private long visibleActionUntil;
         private int visibleBubbleItem = -1;
         private int visibleToolItem = -1;
         private long nextSkillingSiteChangeAt;
+        private int routeTargetX = Integer.MIN_VALUE;
+        private int routeTargetY = Integer.MIN_VALUE;
+        private int routeLastX;
+        private int routeLastY;
+        private int routeFailures;
+        private long routeProgressAt;
         private WorldBot pvpOpponent;
         private long nextPvpSearchAt;
         private long pvpFightStartedAt;
@@ -1691,6 +1740,9 @@ public final class WorldBotManager {
             }
             if (pvmTarget != null) {
                 handleMonsterCombat();
+                return;
+            }
+            if (recoverBlockedRoute()) {
                 return;
             }
             if (npc.isRemoved() || npc.inCombat()) {
@@ -2223,7 +2275,7 @@ public final class WorldBotManager {
             }
             if (!npc.getLocation().withinRange(autoGroup.leader.npc.getLocation(), 6)) {
                 activity = "following " + autoGroup.leader.name + " for " + autoGroup.goal.label;
-                npc.setPath(new Path(npc.getX(), npc.getY(), autoGroup.leader.npc.getX(), autoGroup.leader.npc.getY()));
+                routeTo(autoGroup.leader.npc.getX(), autoGroup.leader.npc.getY());
                 return;
             }
             activity = "group " + autoGroup.goal.label + " with " + autoGroup.leader.name;
@@ -2245,9 +2297,7 @@ public final class WorldBotManager {
         private void groupTick() {
             Player player = World.getWorld().getPlayer();
             if (player == null || !player.isLoggedIn() || !isGroupedWith(player)) {
-                partyOwner = null;
-                partyMode = PartyMode.NONE;
-                activity = "looking for a group";
+                activity = "waiting for " + partyOwner + "'s group";
                 return;
             }
             if (handleGroupSurvival(player)) {
@@ -2255,7 +2305,7 @@ public final class WorldBotManager {
             }
             if (!npc.getLocation().withinRange(player.getLocation(), 12)) {
                 activity = "following " + player.getUsername();
-                npc.setPath(new Path(npc.getX(), npc.getY(), player.getX(), player.getY()));
+                routeTo(player.getX(), player.getY());
                 return;
             }
 
@@ -2278,6 +2328,11 @@ public final class WorldBotManager {
             if (npc.finishedPath() && random.nextInt(4) == 0) {
                 npc.setPath(new Path(npc.getX(), npc.getY(), player.getX(), player.getY()));
             }
+        }
+
+        private PartyMode defaultPartyMode() {
+            return role == Role.GATHERER ? PartyMode.SKILLING
+                    : role == Role.WILDERNESS ? PartyMode.WILDERNESS : PartyMode.COMBAT;
         }
 
         private boolean handleGroupSurvival(Player player) {
@@ -2383,6 +2438,13 @@ public final class WorldBotManager {
             if (skillingSite == null) {
                 return;
             }
+            if (productionActionsRemaining > 0 && distanceTo(skillingSite.bankX, skillingSite.bankY) <= 2) {
+                if (performProductionAction()) {
+                    productionActionsRemaining--;
+                    return;
+                }
+                productionActionsRemaining = 0;
+            }
             if (!bankingTrip && System.currentTimeMillis() >= nextSkillingSiteChangeAt) {
                 switchSkillingSite();
                 return;
@@ -2394,15 +2456,21 @@ public final class WorldBotManager {
                 if (distanceTo(skillingSite.bankX, skillingSite.bankY) > 2) {
                     clearVisibleAction();
                     activity = "walking to bank from " + skillingSite.name;
-                    npc.setPath(new Path(npc.getX(), npc.getY(), skillingSite.bankX, skillingSite.bankY));
+                    routeTo(skillingSite.bankX, skillingSite.bankY);
                     return;
                 }
                 int banked = depositInventoryToExchange();
                 bankingTrip = false;
+                productionActionsRemaining = 1 + random.nextInt(4);
+                if (performProductionAction()) {
+                    productionActionsRemaining--;
+                    return;
+                }
+                productionActionsRemaining = 0;
                 beginVisibleAction(COINS, -1, 2500L);
                 activity = "banking " + banked + " items from " + skillingSite.name;
                 say("banked, back to " + skillingSite.shortName);
-                npc.setPath(new Path(npc.getX(), npc.getY(), skillingSite.targetX, skillingSite.targetY));
+                routeTo(skillingSite.targetX, skillingSite.targetY);
                 return;
             }
 
@@ -2411,10 +2479,11 @@ public final class WorldBotManager {
             if (target == null || distanceTo(target.getX(), target.getY()) > actionRange) {
                 clearVisibleAction();
                 activity = "walking to " + skillingSite.name;
-                npc.setPath(new Path(npc.getX(), npc.getY(), skillingSite.targetX, skillingSite.targetY));
+                routeTo(skillingSite.targetX, skillingSite.targetY);
                 return;
             }
 
+            clearRouteGoal();
             npc.resetPath();
             npc.face(target);
             beginVisibleAction(skillingSite.toolItem, skillingSite.toolItem, 3200L);
@@ -2499,7 +2568,7 @@ public final class WorldBotManager {
             npc.getLoc().startX = skillingSite.targetX;
             npc.getLoc().startY = skillingSite.targetY;
             activity = "travelling across the world to " + skillingSite.name;
-            npc.setPath(new Path(npc.getX(), npc.getY(), skillingSite.targetX, skillingSite.targetY));
+            routeTo(skillingSite.targetX, skillingSite.targetY);
             nextSkillingSiteChangeAt = System.currentTimeMillis()
                     + (2 + random.nextInt(5)) * MINUTE_MS;
             if (random.nextInt(4) == 0) {
@@ -2695,11 +2764,83 @@ public final class WorldBotManager {
             if (role == Role.GATHERER && skillingSite != null) {
                 clearVisibleAction();
                 activity = "returning to " + skillingSite.name;
-                npc.setPath(new Path(npc.getX(), npc.getY(), skillingSite.targetX, skillingSite.targetY));
+                routeTo(skillingSite.targetX, skillingSite.targetY);
                 return;
             }
             activity = "walking through " + area.name;
-            npc.setPath(new Path(npc.getX(), npc.getY(), area.randomX(random), area.randomY(random)));
+            routeTo(area.randomX(random), area.randomY(random));
+        }
+
+        private void routeTo(int x, int y) {
+            long now = System.currentTimeMillis();
+            boolean changedTarget = routeTargetX != x || routeTargetY != y;
+            boolean madeProgress = npc.getX() != routeLastX || npc.getY() != routeLastY;
+            if (changedTarget) {
+                routeFailures = 0;
+            }
+            routeTargetX = x;
+            routeTargetY = y;
+            if (changedTarget || madeProgress || routeProgressAt == 0L) {
+                routeLastX = npc.getX();
+                routeLastY = npc.getY();
+                routeProgressAt = now;
+            }
+            npc.setPath(new Path(npc.getX(), npc.getY(), x, y));
+        }
+
+        private void clearRouteGoal() {
+            routeTargetX = Integer.MIN_VALUE;
+            routeTargetY = Integer.MIN_VALUE;
+            routeFailures = 0;
+            routeProgressAt = 0L;
+        }
+
+        private boolean recoverBlockedRoute() {
+            if (routeTargetX == Integer.MIN_VALUE) return false;
+            int distance = distanceTo(routeTargetX, routeTargetY);
+            if (distance <= 2) {
+                clearRouteGoal();
+                return false;
+            }
+            if (npc.getX() != routeLastX || npc.getY() != routeLastY) {
+                routeLastX = npc.getX();
+                routeLastY = npc.getY();
+                routeProgressAt = System.currentTimeMillis();
+                routeFailures = 0;
+                return false;
+            }
+            if (System.currentTimeMillis() - routeProgressAt < 12000L) return false;
+
+            routeFailures++;
+            if (routeFailures >= 3 && role == Role.GATHERER && skillingSite != null) {
+                activity = "world hopping after a blocked route to " + skillingSite.name;
+                say("route blocked, hopping");
+                clearRouteGoal();
+                logout();
+                nextSessionChangeAt = System.currentTimeMillis() + 5000L + random.nextInt(10000);
+                return true;
+            }
+
+            Point detour = nearbyWalkablePoint(6);
+            activity = "finding another route around scenery in " + area.name;
+            npc.resetPath();
+            npc.setPath(new Path(npc.getX(), npc.getY(), detour.getX(), detour.getY()));
+            routeLastX = npc.getX();
+            routeLastY = npc.getY();
+            routeProgressAt = System.currentTimeMillis();
+            return true;
+        }
+
+        private Point nearbyWalkablePoint(int radius) {
+            World world = World.getWorld();
+            for (int attempt = 0; attempt < 24; attempt++) {
+                int x = npc.getX() + random.nextInt(radius * 2 + 1) - radius;
+                int y = npc.getY() + random.nextInt(radius * 2 + 1) - radius;
+                boolean blocked = (world.getTileValue(x, y).mapValue & 64) != 0
+                        || (world.getTileValue(x, y).objectValue & 64) != 0;
+                if (!blocked) return new Point(x, y);
+            }
+            return new Point(npc.getX(), npc.getY());
         }
 
         private void chooseCarriedItem(int index) {
@@ -2996,7 +3137,6 @@ public final class WorldBotManager {
             }
             itemsBanked += deposited;
             activity = "selling " + deposited + " items for " + coins + " coins";
-            processProduction();
             return deposited;
         }
 
@@ -3092,35 +3232,121 @@ public final class WorldBotManager {
             }
         }
 
-        private void processProduction() {
-            int[][] recipes = {
-                    { 349, 350, COOKING }, { 358, 359, COOKING }, { 356, 357, COOKING },
-                    { 366, 367, COOKING }, { 372, 373, COOKING }, { 369, 370, COOKING }, { 545, 546, COOKING },
-                    { 632, 649, FLETCHING }, { 633, 651, FLETCHING }, { 634, 653, FLETCHING },
-                    { 635, 655, FLETCHING }, { 636, 657, FLETCHING },
-                    { 150, 169, SMITHING }, { 151, 170, SMITHING }, { 153, 173, SMITHING },
-                    { 154, 174, SMITHING }, { 409, 408, SMITHING },
-                    { 147, 148, CRAFTING }, { 675, 676, CRAFTING }
-            };
-            for (int[] recipe : recipes) {
-                if (bank.getOrDefault(recipe[0], 0) < 1) {
+        private boolean performProductionAction() {
+            int first = random.nextInt(4);
+            for (int offset = 0; offset < 4; offset++) {
+                int production = (first + offset) % 4;
+                if (production == 0 && cookBankedFood()) return true;
+                if (production == 1 && fletchBankedLogs()) return true;
+                if (production == 2 && lightBankedLogs()) return true;
+                if (production == 3 && smeltBankedOre()) return true;
+            }
+            return false;
+        }
+
+        private boolean cookBankedFood() {
+            for (Map.Entry<Integer, Integer> entry : new ArrayList<>(bank.entrySet())) {
+                ItemCookingDef definition = EntityManager.getItemCookingDef(entry.getKey());
+                if (entry.getValue() < 1 || definition == null || definition.getExp() < 1
+                        || skillLevel(COOKING) < definition.getReqLevel()) {
                     continue;
                 }
-                removeFromBank(recipe[0], 1);
-                addToBank(recipe[1], 1);
-                gainSkillXp(recipe[2], 20 + random.nextInt(30));
-                activity = "making " + itemName(recipe[1]) + " from banked supplies";
-                if (bank.getOrDefault(recipe[1], 0) >= 5) {
-                    int amount = Math.min(5, bank.get(recipe[1]));
-                    int paid = GrandExchange.sellSystem(recipe[1], amount);
-                    if (paid > 0) {
-                        removeFromBank(recipe[1], amount);
-                        addToBank(COINS, paid);
-                        marketVolume += paid;
-                        trades++;
+                int levelDifference = skillLevel(COOKING) - definition.getReqLevel();
+                boolean burned = levelDifference < 20 && random.nextInt(Math.max(2, levelDifference + 2)) == 0;
+                int output = burned ? definition.getBurnedId() : definition.getCookedId();
+                removeFromBank(entry.getKey(), 1);
+                addToBank(output, 1);
+                if (!burned) gainSkillXp(COOKING, definition.getExp());
+                finishProduction(entry.getKey(), output, -1,
+                        burned ? "burning" : "cooking", burned ? 0 : definition.getExp());
+                return true;
+            }
+            return false;
+        }
+
+        private boolean fletchBankedLogs() {
+            for (Map.Entry<Integer, Integer> entry : new ArrayList<>(bank.entrySet())) {
+                ItemLogCutDef definition = EntityManager.getItemLogCutDef(entry.getKey());
+                if (entry.getValue() < 1 || definition == null
+                        || skillLevel(FLETCHING) < definition.getShortbowLvl()) {
+                    continue;
+                }
+                removeFromBank(entry.getKey(), 1);
+                addToBank(definition.getShortbowID(), 1);
+                gainSkillXp(FLETCHING, definition.getShortbowExp());
+                finishProduction(entry.getKey(), definition.getShortbowID(), KNIFE,
+                        "fletching", definition.getShortbowExp());
+                return true;
+            }
+            return false;
+        }
+
+        private boolean lightBankedLogs() {
+            int[][] logs = {
+                    { 14, 1, 25 }, { 632, 15, 35 }, { 633, 30, 45 },
+                    { 634, 45, 55 }, { 635, 60, 65 }, { 636, 75, 75 }
+            };
+            for (int[] log : logs) {
+                if (bank.getOrDefault(log[0], 0) < 1 || skillLevel(FIREMAKING) < log[1]) {
+                    continue;
+                }
+                int levelDifference = skillLevel(FIREMAKING) - log[1];
+                if (levelDifference < 20 && random.nextInt(Math.max(2, levelDifference + 2)) == 0) {
+                    beginVisibleAction(log[0], TINDERBOX, 4200L);
+                    activity = "attempting to light " + itemName(log[0]) + " near the bank";
+                    return true;
+                }
+                removeFromBank(log[0], 1);
+                gainSkillXp(FIREMAKING, log[2]);
+                finishProduction(log[0], -1, TINDERBOX, "lighting", log[2]);
+                return true;
+            }
+            return false;
+        }
+
+        private boolean smeltBankedOre() {
+            for (Map.Entry<Integer, Integer> entry : new ArrayList<>(bank.entrySet())) {
+                ItemSmeltingDef definition = EntityManager.getItemSmeltingDef(entry.getKey());
+                if (entry.getValue() < 1 || definition == null
+                        || skillLevel(SMITHING) < definition.getReqLevel()) {
+                    continue;
+                }
+                boolean hasSupplies = true;
+                for (ReqOreDef ore : definition.getReqOres()) {
+                    if (bank.getOrDefault(ore.getId(), 0) < ore.getAmount()) {
+                        hasSupplies = false;
+                        break;
                     }
                 }
-                return;
+                if (!hasSupplies) continue;
+                removeFromBank(entry.getKey(), 1);
+                for (ReqOreDef ore : definition.getReqOres()) {
+                    removeFromBank(ore.getId(), ore.getAmount());
+                }
+                addToBank(definition.getBarId(), 1);
+                gainSkillXp(SMITHING, definition.getExp());
+                finishProduction(entry.getKey(), definition.getBarId(), -1,
+                        "smelting", definition.getExp());
+                return true;
+            }
+            return false;
+        }
+
+        private void finishProduction(int input, int output, int tool, String verb, int experience) {
+            beginVisibleAction(input, tool, 4200L);
+            carriedItem = output >= 0 ? output : input;
+            carriedItemName = output >= 0 ? itemName(output) : itemName(input);
+            activity = verb + " " + itemName(input) + " near the bank"
+                    + (experience > 0 ? " (" + experience + " xp)" : "");
+            if (output >= 0 && bank.getOrDefault(output, 0) >= 5) {
+                int amount = Math.min(5, bank.get(output));
+                int paid = GrandExchange.sellSystem(output, amount);
+                if (paid > 0) {
+                    removeFromBank(output, amount);
+                    addToBank(COINS, paid);
+                    marketVolume += paid;
+                    trades++;
+                }
             }
         }
 
