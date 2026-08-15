@@ -26,6 +26,14 @@ Use:
 
 The release does not include a standalone `rsc.jar` download. The desktop zip already contains the jar and launch scripts.
 
+### What's new in v2.8.1
+
+- Fixed new-character creation when the player-save directory does not exist yet.
+- Kept the appearance **Accept** button fully visible on compact desktop and mobile displays, and saved the chosen appearance immediately.
+- Removed commands that automate your own character while retaining up to 200 autonomous world bots.
+- Updated website highscores to show each character and world bot's saved XP rate.
+- Preserved the existing configurable 1x–50x player XP behavior.
+
 ---
 
 ## What This Is
