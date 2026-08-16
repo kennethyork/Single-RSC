@@ -4,7 +4,7 @@
 
 A self-contained single-player RuneScape Classic experience for desktop and Android.
 
-**Current release:** `v2.8.4`
+**Current release:** `v2.8.5`
 **Desktop:** Java 17+  
 **Android:** APK included in GitHub releases  
 **License:** GPL v3
@@ -21,18 +21,15 @@ https://github.com/kennethyork/Single-RSC/releases
 
 Use:
 
-- `Single-RSC-v2.8.4.zip` for desktop
-- `Single-RSC-v2.8.4.apk` for Android
+- `Single-RSC-v2.8.5.zip` for desktop
+- `Single-RSC-v2.8.5.apk` for Android
 
 The release does not include a standalone `rsc.jar` download. The desktop zip already contains the jar and launch scripts.
 
-### What's new in v2.8.4
+### What's new in v2.8.5
 
-- Ollama requests are serialized and use a bounded context so Single-RSC and Single RS 2012 can safely share one local model.
-- Ollama conversation saves and world-bot state writes now run away from the game loop.
-- Indexed bot, avatar, and combat-target lookups reduce work with large bot populations.
-- Removed forced garbage collections that could pause startup and map loading.
-- Specialized object plugins once again handle ladders instead of the generic object handler intercepting them.
+- A recoverable frame or input error no longer kills the client thread and leaves a frozen window.
+- Desktop client-loop failures are retained in `cache/client-errors.log` for diagnosis.
 
 ---
 
@@ -46,7 +43,7 @@ The goal is to make RuneScape Classic feel alive as a single-player game. The wo
 
 ## Single RS 2012 Comparison
 
-Current comparison: **Single RS 2012 v0.15.1** and **Single-RSC v2.8.4**.
+Current comparison: **Single RS 2012 v0.15.1** and **Single-RSC v2.8.5**.
 
 | Area | Single RS 2012 | Single-RSC |
 |---|---|---|
@@ -238,7 +235,7 @@ Requirements:
 Steps:
 
 ```bash
-unzip Single-RSC-v2.8.4.zip
+unzip Single-RSC-v2.8.5.zip
 cd Single-RSC
 ./run.sh
 ```
@@ -264,7 +261,7 @@ Create a new user and log in. Create a user named `root` if you want admin privi
 Install:
 
 ```text
-Single-RSC-v2.8.4.apk
+Single-RSC-v2.8.5.apk
 ```
 
 Player-controlled automation commands have been removed from both desktop and Android. Autonomous world bots are a desktop feature and do not control your character.

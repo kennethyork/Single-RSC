@@ -9,7 +9,10 @@ import java.awt.event.*;
 import java.awt.image.IndexColorModel;
 import java.awt.image.MemoryImageSource;
 import java.io.DataInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.PrintWriter;
+import java.time.Instant;
 
 public abstract class Shell extends Panel implements Runnable, MouseListener, MouseMotionListener, KeyListener {
     
@@ -43,6 +46,8 @@ public abstract class Shell extends Panel implements Runnable, MouseListener, Mo
     private Image imageLogo;
     private Graphics graphics;
     private Thread gameThread;
+    private String lastClientLoopFailure = "";
+    private long lastClientLoopFailureLog;
     
     protected MusicPlayer musicPlayer;
     protected Application application;
@@ -318,30 +323,66 @@ public abstract class Shell extends Panel implements Runnable, MouseListener, Mo
                         timings[j2] += sleep;
 
             }
-            int k2 = 0;
-            while (i1 < 256) {
-                handleInputs();
-                i1 += j;
-                if (++k2 > maxDrawTime) {
-                    i1 = 0;
-                    interlaceTimer += 6;
-                    if (interlaceTimer > 25) {
-                        interlaceTimer = 0;
-                        interlace = true;
+            try {
+                int k2 = 0;
+                while (i1 < 256) {
+                    handleInputs();
+                    i1 += j;
+                    if (++k2 > maxDrawTime) {
+                        i1 = 0;
+                        interlaceTimer += 6;
+                        if (interlaceTimer > 25) {
+                            interlaceTimer = 0;
+                            interlace = true;
+                        }
+                        break;
                     }
-                    break;
                 }
-            }
-            interlaceTimer--;
-            i1 &= 0xff;
-            if(!closing) {
-                draw();
+                interlaceTimer--;
+                i1 &= 0xff;
+                if(!closing) {
+                    draw();
+                }
+            } catch (RuntimeException | AssertionError failure) {
+                // A single malformed entity, menu entry, or render primitive must not
+                // permanently kill the client thread and leave an apparently live but
+                // frozen window. Drop the failed frame and retain a diagnostic on disk.
+                reportClientLoopFailure(failure);
+                i1 = 0;
+                try {
+                    Thread.sleep(100L);
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                }
             }
         }
         if(stopTimeout == -1) {
             closeProgram();
         }
         gameThread = null;
+    }
+
+    private void reportClientLoopFailure(Throwable failure) {
+        StackTraceElement[] trace = failure.getStackTrace();
+        String location = trace.length == 0 ? "unknown" : trace[0].toString();
+        String signature = failure.getClass().getName() + ":" + failure.getMessage() + "@" + location;
+        long now = System.currentTimeMillis();
+        if (signature.equals(lastClientLoopFailure) && now - lastClientLoopFailureLog < 5000L) {
+            return;
+        }
+        lastClientLoopFailure = signature;
+        lastClientLoopFailureLog = now;
+
+        System.err.println("[Client] Recovered from a failed frame; details saved to cache/client-errors.log");
+        failure.printStackTrace();
+        try (PrintWriter writer = new PrintWriter(new FileOutputStream(
+                Constants.CACHE_DIRECTORY + "client-errors.log", true))) {
+            writer.println("[" + Instant.now() + "] Recovered client-loop failure");
+            failure.printStackTrace(writer);
+            writer.println();
+        } catch (IOException logFailure) {
+            System.err.println("[Client] Could not write client-errors.log: " + logFailure.getMessage());
+        }
     }
 
     @Override

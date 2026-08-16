@@ -33,6 +33,8 @@ public abstract class Shell implements Runnable {
     /* variables */
     
     private Thread gameThread;
+    private String lastClientLoopFailure = "";
+    private long lastClientLoopFailureLog;
     
     protected MusicPlayer musicPlayer;
     
@@ -179,30 +181,54 @@ public abstract class Shell implements Runnable {
                     if (timings[j2] != 0L)
                         timings[j2] += sleep;
             }
-            int k2 = 0;
-            while (i1 < 256) {
-                handleInputs();
-                i1 += j;
-                if (++k2 > maxDrawTime) {
-                    i1 = 0;
-                    interlaceTimer += 6;
-                    if (interlaceTimer > 25) {
-                        interlaceTimer = 0;
-                        interlace = true;
+            try {
+                int k2 = 0;
+                while (i1 < 256) {
+                    handleInputs();
+                    i1 += j;
+                    if (++k2 > maxDrawTime) {
+                        i1 = 0;
+                        interlaceTimer += 6;
+                        if (interlaceTimer > 25) {
+                            interlaceTimer = 0;
+                            interlace = true;
+                        }
+                        break;
                     }
-                    break;
                 }
-            }
-            interlaceTimer--;
-            i1 &= 0xff;
-            if(!closing) {
-                draw();
+                interlaceTimer--;
+                i1 &= 0xff;
+                if(!closing) {
+                    draw();
+                }
+            } catch (RuntimeException | AssertionError failure) {
+                reportClientLoopFailure(failure);
+                i1 = 0;
+                try {
+                    Thread.sleep(100L);
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                }
             }
         }
         if(stopTimeout == -1) {
             closeProgram();
         }
         gameThread = null;
+    }
+
+    private void reportClientLoopFailure(Throwable failure) {
+        StackTraceElement[] trace = failure.getStackTrace();
+        String location = trace.length == 0 ? "unknown" : trace[0].toString();
+        String signature = failure.getClass().getName() + ":" + failure.getMessage() + "@" + location;
+        long now = System.currentTimeMillis();
+        if (signature.equals(lastClientLoopFailure) && now - lastClientLoopFailureLog < 5000L) {
+            return;
+        }
+        lastClientLoopFailure = signature;
+        lastClientLoopFailureLog = now;
+        System.err.println("[Client] Recovered from a failed frame");
+        failure.printStackTrace();
     }
 
     private void loadJagex() {
