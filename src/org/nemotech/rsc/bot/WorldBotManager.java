@@ -3,6 +3,9 @@ package org.nemotech.rsc.bot;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.ArrayDeque;
 import java.util.Collections;
@@ -14,7 +17,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Random;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.nemotech.rsc.Constants;
 import org.nemotech.rsc.client.action.impl.NPCHandler;
@@ -115,6 +124,9 @@ public final class WorldBotManager {
     private static WorldBotManager instance;
 
     private final List<WorldBot> bots = new ArrayList<>();
+    private final Map<Mob, WorldBot> botsByMob = new ConcurrentHashMap<>();
+    private final Map<Integer, WorldBot> botsByServerIndex = new ConcurrentHashMap<>();
+    private final Set<NPC> targetedMonsters = ConcurrentHashMap.newKeySet();
     private final Random random = new Random();
     private final Config config = new Config();
     private DelayedEvent tickEvent;
@@ -134,6 +146,13 @@ public final class WorldBotManager {
     private long nextPopulationChatAt;
     private long nextEventChatAt;
     private long lastOllamaNoticeAt;
+    private final ExecutorService stateSaveExecutor = Executors.newSingleThreadExecutor(task -> {
+        Thread thread = new Thread(task, "world-bot-state-writer");
+        thread.setDaemon(true);
+        return thread;
+    });
+    private final AtomicReference<Properties> pendingStateSave = new AtomicReference<>();
+    private final AtomicBoolean stateSaveScheduled = new AtomicBoolean(false);
 
     private WorldBotManager() {}
 
@@ -156,14 +175,17 @@ public final class WorldBotManager {
         loadConfig();
         configureOllama();
         stopBots();
+        awaitStateSaves();
         running = true;
         int safeCount = Math.max(1, Math.min(count, config.maxCount));
         autoGroups.clear();
         for (int i = 0; i < safeCount; i++) {
-            bots.add(createBot(i));
+            WorldBot bot = createBot(i);
+            bots.add(bot);
+            botsByServerIndex.put(bot.playerServerIndex, bot);
         }
         loadState();
-        enforceOnlineLimit();
+        materializeOnlineBots();
         lastStateSave = System.currentTimeMillis();
         decisionCursor = 0;
         movementCursor = 0;
@@ -210,6 +232,9 @@ public final class WorldBotManager {
         }
         autoGroups.clear();
         bots.clear();
+        botsByMob.clear();
+        botsByServerIndex.clear();
+        targetedMonsters.clear();
         running = false;
     }
 
@@ -261,6 +286,30 @@ public final class WorldBotManager {
             bot.online = false;
             bot.activity = "offline";
             bot.nextSessionChangeAt = System.currentTimeMillis() + bot.offlineDuration();
+        }
+    }
+
+    private void materializeOnlineBots() {
+        List<WorldBot> requestedOnline = new ArrayList<>();
+        for (WorldBot bot : bots) {
+            if (bot.active && bot.online) {
+                requestedOnline.add(bot);
+            }
+        }
+        Collections.shuffle(requestedOnline, random);
+        int onlineCount = 0;
+        for (WorldBot bot : requestedOnline) {
+            if (onlineCount < config.onlineLimit) {
+                if (bot.npc == null || bot.npc.isRemoved()) {
+                    bot.spawn(bot.currentSpawnArea());
+                }
+                bot.scheduleLogout();
+                onlineCount++;
+            } else {
+                bot.online = false;
+                bot.activity = "offline";
+                bot.nextSessionChangeAt = System.currentTimeMillis() + bot.offlineDuration();
+            }
         }
     }
 
@@ -889,18 +938,17 @@ public final class WorldBotManager {
     }
 
     public synchronized boolean tradeWithBotPlayer(Player player, int serverIndex) {
-        for (WorldBot bot : bots) {
-            if (bot.playerServerIndex != serverIndex || !bot.active || !bot.online
-                    || bot.npc == null || bot.npc.isRemoved()) continue;
-            if (!bot.canTrade()) {
-                player.getSender().sendMessage("@cya@[WorldBots] @whi@" + bot.name
-                        + " has nothing useful to sell.");
-                return true;
-            }
-            openMarketplace(player, bot);
+        WorldBot bot = botsByServerIndex.get(serverIndex);
+        if (bot == null || !bot.active || !bot.online || bot.npc == null || bot.npc.isRemoved()) {
+            return false;
+        }
+        if (!bot.canTrade()) {
+            player.getSender().sendMessage("@cya@[WorldBots] @whi@" + bot.name
+                    + " has nothing useful to sell.");
             return true;
         }
-        return false;
+        openMarketplace(player, bot);
+        return true;
     }
 
     private void openMarketplace(final Player player, final WorldBot bot) {
@@ -1073,50 +1121,32 @@ public final class WorldBotManager {
     }
 
     public synchronized boolean isWorldBotNpc(NPC npc) {
-        for (WorldBot bot : bots) {
-            if (bot.npc == npc) {
-                return true;
-            }
-        }
-        return false;
+        return botsByMob.containsKey(npc);
     }
 
     public synchronized int getNpcIndexForServerIndex(int serverIndex) {
-        for (WorldBot bot : bots) {
-            if (bot.snapshot().serverIndex == serverIndex && bot.npc instanceof NPC) {
-                return bot.npc.getIndex();
-            }
-        }
-        return -1;
+        WorldBot bot = botsByServerIndex.get(serverIndex);
+        return bot != null && bot.npc instanceof NPC && !bot.npc.isRemoved() ? bot.npc.getIndex() : -1;
     }
 
     public synchronized String getNameForServerIndex(int serverIndex) {
-        for (WorldBot bot : bots) {
-            if (bot.snapshot().serverIndex == serverIndex) {
-                return bot.name;
-            }
-        }
-        return null;
+        WorldBot bot = botsByServerIndex.get(serverIndex);
+        return bot == null ? null : bot.name;
     }
 
     public synchronized String followBot(Player player, int serverIndex) {
-        for (WorldBot bot : bots) {
-            if (bot.playerServerIndex == serverIndex && bot.active && bot.online
-                    && bot.npc != null && !bot.npc.isRemoved()) {
-                player.reset();
-                player.setFollowing(bot.npc, 1);
-                return bot.name;
-            }
+        WorldBot bot = botsByServerIndex.get(serverIndex);
+        if (bot != null && bot.active && bot.online && bot.npc != null && !bot.npc.isRemoved()) {
+            player.reset();
+            player.setFollowing(bot.npc, 1);
+            return bot.name;
         }
         return null;
     }
 
     public synchronized String toggleGroupBot(Player player, int serverIndex) {
-        for (WorldBot bot : bots) {
-            if (bot.playerServerIndex != serverIndex || !bot.active || !bot.online
-                    || bot.npc == null || bot.npc.isRemoved()) {
-                continue;
-            }
+        WorldBot bot = botsByServerIndex.get(serverIndex);
+        if (bot != null && bot.active && bot.online && bot.npc != null && !bot.npc.isRemoved()) {
             if (!bot.npc.getLocation().withinRange(player.getLocation(), 20)) {
                 return bot.name + " is too far away to group.";
             }
@@ -1141,12 +1171,10 @@ public final class WorldBotManager {
     }
 
     public synchronized boolean inspectBot(Player player, int serverIndex) {
-        for (WorldBot bot : bots) {
-            if (bot.playerServerIndex == serverIndex && bot.active && bot.online
-                    && bot.npc != null && !bot.npc.isRemoved()) {
-                showBotInspection(player, bot);
-                return true;
-            }
+        WorldBot bot = botsByServerIndex.get(serverIndex);
+        if (bot != null && bot.active && bot.online && bot.npc != null && !bot.npc.isRemoved()) {
+            showBotInspection(player, bot);
+            return true;
         }
         return false;
     }
@@ -1178,21 +1206,11 @@ public final class WorldBotManager {
     }
 
     private WorldBot findBot(NPC npc) {
-        for (WorldBot bot : bots) {
-            if (bot.npc == npc) {
-                return bot;
-            }
-        }
-        return null;
+        return botsByMob.get(npc);
     }
 
     private boolean isMonsterTargeted(NPC npc) {
-        for (WorldBot bot : bots) {
-            if (bot.pvmTarget == npc) {
-                return true;
-            }
-        }
-        return false;
+        return targetedMonsters.contains(npc);
     }
 
     private void scheduleRespawn(final WorldBot bot) {
@@ -1319,9 +1337,7 @@ public final class WorldBotManager {
         SkillingSite skillingSite = role == Role.GATHERER
                 ? SkillingSite.forBot(index, personality.startLevel) : null;
         BotArea area = skillingSite == null ? role.areaFor(index) : skillingSite.area;
-        WorldBot bot = new WorldBot(index, role, null, area, personality, skillingSite);
-        bot.spawn(area);
-        return bot;
+        return new WorldBot(index, role, null, area, personality, skillingSite);
     }
 
     private void updateWorldEvent() {
@@ -1563,6 +1579,7 @@ public final class WorldBotManager {
         if (bots.isEmpty()) {
             return;
         }
+        long snapshotStarted = System.nanoTime();
         Properties properties = new Properties();
         for (int i = 0; i < bots.size(); i++) {
             WorldBot bot = bots.get(i);
@@ -1611,19 +1628,71 @@ public final class WorldBotManager {
             properties.setProperty(prefix + "members", group.memberNames());
             properties.setProperty(prefix + "size", String.valueOf(group.onlineMembers()));
         }
+        lastStateSave = System.currentTimeMillis();
+        pendingStateSave.set(properties);
+        scheduleStateSave();
+        long elapsedMillis = (System.nanoTime() - snapshotStarted) / 1_000_000L;
+        if (elapsedMillis >= 25L) {
+            System.err.println("[Performance] World-bot state snapshot took " + elapsedMillis + " ms");
+        }
+    }
+
+    private void scheduleStateSave() {
+        if (stateSaveScheduled.compareAndSet(false, true)) {
+            stateSaveExecutor.execute(this::drainStateSaves);
+        }
+    }
+
+    private void awaitStateSaves() {
+        try {
+            do {
+                stateSaveExecutor.submit(() -> { }).get();
+            } while (stateSaveScheduled.get() || pendingStateSave.get() != null);
+        } catch (Exception e) {
+            System.err.println("[WorldBots] Could not wait for the previous state save: " + e.getMessage());
+        }
+    }
+
+    private void drainStateSaves() {
+        try {
+            Properties properties;
+            while ((properties = pendingStateSave.getAndSet(null)) != null) {
+                writeState(properties);
+            }
+        } finally {
+            stateSaveScheduled.set(false);
+            if (pendingStateSave.get() != null) {
+                scheduleStateSave();
+            }
+        }
+    }
+
+    private void writeState(Properties properties) {
+        long started = System.nanoTime();
         try {
             File file = new File(STATE_FILE);
             File parent = file.getParentFile();
             if (parent != null) {
                 parent.mkdirs();
             }
-            try (FileOutputStream out = new FileOutputStream(file)) {
+            File temporary = new File(parent == null ? new File(".") : parent, file.getName() + ".tmp");
+            try (FileOutputStream out = new FileOutputStream(temporary)) {
                 properties.store(out, "Single-RSC autonomous world bot state");
             }
-            lastStateSave = System.currentTimeMillis();
+            try {
+                Files.move(temporary.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING,
+                        StandardCopyOption.ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException e) {
+                Files.move(temporary.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            }
             HighscoresExporter.requestExport();
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("[WorldBots] Could not save state: " + e.getMessage());
+        } finally {
+            long elapsedMillis = (System.nanoTime() - started) / 1_000_000L;
+            if (elapsedMillis >= 25L) {
+                System.err.println("[Performance] World-bot state write took " + elapsedMillis + " ms (background)");
+            }
         }
     }
 
@@ -2236,6 +2305,7 @@ public final class WorldBotManager {
                 return true;
             }
             pvmTarget = nearest;
+            targetedMonsters.add(nearest);
             pvmFightStartedAt = now;
             pvmNextHitAt = now;
             pvmHits = pvpMaxHits();
@@ -2359,6 +2429,9 @@ public final class WorldBotManager {
         }
 
         private void endMonsterCombat(NPC target, CombatState botState) {
+            if (target != null) {
+                targetedMonsters.remove(target);
+            }
             pvmTarget = null;
             pvmHits = 0;
             pvmLastDamage = 0;
@@ -4204,6 +4277,9 @@ public final class WorldBotManager {
         }
 
         private void spawn(BotArea spawnArea) {
+            if (npc != null) {
+                botsByMob.remove(npc);
+            }
             Point spawnPoint = spawnArea.randomWalkablePoint(random);
             if (role == Role.WILDERNESS) {
                 NPC wildernessNpc = new NPC(WILDERNESS_NPC, spawnPoint.getX(), spawnPoint.getY(),
@@ -4222,6 +4298,7 @@ public final class WorldBotManager {
                 npc = playerAvatar;
                 World.getWorld().registerHeadlessPlayer(playerAvatar);
             }
+            botsByMob.put(npc, this);
             area = spawnArea;
         }
 
@@ -4283,6 +4360,11 @@ public final class WorldBotManager {
 
         private void unregisterAvatar() {
             if (npc == null || npc.isRemoved()) return;
+            botsByMob.remove(npc);
+            if (pvmTarget != null) {
+                targetedMonsters.remove(pvmTarget);
+                pvmTarget = null;
+            }
             if (npc instanceof Player) World.getWorld().unregisterHeadlessPlayer((Player) npc);
             else World.getWorld().unregisterNpc((NPC) npc);
         }

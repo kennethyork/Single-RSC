@@ -3,3 +3,5 @@ cache/highscores-export.json
 docs/highscores.json
 cache/ollama-conversations.json
 cache/ollama-model.properties
+cache/worldbots.properties
+cache/worldbots_state.properties

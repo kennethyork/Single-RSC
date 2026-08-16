@@ -8,6 +8,8 @@ import java.util.Iterator;
 import org.nemotech.rsc.event.DelayedEvent;
 
 public final class DelayedEventHandler {
+
+    private static final long SLOW_EVENT_MILLIS = 25L;
     
     private static World world = World.getWorld();
     private ArrayList<DelayedEvent> toAdd = new ArrayList<>();
@@ -70,7 +72,7 @@ public final class DelayedEventHandler {
                 } finally {
                     event.updateLastRun();
                     long elapsedMillis = (System.nanoTime() - started) / 1_000_000L;
-                    if(elapsedMillis >= 100L) {
+                    if(elapsedMillis >= SLOW_EVENT_MILLIS) {
                         Object identifier = event.getIdentifier();
                         String name = identifier == null ? event.getClass().getName() : identifier.toString();
                         System.err.println("[Performance] Slow event " + name + " took " + elapsedMillis + " ms");

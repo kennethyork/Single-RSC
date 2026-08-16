@@ -25,9 +25,6 @@ public class GeneralObjects extends Plugin implements ObjectActionListener, Obje
         if (name.contains("gate")) {
             return true;
         }
-        if (name.contains("ladder")) {
-            return true;
-        }
         if (name.contains("stair")) {
             return true;
         }
@@ -39,7 +36,7 @@ public class GeneralObjects extends Plugin implements ObjectActionListener, Obje
         }
         
         switch (id) {
-            case 7: case 159: case 250: case 271: case 295:
+            case 295:
                 return true;
             default:
                 return false;
@@ -53,11 +50,6 @@ public class GeneralObjects extends Plugin implements ObjectActionListener, Obje
         
         if (name.contains("sign") || name.contains("signpost")) {
             handleSign(obj, player);
-            return;
-        }
-        
-        if (name.contains("ladder")) {
-            handleLadder(obj, player);
             return;
         }
         
@@ -77,10 +69,6 @@ public class GeneralObjects extends Plugin implements ObjectActionListener, Obje
         }
         
         switch (id) {
-            case 7: handleLadder(obj, player); break;
-            case 159: handleLadder(obj, player); break;
-            case 250: handleLadder(obj, player); break;
-            case 271: handleLadder(obj, player); break;
             default:
                 player.message("Nothing interesting happens");
         }
@@ -238,53 +226,6 @@ public class GeneralObjects extends Plugin implements ObjectActionListener, Obje
                 
             default:
                 player.message("A sign");
-                return;
-        }
-    }
-
-    private void handleLadder(GameObject obj, Player player) {
-        int id = obj.getID();
-        int x = obj.getX();
-        int y = obj.getY();
-        
-        switch (id) {
-            case 6:
-            case 7:
-                if (x == 216 && y == 3107) {
-                    player.message("You climb up the ladder");
-                    player.teleport(216, 3108);
-                    return;
-                }
-                if (x == 216 && y == 3108) {
-                    player.message("You climb down the ladder");
-                    player.teleport(216, 3107);
-                    return;
-                }
-                if (x == 309 && y == 3432) {
-                    player.message("You climb up the ladder");
-                    player.teleport(309, 3433);
-                    return;
-                }
-                player.message("You climb the ladder");
-                return;
-                
-            case 159:
-                player.message("You climb up the emergency escape ladder");
-                player.teleport(x, y - 5);
-                return;
-                
-            case 250:
-                player.message("You climb the ladder");
-                player.teleport(x, y - 3);
-                return;
-                
-            case 271:
-                player.message("You climb the ladder");
-                player.teleport(x, y - 4);
-                return;
-                
-            default:
-                player.message("You climb the ladder");
                 return;
         }
     }

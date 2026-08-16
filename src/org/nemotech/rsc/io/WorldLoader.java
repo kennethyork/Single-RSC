@@ -116,8 +116,6 @@ public class WorldLoader {
         }
         loadGrandExchangeClerks(world);
         WorldBotManager.getInstance().startDefaultBots();
-        
-        System.gc();
     }
 
     private void loadGrandExchangeClerks(World world) {

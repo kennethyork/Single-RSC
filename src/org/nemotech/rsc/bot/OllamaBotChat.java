@@ -23,6 +23,11 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.regex.Pattern;
@@ -42,7 +47,13 @@ public final class OllamaBotChat {
     private static final String HISTORY_FILE = Constants.CACHE_DIRECTORY + "ollama-conversations.json";
     private static final String MODEL_FILE = Constants.CACHE_DIRECTORY + "ollama-model.properties";
     private static final int MAX_SAVED_CONVERSATIONS = 500;
-    private static final int MAX_GLOBAL_QUEUE = 64;
+    private static final int MAX_GLOBAL_QUEUE = 32;
+    // A second local game may be using the same Ollama model. Serializing RSC's
+    // requests prevents parallel contexts from exhausting RAM/VRAM and freezing
+    // the game while still letting Ollama share the loaded model between games.
+    private static final int MAX_CONCURRENT_REQUESTS = 1;
+    private static final int OLLAMA_CONTEXT_TOKENS = 2048;
+    private static final long HISTORY_SAVE_DEBOUNCE_MILLIS = 2000L;
     private static final Pattern MODEL_NAME = Pattern.compile(
             "[A-Za-z0-9][A-Za-z0-9._/-]{0,98}(?::[A-Za-z0-9][A-Za-z0-9._-]{0,98})?");
     private static final String[] SUGGESTED_MODELS = {
@@ -57,6 +68,15 @@ public final class OllamaBotChat {
     private final Map<String, Deque<Turn>> histories = new ConcurrentHashMap<>();
     private final Map<String, ConcurrentLinkedQueue<PendingReply>> queues = new ConcurrentHashMap<>();
     private final java.util.Set<String> activeConversations = ConcurrentHashMap.newKeySet();
+    private final java.util.Set<String> waitingConversations = ConcurrentHashMap.newKeySet();
+    private final Semaphore requestSlots = new Semaphore(MAX_CONCURRENT_REQUESTS);
+    private final ScheduledExecutorService maintenanceExecutor = Executors.newSingleThreadScheduledExecutor(task -> {
+        Thread thread = new Thread(task, "ollama-bot-maintenance");
+        thread.setDaemon(true);
+        return thread;
+    });
+    private final AtomicBoolean historySaveScheduled = new AtomicBoolean(false);
+    private final AtomicBoolean historyDirty = new AtomicBoolean(false);
     private final AtomicLong unavailableUntil = new AtomicLong();
     private final AtomicLong lastFailureLog = new AtomicLong();
     private final AtomicLong lastSuccessfulResponse = new AtomicLong();
@@ -156,7 +176,7 @@ public final class OllamaBotChat {
         List<String> keys = new ArrayList<>();
         for (String key : histories.keySet()) if (key.contains(marker)) keys.add(key);
         for (String key : keys) histories.remove(key);
-        persistHistories();
+        requestPersistHistories();
         return keys.size();
     }
 
@@ -199,10 +219,21 @@ public final class OllamaBotChat {
 
     private void startNext(String key) {
         if (!activeConversations.add(key)) return;
+        if (!requestSlots.tryAcquire()) {
+            activeConversations.remove(key);
+            if (waitingConversations.add(key)) {
+                maintenanceExecutor.schedule(() -> {
+                    waitingConversations.remove(key);
+                    startNext(key);
+                }, 250L, TimeUnit.MILLISECONDS);
+            }
+            return;
+        }
         PendingReply pending = queues.get(key) == null ? null : queues.get(key).poll();
         if (pending == null) {
             activeConversations.remove(key);
             queues.remove(key);
+            requestSlots.release();
             return;
         }
         execute(key, pending);
@@ -230,7 +261,9 @@ public final class OllamaBotChat {
         JsonObject options = new JsonObject();
         options.addProperty("temperature", 0.8);
         options.addProperty("num_predict", 45);
+        options.addProperty("num_ctx", OLLAMA_CONTEXT_TOKENS);
         body.add("options", options);
+        body.addProperty("keep_alive", "5m");
 
         HttpRequest request;
         try {
@@ -264,14 +297,18 @@ public final class OllamaBotChat {
                 trim(history);
             }
         }
-        if (generated != null) {
-            persistHistories();
-            if (pending.deliver != null) pending.deliver.accept(generated);
-        } else if (pending.unavailable != null) {
-            pending.unavailable.run();
+        try {
+            if (generated != null) {
+                requestPersistHistories();
+                if (pending.deliver != null) pending.deliver.accept(generated);
+            } else if (pending.unavailable != null) {
+                pending.unavailable.run();
+            }
+        } finally {
+            activeConversations.remove(key);
+            requestSlots.release();
+            startNext(key);
         }
-        activeConversations.remove(key);
-        startNext(key);
     }
 
     private String systemPrompt(PendingReply pending) {
@@ -416,6 +453,27 @@ public final class OllamaBotChat {
             writeAtomic(HISTORY_FILE, gson.toJson(snapshot));
         } catch (Exception e) {
             System.err.println("[Ollama] Could not save conversation memory: " + e.getMessage());
+        }
+    }
+
+    private void requestPersistHistories() {
+        if (!settings.persistHistory) return;
+        historyDirty.set(true);
+        if (historySaveScheduled.compareAndSet(false, true)) {
+            maintenanceExecutor.schedule(this::flushHistories,
+                    HISTORY_SAVE_DEBOUNCE_MILLIS, TimeUnit.MILLISECONDS);
+        }
+    }
+
+    private void flushHistories() {
+        try {
+            historyDirty.set(false);
+            persistHistories();
+        } finally {
+            historySaveScheduled.set(false);
+            if (historyDirty.get()) {
+                requestPersistHistories();
+            }
         }
     }
 

@@ -408,7 +408,6 @@ public class Terrain {
                 roofModels[k][i] = null;
             }
         }
-        System.gc();
     }
 
     public void method407(int i, int j, int k, int l) {
